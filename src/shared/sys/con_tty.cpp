@@ -25,12 +25,51 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "sys_local.h"
 #include "con_local.h"
 
+#ifndef VITA
 #include <unistd.h>
 #include <signal.h>
 #include <termios.h>
 #include <fcntl.h>
 #include <sys/time.h>
+#endif
 
+#ifdef VITA
+/*
+==================
+CON_Shutdown
+==================
+*/
+void CON_Shutdown(void) {
+}
+
+/*
+==================
+CON_Init
+==================
+*/
+void CON_Init(void) {
+}
+
+/*
+==================
+CON_Input
+==================
+*/
+char *CON_Input(void) {
+    return NULL;
+}
+
+/*
+==================
+CON_Print
+==================
+*/
+void CON_Print(const char *msg) {
+#if 1
+    printf(msg);
+#endif
+}
+#else
 /*
 =============================================================
 tty console routines
@@ -533,3 +572,4 @@ void CON_Print( const char *msg )
 		ttycon_show_overdue++;
 	}
 }
+#endif
