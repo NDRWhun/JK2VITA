@@ -633,6 +633,9 @@ void InitGame(  const char *mapname, const char *spawntarget, int checkSum, cons
 
 	G_InitMemory();
 
+	// roff cache points into the pool G_InitMemory just freed
+	G_ResetRoffs();
+
 	// set some level globals
 	memset( &level, 0, sizeof( level ) );
 	level.time = levelTime;
@@ -681,9 +684,7 @@ void InitGame(  const char *mapname, const char *spawntarget, int checkSum, cons
 	Interface_Init( &interface_export );
 	ICARUS_Init();
 
-	// stop_icarus stays qtrue after a player-death reload because we don't reload a game DLL
-	// (single static ELF), so every script stays frozen - trams/doors/objectives never fire.
-	// Reset it here.
+	// stays qtrue across a death-reload on the single-ELF build, freezing every script
 	stop_icarus = qfalse;
 
 	gi.Printf ("-----------------------------------\n");

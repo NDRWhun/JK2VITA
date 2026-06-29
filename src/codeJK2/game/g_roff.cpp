@@ -33,6 +33,22 @@ int			num_roffs = 0;
 
 extern void	Q3_TaskIDComplete( gentity_t *ent, taskID_t taskType );
 
+// The cache persists across reloads on the single-ELF build, but its data is freed with the
+// game pool every level. Clear it (and the leaked notetrack allocs) so nothing stale is reused.
+void G_ResetRoffs( void )
+{
+	for ( int i = 0; i < num_roffs; i++ )
+	{
+		if ( roffs[i].mNoteTrackIndexes )
+		{
+			delete [] roffs[i].mNoteTrackIndexes[0];
+			delete [] roffs[i].mNoteTrackIndexes;
+		}
+	}
+	memset( roffs, 0, sizeof( roffs ) );
+	num_roffs = 0;
+}
+
 void G_RoffNotetrackCallback( gentity_t *cent, const char *notetrack)
 {
 	int i = 0, r = 0, r2 = 0, objectID = 0, anglesGathered = 0, posoffsetGathered = 0;

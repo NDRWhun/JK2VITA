@@ -103,6 +103,7 @@ extern int num_roffs;
 // Function prototypes
 //-------------------------
 int		G_LoadRoff( const char *fileName );
+void	G_ResetRoffs( void );
 void	G_Roff( gentity_t *ent );
 void	G_SaveCachedRoffs();
 void	G_LoadCachedRoffs();
