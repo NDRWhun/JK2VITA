@@ -1613,6 +1613,22 @@ void SP_NPC_spawner( gentity_t *self)
 	//We have to load the animation.cfg now because spawnscripts are going to want to set anims and we need to know their length and if they're valid
 	NPC_PrecacheAnimationCFG( self->NPC_type );
 
+#ifdef VITA
+	// optionally precache this NPC's assets at level load so a triggered/scripted spawn
+	// doesn't hitch the first frame loading them. NPC_Precache() was dead code ("not anymore").
+	// off by default - skin precache burns VRAM and we're tight on Vita; watch the VRAM bar
+	// before turning g_npcPrecache on.
+	{
+		extern void NPC_Precache( gentity_t *spawner );
+		static cvar_t *jk2v_npcPrecache = NULL;
+		if ( !jk2v_npcPrecache ) jk2v_npcPrecache = gi.cvar( "g_npcPrecache", "0", CVAR_ARCHIVE );
+		if ( jk2v_npcPrecache && jk2v_npcPrecache->integer && self->NPC_type && self->NPC_type[0] )
+		{
+			NPC_Precache( self );
+		}
+	}
+#endif
+
 	if ( self->targetname )
 	{//Wait for triggering
 		self->e_UseFunc = useF_NPC_Spawn;
