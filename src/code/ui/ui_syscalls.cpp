@@ -137,6 +137,9 @@ void trap_GetGlconfig( glconfig_t *glconfig )
 	CL_GetGlconfig( glconfig );
 }
 
+// Static Vita build: cgame already defines these identical trap_CIN_* wrappers
+// (both just call the engine's CIN_*); link cgame's to avoid a duplicate symbol.
+#ifndef VITA
 // this returns a handle.  arg0 is the name in the format "idlogo.roq", set arg1 to NULL, alteredstates to qfalse (do not alter gamestate)
 int trap_CIN_PlayCinematic( const char *arg0, int xpos, int ypos, int width, int height, int bits, const char *psAudioFile) {
 //  return syscall(UI_CIN_PLAYCINEMATIC, arg0, xpos, ypos, width, height, bits, psAudioFile);
@@ -150,4 +153,5 @@ int trap_CIN_StopCinematic(int handle)
 //  return syscall(UI_CIN_STOPCINEMATIC, handle);
 	return CIN_StopCinematic(handle);
 }
+#endif // !VITA
 

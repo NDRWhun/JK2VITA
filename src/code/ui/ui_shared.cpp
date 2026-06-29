@@ -34,7 +34,13 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #define UI_SHARED_CPP
 
 #include "../game/anims.h"
+#ifdef VITA
+// Static build: cgame (cg_players.cpp) already defines animTable from codeJK2;
+// reference it rather than emitting a second definition here.
+extern stringID_table_t animTable[MAX_ANIMATIONS+1];
+#else
 #include "../cgame/animtable.h"
+#endif
 
 #include "ui_shared.h"
 #include "menudef.h"
