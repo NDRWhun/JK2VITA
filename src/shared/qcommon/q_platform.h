@@ -118,7 +118,12 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 // Linux
 #elif defined(__linux__) || defined(__FreeBSD_kernel__)
 
-	#include <endian.h>
+	#if defined(VITA)
+		// PS Vita (newlib) has <machine/endian.h>, not glibc's <endian.h>.
+		#include <machine/endian.h>
+	#else
+		#include <endian.h>
+	#endif
 
 	#if defined(__linux__)
 		#define OS_STRING "linux"
@@ -138,7 +143,10 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 		#define idx64
 	#endif
 
-	#if __FLOAT_WORD_ORDER == __BIG_ENDIAN
+	#if defined(VITA)
+		// Vita is always armv7 little-endian.
+		#define Q3_LITTLE_ENDIAN
+	#elif __FLOAT_WORD_ORDER == __BIG_ENDIAN
 		#define Q3_BIG_ENDIAN
 	#else
 		#define Q3_LITTLE_ENDIAN
