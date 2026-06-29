@@ -885,6 +885,10 @@ SV_InitGameProgs
 Init the game subsystem for a new map
 ===============
 */
+#ifdef VITA
+// Statically-linked game entry point (no dynamic loading on the Vita).
+extern "C" game_export_t* QDECL GetGameAPI( game_import_t *import );
+#endif
 void SV_InitGameProgs (void) {
 	game_import_t	import;
 	int				i;
@@ -1054,12 +1058,20 @@ void SV_InitGameProgs (void) {
 	const char *gamename = "jagame";
 #endif
 
+#ifdef VITA
+	// Game module is statically linked into the binary; call its GetGameAPI
+	// export directly (the Vita has no dynamic loading; decl at file scope).
+	(void)gamename;
+	gameLibrary = NULL;
+	ge = (game_export_t *)GetGameAPI( &import );
+#else
 	GetGameAPIProc *GetGameAPI;
 	gameLibrary = Sys_LoadSPGameDll( gamename, &GetGameAPI );
 	if ( !gameLibrary )
 		Com_Error( ERR_DROP, "Failed to load %s library", gamename );
 
 	ge = (game_export_t *)GetGameAPI( &import );
+#endif
 	if (!ge)
 	{
 		Sys_UnloadDll( gameLibrary );
