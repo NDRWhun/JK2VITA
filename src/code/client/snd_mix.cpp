@@ -27,6 +27,10 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 #include "snd_local.h"
 
+#if defined(__ARM_NEON)
+#include <arm_neon.h>		// NEON path for the 16-bit channel mix
+#endif
+
 portable_samplepair_t paintbuffer[PAINTBUFFER_SIZE];
 int 	*snd_p, snd_linear_count, snd_vol;
 short	*snd_out;
@@ -179,9 +183,26 @@ static void S_PaintChannelFrom16( channel_t *ch, const sfx_t *sfx, int count, in
 
 	pSamplesDest	= &paintbuffer[ bufferOffset ];
 
-	for ( int i=0 ; i<count ; i++ )
+	int i = 0;
+#if defined(__ARM_NEON)
+	// 4 samples/iter, bit-exact with the scalar tail; leftovers fall through to it
 	{
-		iData = sfx->pSoundData[ sampleOffset++ ];
+		const short *src = &sfx->pSoundData[ sampleOffset ];
+		for ( ; i+4 <= count; i += 4 )
+		{
+			int32x4_t d   = vmovl_s16( vld1_s16( src + i ) );
+			int32x4_t l   = vshrq_n_s32( vmulq_n_s32( d, iLeftVol ),  8 );
+			int32x4_t r   = vshrq_n_s32( vmulq_n_s32( d, iRightVol ), 8 );
+			int32x4x2_t cur = vld2q_s32( (int32_t*)&pSamplesDest[i] );
+			cur.val[0] = vaddq_s32( cur.val[0], l );
+			cur.val[1] = vaddq_s32( cur.val[1], r );
+			vst2q_s32( (int32_t*)&pSamplesDest[i], cur );
+		}
+	}
+#endif
+	for ( ; i<count ; i++ )
+	{
+		iData = sfx->pSoundData[ sampleOffset + i ];
 
 		pSamplesDest[i].left  += (iData * iLeftVol )>>8;
 		pSamplesDest[i].right += (iData * iRightVol)>>8;
