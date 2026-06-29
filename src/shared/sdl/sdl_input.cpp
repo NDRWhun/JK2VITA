@@ -25,6 +25,11 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "client/client.h"
 #include "sys/sys_local.h"
 
+#ifdef VITA
+#include <psp2/touch.h>		// rear touch panel -> A_AUX combo zones
+static cvar_t *vita_rearTouch = NULL;
+#endif
+
 static cvar_t *in_keyboardDebug     = NULL;
 
 static SDL_Joystick *stick = NULL;
@@ -584,7 +589,15 @@ static void IN_InitJoystick( void )
 	if( in_joystickNo->integer < 0 || in_joystickNo->integer >= total )
 		Cvar_Set( "in_joystickNo", "0" );
 
+#ifdef VITA
+	// The Vita dual-stick handler (CL_JoystickMove) needs the raw analog axes,
+	// which are only delivered when this is on. Force it regardless of cfg.
+	in_joystickUseAnalog = Cvar_Get( "in_joystickUseAnalog", "1", CVAR_ARCHIVE_ND );
+	Cvar_Set( "in_joystickUseAnalog", "1" );
+	in_joystickUseAnalog->integer = 1;
+#else
 	in_joystickUseAnalog = Cvar_Get( "in_joystickUseAnalog", "0", CVAR_ARCHIVE_ND );
+#endif
 
 	in_joystickThreshold = Cvar_Get( "joy_threshold", "0.15", CVAR_ARCHIVE_ND );
 
@@ -623,12 +636,26 @@ void IN_Init( void *windowData )
 	in_keyboardDebug = Cvar_Get( "in_keyboardDebug", "0", CVAR_ARCHIVE_ND );
 
 	in_joystick = Cvar_Get( "in_joystick", "0", CVAR_ARCHIVE_ND|CVAR_LATCH );
+#ifdef VITA
+	// The Vita's pad is the only input device, so the joystick must be enabled
+	// (IN_InitJoystick bails when in_joystick is 0). Force it on regardless of
+	// any value persisted in the device cfg.
+	Cvar_Set( "in_joystick", "1" );
+	in_joystick->integer = 1;
+	in_joystick->value = 1;
+#endif
 
 	// mouse variables
 	in_mouse = Cvar_Get( "in_mouse", "1", CVAR_ARCHIVE );
 	in_nograb = Cvar_Get( "in_nograb", "0", CVAR_ARCHIVE_ND );
 
+#ifndef VITA
+	// On the Vita, SDL2-vitagl responds to SDL_StartTextInput by popping up the
+	// modal IME keyboard dialog. OpenJK keeps text input globally enabled (for
+	// the console/chat), which would show the IME at boot. The Vita uses the
+	// controller for menu navigation; text entry will use the IME on demand.
 	SDL_StartTextInput( );
+#endif
 
 	mouseAvailable = (qboolean)( in_mouse->value != 0 );
 	if ( in_mouse->integer == 2 ) {
@@ -646,6 +673,47 @@ void IN_Init( void *windowData )
 	Cvar_SetValue( "com_minimized", ( appState & SDL_WINDOW_MINIMIZED ) != 0 );
 
 	IN_InitJoystick( );
+
+#ifdef VITA
+	// Default PS Vita control bindings. Sticks are analog (CL_JoystickMove). The rear
+	// touch panel adds a held-MODIFIER (top-left) + 3 extra "buttons" via A_AUX zones
+	// (IN_VitaRearTouch -> CL_KeyEvent). SDL button order from Northfear SDL2-vitagl:
+	//   Triangle=JOY1 Circle=JOY2 Cross=JOY3 Square=JOY4 L=JOY5 R=JOY6
+	//   Down=JOY7 Left=JOY8 Up=JOY9 Right=JOY10 Select=JOY11 Start=JOY12
+	vita_rearTouch = Cvar_Get( "vita_rearTouch", "1", CVAR_ARCHIVE );	// rear-panel zones on/off
+	Cbuf_AddText(
+		// --- base layer (physical buttons) ---
+		"bind JOY6 +attack\n"          // R  -> fire / saber attack
+		"bind JOY5 +altattack\n"       // L  -> alt attack / saber throw
+		"bind JOY3 +moveup\n"          // Cross  -> jump
+		"bind JOY4 +movedown\n"        // Square -> crouch
+		"bind JOY2 +use\n"             // Circle -> use
+		"bind JOY1 +useforce\n"        // Triangle -> use selected force power
+		"bind JOY9 weapnext\n"         // D-Up    -> next weapon
+		"bind JOY7 weapprev\n"         // D-Down  -> prev weapon
+		"bind JOY8 forceprev\n"        // D-Left  -> select prev force power
+		"bind JOY10 forcenext\n"       // D-Right -> select next force power
+		"bind JOY11 datapad\n"         // Select  -> mission objectives (datapad)
+		"bind JOY12 togglemenu\n"      // Start   -> in-game menu (ESC toggle)
+		// --- rear touch zones (AUX1 top-left is the combo modifier, handled in code) ---
+		"bind AUX2 zoom\n"             // rear top-right    -> binocular zoom
+		"bind AUX3 +useforce\n"        // rear bottom-left  -> secondary force fire
+		"bind AUX4 +speed\n"           // rear bottom-right -> run / walk
+	);
+
+	// Print the full control map so it's discoverable in the console / log.
+	Com_Printf( "\n^3JK2VITA controls:^7\n"
+		"  L Stick: move   R Stick: look\n"
+		"  R: attack   L: alt-attack   Cross: jump   Square: crouch\n"
+		"  Circle: use   Triangle: use force   D-pad UD: weapons   D-pad LR: force select\n"
+		"  Start: menu   Select: objectives\n"
+		"  Rear top-LEFT = HOLD modifier, then:\n"
+		"    +Triangle force-speed  +Circle force-heal  +Cross force-push  +Square force-pull\n"
+		"    +R saber-stance  +D-pad U/D inv-next/prev  +D-pad L inv-use  +D-pad R quick-saber\n"
+		"  Rear top-right: zoom   rear bottom-left: force-fire   rear bottom-right: run\n"
+		"  (disable rear touch: vita_rearTouch 0)\n\n" );
+#endif
+
 	Com_DPrintf( "------------------------------------\n" );
 }
 
@@ -1147,13 +1215,105 @@ static void IN_JoyMove( void )
 
 	/* Save for future generations. */
 	stick_state.oldaxes = axes;
+
+#ifdef VITA
+	// In cursor-driven menus, drive the mouse cursor with the left analog stick.
+	// IN_JoyMove runs every frame (even with no game active / in the main menu),
+	// whereas CL_JoystickMove only runs in-game (cls.state gated) — so this is the
+	// place that lets the pad navigate menus the way the touchscreen does.
+	if ( Key_GetCatcher() & KEYCATCH_UI )
+	{
+		Sint16 ax = SDL_JoystickGetAxis( stick, 0 );	// left stick X
+		Sint16 ay = SDL_JoystickGetAxis( stick, 1 );	// left stick Y
+		const int deadzone = 5000;						// ~15% of 32767
+		int dx = 0, dy = 0;
+		if ( ax > deadzone || ax < -deadzone )
+			dx = (int)( ( (float) ax / 32767.0f ) * 16.0f );
+		if ( ay > deadzone || ay < -deadzone )
+			dy = (int)( ( (float) ay / 32767.0f ) * 16.0f );
+		if ( dx || dy )
+			Sys_QueEvent( 0, SE_MOUSE, dx, dy, 0, NULL );
+	}
+#endif
 }
 
+
+#ifdef VITA
+/*
+===============
+IN_VitaRearTouch
+
+Poll the rear touch panel and synthesize A_AUX1..A_AUX4 key events for its four
+corner zones (a central cross-shaped dead band rejects the fingers that grip the
+console). These flow through CL_KeyEvent like any other key:
+   A_AUX1 (top-left)     = combo modifier (handled in cl_keys.cpp; not a bind)
+   A_AUX2 (top-right)    = bind "zoom"       (binocular zoom)
+   A_AUX3 (bottom-left)  = bind "+useforce"  (secondary force fire)
+   A_AUX4 (bottom-right) = bind "+speed"     (run/walk)
+Edge-triggered against the previous frame so each zone behaves like a button.
+===============
+*/
+static void IN_VitaRearTouch( void )
+{
+	if ( !vita_rearTouch || !vita_rearTouch->integer )
+		return;
+
+	static qboolean			inited = qfalse;
+	static SceTouchPanelInfo	panel;
+	if ( !inited ) {
+		sceTouchSetSamplingState( SCE_TOUCH_PORT_BACK, SCE_TOUCH_SAMPLING_STATE_START );
+		if ( sceTouchGetPanelInfo( SCE_TOUCH_PORT_BACK, &panel ) < 0 ) {
+			panel.minAaX = 0;   panel.maxAaX = 1919;	// sane fallback for the rear panel
+			panel.minAaY = 108; panel.maxAaY = 889;
+		}
+		inited = qtrue;
+	}
+
+	SceTouchData td;
+	if ( sceTouchPeek( SCE_TOUCH_PORT_BACK, &td, 1 ) < 0 )
+		return;
+
+	int spanX = panel.maxAaX - panel.minAaX; if ( spanX <= 0 ) spanX = 1;
+	int spanY = panel.maxAaY - panel.minAaY; if ( spanY <= 0 ) spanY = 1;
+
+	unsigned mask = 0;
+	for ( unsigned i = 0; i < td.reportNum; i++ ) {
+		float nx = (float)( td.report[i].x - panel.minAaX ) / (float)spanX;
+		float ny = (float)( td.report[i].y - panel.minAaY ) / (float)spanY;
+
+		// Corner zones with a central dead band: the resting grip contact (which
+		// lands near the mid-height side edges) falls in the dead band and is ignored.
+		int zone = -1;
+		if ( ny < 0.40f ) {					// top row
+			if      ( nx < 0.40f ) zone = 0;	// TL
+			else if ( nx > 0.60f ) zone = 1;	// TR
+		} else if ( ny > 0.60f ) {			// bottom row
+			if      ( nx < 0.40f ) zone = 2;	// BL
+			else if ( nx > 0.60f ) zone = 3;	// BR
+		}
+		if ( zone >= 0 )
+			mask |= ( 1u << zone );
+	}
+
+	static unsigned prevMask = 0;
+	for ( int z = 0; z < 4; z++ ) {
+		unsigned bit = 1u << z;
+		if ( ( mask & bit ) && !( prevMask & bit ) )
+			Sys_QueEvent( 0, SE_KEY, A_AUX1 + z, qtrue, 0, NULL );
+		else if ( !( mask & bit ) && ( prevMask & bit ) )
+			Sys_QueEvent( 0, SE_KEY, A_AUX1 + z, qfalse, 0, NULL );
+	}
+	prevMask = mask;
+}
+#endif
 
 void IN_Frame (void) {
 	qboolean loading;
 
 	IN_JoyMove( );
+#ifdef VITA
+	IN_VitaRearTouch( );
+#endif
 
 	// If not DISCONNECTED (main menu) or ACTIVE (in game), we're loading
 	loading = (qboolean)( cls.state != CA_DISCONNECTED && cls.state != CA_ACTIVE );
