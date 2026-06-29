@@ -310,6 +310,12 @@ static bool GLimp_DetectAvailableModes(void)
 	return true;
 }
 
+#ifdef VITA
+// shrink the GXM parameter buffer (default 16 MB) so the freed CDRAM goes to vitaGL's
+// texture pool. must run before vglInit, which fires inside SDL_CreateWindow.
+extern "C" void vglSetParamBufferSize( uint32_t size );
+#endif
+
 /*
 ===============
 GLimp_SetMode
@@ -333,6 +339,13 @@ static rserr_t GLimp_SetMode(glconfig_t *glConfig, const windowDesc_t *windowDes
 	}
 
 	Com_Printf( "Initializing display\n");
+
+#ifdef VITA
+	// 4 MB is plenty for JK2's geometry at 960x544 with no MSAA; the rest of the default
+	// 16 MB goes to the texture pool. Bump this if a heavy scene starts dropping geometry.
+	// No-op once vitaGL is up, so vid_restart is safe.
+	vglSetParamBufferSize( 4 * 1024 * 1024 );
+#endif
 
 	icon = SDL_CreateRGBSurfaceFrom(
 		(void *)CLIENT_WINDOW_ICON.pixel_data,
@@ -372,6 +385,12 @@ static rserr_t GLimp_SetMode(glconfig_t *glConfig, const windowDesc_t *windowDes
 
 	Com_Printf( "...setting mode %d:", mode );
 
+#ifdef VITA
+	// vita panel is a fixed 960x544. force it or 2D/cinematics/world end up in the corner.
+	(void)mode;
+	glConfig->vidWidth  = 960;
+	glConfig->vidHeight = 544;
+#else
 	if (mode == -2)
 	{
 		// use desktop video resolution
@@ -395,6 +414,7 @@ static rserr_t GLimp_SetMode(glconfig_t *glConfig, const windowDesc_t *windowDes
 		SDL_FreeSurface( icon );
 		return RSERR_INVALID_MODE;
 	}
+#endif
 	Com_Printf( " %d %d\n", glConfig->vidWidth, glConfig->vidHeight);
 
 	// Center window
@@ -746,6 +766,18 @@ window_t WIN_Init( const windowDesc_t *windowDesc, glconfig_t *glConfig )
 	r_mode				= Cvar_Get( "r_mode",				"4",		CVAR_ARCHIVE|CVAR_LATCH );
 	r_displayRefresh	= Cvar_Get( "r_displayRefresh",		"0",		CVAR_LATCH );
 	Cvar_CheckRange( r_displayRefresh, 0, 240, qtrue );
+
+#ifdef VITA
+	// pin the resolution engine-wide, overriding whatever's in jk2config.cfg / openjo_sp.cfg,
+	// so window, viewport and UI scaling all agree (else the menu/2D lands in a corner).
+	// r_mode -1 takes the custom width/height path in R_GetModeInfo.
+	Cvar_Set( "r_customwidth",  "960" );
+	Cvar_Set( "r_customheight", "544" );
+	Cvar_Set( "r_mode",         "-1" );
+	r_customwidth->integer  = 960;
+	r_customheight->integer = 544;
+	r_mode->integer         = -1;
+#endif
 
 	// Window render surface cvars
 	r_stencilbits		= Cvar_Get( "r_stencilbits",		"8",		CVAR_ARCHIVE_ND|CVAR_LATCH );
