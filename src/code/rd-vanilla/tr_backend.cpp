@@ -464,6 +464,27 @@ static void RB_BeginDrawingView (void) {
 	// ensures that depth writes are enabled for the depth clear
 	GL_State( GLS_DEFAULT );
 
+#ifdef VITA
+	// JK2 mode drops the per-surface fog-disable, so a global enable here sticks for the
+	// whole world pass and fades distant geo into the fog colour, hiding the r_distanceCull
+	// pop. RB_SetGL2D turns it back off for the HUD.
+	if ( r_forceFog && r_forceFog->value > 0.0f )
+	{
+		vec4_t fogClr = { 0.55f, 0.6f, 0.7f, 1.0f };
+		if ( r_forceFogColor && r_forceFogColor->string[0] )
+			sscanf( r_forceFogColor->string, "%f %f %f", &fogClr[0], &fogClr[1], &fogClr[2] );
+		qglFogi( GL_FOG_MODE, GL_LINEAR );
+		qglFogf( GL_FOG_START, r_forceFog->value * 0.5f );
+		qglFogf( GL_FOG_END,   r_forceFog->value );
+		qglFogfv( GL_FOG_COLOR, fogClr );
+		qglEnable( GL_FOG );
+	}
+	else
+	{
+		qglDisable( GL_FOG );
+	}
+#endif
+
 	// clear relevant buffers
 	if ( r_measureOverdraw->integer || r_shadows->integer == 2 || tr_stencilled )
 	{
@@ -990,6 +1011,9 @@ void	RB_SetGL2D (void) {
 
 	qglDisable( GL_CULL_FACE );
 	qglDisable( GL_CLIP_PLANE0 );
+#ifdef VITA
+	qglDisable( GL_FOG );	// no fog on HUD/menus
+#endif
 
 	// set time for 2D shaders
 	backEnd.refdef.time = ri.Milliseconds();
@@ -1301,6 +1325,183 @@ const void *RB_Scissor ( const void *data )
 	return (const void *)(cmd + 1);
 }
 
+#ifdef VITA
+// Render-scale / dynamic resolution.
+//
+// Draw the 3D world into an offscreen FBO at a fraction of 960x544, then upscale to the
+// backbuffer before the HUD (HUD stays full-res). Trades fillrate for framerate; DRS
+// nudges the scale to hold a target frame time. FBO calls are raw vitaGL -- no qgl
+// wrappers. One offscreen pass + one blit, because each FBO bind is a tile flush on this
+// TBDR GPU. Only binds the FBO once scale drops below 1.0; at full scale we go straight
+// to screen.
+static float    rs_activeScale = 1.0f;
+static GLuint   rs_fbo = 0, rs_colorTex = 0, rs_depthRb = 0;
+static qboolean rs_fboFailed = qfalse;
+static int      rs_scaledW = 0, rs_scaledH = 0;
+
+static cvar_t *rs_renderScale = NULL;
+static cvar_t *rs_dynamicRes  = NULL;
+static cvar_t *rs_targetFt     = NULL;
+static cvar_t *rs_scaleMin     = NULL;
+static cvar_t *rs_flip         = NULL;
+
+static void RB_RenderScaleInitCvars( void ) {
+	if ( rs_renderScale )
+		return;
+	rs_renderScale = ri.Cvar_Get( "r_renderScale",       "1.0", CVAR_ARCHIVE );	// fixed scale [0.4..1] when DRS off
+	rs_dynamicRes  = ri.Cvar_Get( "r_dynamicResolution", "0",   CVAR_ARCHIVE );	// opt-in auto-scale to hold the target frame time
+	rs_targetFt    = ri.Cvar_Get( "r_targetFrameTime",   "30",  CVAR_ARCHIVE );	// ms; ~33fps floor before downscaling
+	rs_scaleMin    = ri.Cvar_Get( "r_renderScaleMin",    "0.6", CVAR_ARCHIVE );	// DRS downscale floor
+	rs_flip        = ri.Cvar_Get( "r_renderScaleFlip",   "0",   CVAR_ARCHIVE );	// flip upscale vertically if it comes out upside-down
+}
+
+static qboolean RB_EnsureSceneFBO( void ) {
+	if ( rs_fbo )
+		return qtrue;
+	if ( rs_fboFailed )
+		return qfalse;
+
+	const int w = glConfig.vidWidth, h = glConfig.vidHeight;	// FBO is always full size; sub-scales just shrink the viewport
+
+	glGenTextures( 1, &rs_colorTex );
+	glBindTexture( GL_TEXTURE_2D, rs_colorTex );
+	glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+	glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+
+	glGenRenderbuffers( 1, &rs_depthRb );
+	glBindRenderbuffer( GL_RENDERBUFFER, rs_depthRb );
+	glRenderbufferStorage( GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, w, h );
+
+	glGenFramebuffers( 1, &rs_fbo );
+	glBindFramebuffer( GL_FRAMEBUFFER, rs_fbo );
+	glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, rs_colorTex, 0 );
+	glFramebufferRenderbuffer( GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rs_depthRb );
+	const GLenum st = glCheckFramebufferStatus( GL_FRAMEBUFFER );
+	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
+	glBindTexture( GL_TEXTURE_2D, 0 );
+
+	if ( st != GL_FRAMEBUFFER_COMPLETE ) {
+		ri.Printf( PRINT_WARNING, "Vita render-scale: scene FBO incomplete (0x%x); disabling.\n", st );
+		rs_fboFailed = qtrue;
+		return qfalse;
+	}
+	return qtrue;
+}
+
+// Recompute rs_activeScale once per frame (main view only).
+static void RB_DRSUpdate( void ) {
+	if ( !rs_dynamicRes->integer ) {
+		const float s = rs_renderScale->value;
+		rs_activeScale = ( s >= 0.4f && s <= 1.0f ) ? s : 1.0f;
+		return;
+	}
+
+	const int now = ri.Milliseconds();
+	static int last = 0;
+	const int dt = now - last;
+	last = now;
+	if ( dt <= 0 || dt > 200 )
+		return;								// ignore startup / load-spike deltas
+
+	static float avg = 16.7f;
+	avg += ( (float)dt - avg ) * 0.15f;		// EWMA smooth
+
+	static int cooldown = 0;
+	if ( cooldown > 0 ) { cooldown--; return; }	// at most one step per ~10 frames
+
+	const float target = rs_targetFt->value;
+	float floorS = rs_scaleMin->value;
+	if ( floorS < 0.4f ) floorS = 0.4f;
+
+	if ( avg > target * 1.10f && rs_activeScale > floorS ) { rs_activeScale -= 0.10f; cooldown = 10; }
+	else if ( avg < target * 0.85f && rs_activeScale < 1.0f ) { rs_activeScale += 0.10f; cooldown = 10; }
+
+	if ( rs_activeScale < floorS ) rs_activeScale = floorS;
+	if ( rs_activeScale > 1.0f )   rs_activeScale = 1.0f;
+}
+
+// Bind the scene FBO and shrink the viewport for the main world view. Returns true
+// if scaling is active -- caller MUST then call RB_RenderScaleEnd after the surf list.
+static qboolean RB_RenderScaleBegin( void ) {
+	RB_RenderScaleInitCvars();
+
+	// main full-screen world view only -- not portals/mirrors or the NOWORLDMODEL
+	// views used for menu/inventory 3D models.
+	if ( backEnd.viewParms.isPortal || ( backEnd.refdef.rdflags & RDF_NOWORLDMODEL ) )
+		return qfalse;
+
+	RB_DRSUpdate();
+
+	if ( rs_activeScale >= 0.999f )
+		return qfalse;						// 1.0 -> straight to the backbuffer, no FBO
+	if ( !RB_EnsureSceneFBO() )
+		return qfalse;
+
+	rs_scaledW = (int)( glConfig.vidWidth  * rs_activeScale );
+	rs_scaledH = (int)( glConfig.vidHeight * rs_activeScale );
+	if ( rs_scaledW < 4 || rs_scaledH < 4 )
+		return qfalse;
+
+	glBindFramebuffer( GL_FRAMEBUFFER, rs_fbo );
+
+	// render into the lower-left corner of the full-size FBO; uniform scale keeps
+	// aspect so the frontend projection still matches.
+	backEnd.viewParms.viewportX      = 0;
+	backEnd.viewParms.viewportY      = 0;
+	backEnd.viewParms.viewportWidth  = rs_scaledW;
+	backEnd.viewParms.viewportHeight = rs_scaledH;
+	return qtrue;
+}
+
+// Linear-upscale the rendered FBO region to the full native backbuffer.
+static void RB_RenderScaleEnd( void ) {
+	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
+
+	// vitaGL's glBlitFramebuffer can't reliably stretch to the default framebuffer
+	// (binding GL_DRAW_FRAMEBUFFER 0 leaves active_write_fb NULL), so we upscale with
+	// a plain full-screen textured quad instead.
+	const int   w = glConfig.vidWidth, h = glConfig.vidHeight;
+	const float u = (float)rs_scaledW / (float)w;	// FBO is full-size; we rendered its lower-left
+	float v0 = 0.0f, v1 = (float)rs_scaledH / (float)h;
+	if ( rs_flip && rs_flip->integer ) { v0 = v1; v1 = 0.0f; }	// orientation escape hatch
+
+	GL_SelectTexture( 0 );
+	qglViewport( 0, 0, w, h );
+	qglScissor( 0, 0, w, h );
+
+	qglMatrixMode( GL_PROJECTION );
+	qglPushMatrix();
+	qglLoadIdentity();
+	qglOrtho( 0, w, h, 0, -1, 1 );
+	qglMatrixMode( GL_MODELVIEW );
+	qglPushMatrix();
+	qglLoadIdentity();
+
+	GL_State( GLS_DEPTHTEST_DISABLE );
+	qglDisable( GL_CULL_FACE );
+	qglColor4f( 1.0f, 1.0f, 1.0f, 1.0f );
+	qglEnable( GL_TEXTURE_2D );
+	qglBindTexture( GL_TEXTURE_2D, rs_colorTex );
+
+	qglBegin( GL_QUADS );
+		qglTexCoord2f( 0.0f, v1 ); qglVertex2f( 0.0f, 0.0f );	// screen top-left
+		qglTexCoord2f( u,    v1 ); qglVertex2f( (float)w, 0.0f );	// screen top-right
+		qglTexCoord2f( u,    v0 ); qglVertex2f( (float)w, (float)h );	// screen bottom-right
+		qglTexCoord2f( 0.0f, v0 ); qglVertex2f( 0.0f, (float)h );	// screen bottom-left
+	qglEnd();
+
+	// restore matrices + cull, and invalidate the backend texture cache: we bound a
+	// raw GL texture behind its back, so force the next GL_Bind to re-bind.
+	qglMatrixMode( GL_PROJECTION );
+	qglPopMatrix();
+	qglMatrixMode( GL_MODELVIEW );
+	qglPopMatrix();
+	qglEnable( GL_CULL_FACE );
+	glState.currenttextures[ glState.currenttmu ] = 0;
+}
+#endif // VITA
+
 /*
 =============
 RB_DrawSurfs
@@ -1319,6 +1520,15 @@ const void	*RB_DrawSurfs( const void *data ) {
 
 	backEnd.refdef = cmd->refdef;
 	backEnd.viewParms = cmd->viewParms;
+
+#ifdef VITA
+	// Skin all visible Ghoul2 characters on the worker pool before we walk the draw list,
+	// so both the normal and glow passes below can reuse the result in
+	// CRenderableSurface::skinOut. No-op unless r_g2Threaded is set. See RB_PrepGhoulSkinMT.
+	RB_PrepGhoulSkinMT( cmd->drawSurfs, cmd->numDrawSurfs );
+
+	const qboolean rs_scaled = RB_RenderScaleBegin();
+#endif
 
 	RB_RenderDrawSurfList( cmd->drawSurfs, cmd->numDrawSurfs );
 
@@ -1387,6 +1597,11 @@ const void	*RB_DrawSurfs( const void *data ) {
 		// Draw the glow additively over the screen.
 		RB_DrawGlowOverlay();
 	}
+
+#ifdef VITA
+	if ( rs_scaled )
+		RB_RenderScaleEnd();	// upscale offscreen scene to native backbuffer
+#endif
 
 	return (const void *)(cmd + 1);
 }
