@@ -76,6 +76,10 @@ The rear panel is split into four corner zones. A cross-shaped dead band down th
 
 The combo layer only fires instant commands. The modifier role is latched per button at the moment it is pressed, so releasing the rear modifier mid-press can't strand a held action. The combo layer is inactive while a menu is open.
 
+### Console
+
+Open with **Start + Select** — the on-screen keyboard pops up. Type a command, press **Enter** to run it. Close with **Circle** or **Start + Select** again.
+
 ## Build (for developers)
 
 Needs [VitaSDK](https://vitasdk.org) and [vdpm](https://github.com/vitasdk/vdpm) on `PATH`, plus cmake,

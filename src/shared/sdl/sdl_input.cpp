@@ -706,7 +706,7 @@ void IN_Init( void *windowData )
 		"  L Stick: move   R Stick: look\n"
 		"  R: attack   L: alt-attack   Cross: jump   Square: crouch\n"
 		"  Circle: use   Triangle: use force   D-pad UD: weapons   D-pad LR: force select\n"
-		"  Start: menu   Select: objectives\n"
+		"  Start: menu   Select: objectives   Start+Select: console\n"
 		"  Rear top-LEFT = HOLD modifier, then:\n"
 		"    +Triangle force-speed  +Circle force-heal  +Cross force-push  +Square force-pull\n"
 		"    +R saber-stance  +D-pad U/D inv-next/prev  +D-pad L inv-use  +D-pad R quick-saber\n"
@@ -901,6 +901,11 @@ static void IN_ProcessEvents( void )
 
 				if ( key == A_BACKSPACE )
 					Sys_QueEvent( 0, SE_CHAR, CTRL('h'), qfalse, 0, NULL);
+#ifdef VITA
+				// the IME delivers space as a key event, not text
+				else if ( key == A_SPACE )
+					Sys_QueEvent( 0, SE_CHAR, ' ', qfalse, 0, NULL );
+#endif
 				else if ( kg.keys[A_CTRL].down && key >= A_CAP_A && key <= A_CAP_Z )
 					Sys_QueEvent( 0, SE_CHAR, CTRL(tolower(key)), qfalse, 0, NULL );
 
@@ -1013,6 +1018,48 @@ static void IN_ProcessEvents( void )
 	}
 }
 
+#ifdef VITA
+/*
+===============
+IN_VitaConsoleChord
+
+Start + Select toggle the console. Each button's own bind (togglemenu, datapad)
+fires on release and is dropped when the press was part of the chord.
+===============
+*/
+static void IN_VitaConsoleChord( qboolean selectDown, qboolean startDown )
+{
+	static qboolean	prevSelect = qfalse, prevStart = qfalse;
+	static qboolean	selectUsed = qfalse, startUsed = qfalse;
+
+	// chord forms when the second button completes it
+	if ( selectDown && startDown && !( selectUsed && startUsed ) ) {
+		selectUsed = startUsed = qtrue;
+		Sys_QueEvent( 0, SE_KEY, A_CONSOLE, qtrue,  0, NULL );
+		Sys_QueEvent( 0, SE_KEY, A_CONSOLE, qfalse, 0, NULL );
+	}
+
+	// run each lone press on release, unless the chord already consumed it
+	if ( prevSelect && !selectDown ) {
+		if ( !selectUsed ) {
+			Sys_QueEvent( 0, SE_KEY, A_JOY11, qtrue,  0, NULL );
+			Sys_QueEvent( 0, SE_KEY, A_JOY11, qfalse, 0, NULL );
+		}
+		selectUsed = qfalse;
+	}
+	if ( prevStart && !startDown ) {
+		if ( !startUsed ) {
+			Sys_QueEvent( 0, SE_KEY, A_JOY12, qtrue,  0, NULL );
+			Sys_QueEvent( 0, SE_KEY, A_JOY12, qfalse, 0, NULL );
+		}
+		startUsed = qfalse;
+	}
+
+	prevSelect = selectDown;
+	prevStart  = startDown;
+}
+#endif
+
 /*
 ===============
 IN_JoyMove
@@ -1062,15 +1109,26 @@ static void IN_JoyMove( void )
 	{
 		if (total > (int)ARRAY_LEN(stick_state.buttons))
 			total = ARRAY_LEN(stick_state.buttons);
+#ifdef VITA
+		qboolean selectDown = qfalse, startDown = qfalse;
+#endif
 		for (i = 0; i < total; i++)
 		{
 			qboolean pressed = (qboolean)(SDL_JoystickGetButton(stick, i) != 0);
+#ifdef VITA
+			// Select / Start drive the console chord; IN_VitaConsoleChord runs their binds.
+			if ( i == 10 ) { selectDown = pressed; continue; }
+			if ( i == 11 ) { startDown  = pressed; continue; }
+#endif
 			if (pressed != stick_state.buttons[i])
 			{
 				Sys_QueEvent( 0, SE_KEY, A_JOY1 + i, pressed, 0, NULL );
 				stick_state.buttons[i] = pressed;
 			}
 		}
+#ifdef VITA
+		IN_VitaConsoleChord( selectDown, startDown );
+#endif
 	}
 
 	// look at the hats...
@@ -1309,6 +1367,19 @@ static void IN_VitaRearTouch( void )
 
 void IN_Frame (void) {
 	qboolean loading;
+
+#ifdef VITA
+	// On-screen keyboard follows the console: SDL_StartTextInput pops the IME, whose
+	// text and Enter feed the console field. Reopen if it closed itself after Enter.
+	{
+		qboolean consoleDown   = (qboolean)( ( Key_GetCatcher() & KEYCATCH_CONSOLE ) != 0 );
+		qboolean keyboardShown = (qboolean)( SDL_IsScreenKeyboardShown( SDL_window ) == SDL_TRUE );
+		if ( consoleDown && !keyboardShown )
+			SDL_StartTextInput();
+		else if ( !consoleDown && keyboardShown )
+			SDL_StopTextInput();
+	}
+#endif
 
 	IN_JoyMove( );
 #ifdef VITA

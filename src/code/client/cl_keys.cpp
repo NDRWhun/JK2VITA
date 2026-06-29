@@ -1328,6 +1328,7 @@ void CL_KeyUpEvent( int key, unsigned time )
 // its down edge. Table index = key - A_JOY0  (Triangle=JOY1 .. Start=JOY12).
 static qboolean			vita_modDown  = qfalse;
 static unsigned			vita_altLatch = 0;
+static qboolean			vita_circleClosedConsole = qfalse;
 static const char * const vita_altTable[16] = {
 	NULL,				// 0  JOY0
 	"force_speed",		// 1  JOY1  Triangle
@@ -1376,6 +1377,20 @@ void CL_KeyEvent (int key, qboolean down, unsigned time) {
 			}
 		} else if ( vita_altLatch & bit ) {
 			vita_altLatch &= ~bit;	// swallow the up edge of a consumed alt press
+			return;
+		}
+	}
+
+	// Circle closes the console; swallow both edges so it never also runs +use.
+	if ( key == A_JOY2 ) {
+		if ( down && ( Key_GetCatcher() & KEYCATCH_CONSOLE ) ) {
+			vita_circleClosedConsole = qtrue;
+			Con_ToggleConsole_f();
+			Key_ClearStates();
+			return;
+		}
+		if ( !down && vita_circleClosedConsole ) {
+			vita_circleClosedConsole = qfalse;
 			return;
 		}
 	}
