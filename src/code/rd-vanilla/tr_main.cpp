@@ -513,7 +513,15 @@ static void SetFarClip( void )
 	// Bring in the zFar to the distanceCull distance
 	// The sky renders at zFar so need to move it out a little
 	// ...and make sure there is a minimum zfar to prevent problems
+#ifdef VITA
+	// Vita: clamp zFar to the render-distance cap, same as the far plane in R_SetupFrustum
+	float vitaDC = tr.distanceCull;
+	if ( r_distanceCull && r_distanceCull->value > 0.0f && vitaDC > r_distanceCull->value )
+		vitaDC = r_distanceCull->value;
+	tr.viewParms.zFar = Com_Clamp(2048.0f, vitaDC * (1.732), sqrtf( farthestCornerDistance ));
+#else
 	tr.viewParms.zFar = Com_Clamp(2048.0f, tr.distanceCull * (1.732), sqrtf( farthestCornerDistance ));
+#endif
 }
 
 
@@ -609,7 +617,16 @@ void R_SetupFrustum (void) {
 		if (i==4)
 		{
 			// far plane does not go through the view point, it goes alot farther..
+#ifdef VITA
+			// Vita: pull the far plane in to the cap so R_RecursiveWorldNode culls
+			// distant BSP subtrees on the CPU before we touch them
+			float vitaDC = tr.distanceCull;
+			if ( r_distanceCull && r_distanceCull->value > 0.0f && vitaDC > r_distanceCull->value )
+				vitaDC = r_distanceCull->value;
+			tr.viewParms.frustum[i].dist -= vitaDC*1.02f; // a little slack so we don't cull stuff
+#else
 			tr.viewParms.frustum[i].dist -= tr.distanceCull*1.02f; // a little slack so we don't cull stuff
+#endif
 		}
 		SetPlaneSignbits( &tr.viewParms.frustum[i] );
 	}
