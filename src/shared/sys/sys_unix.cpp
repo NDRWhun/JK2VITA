@@ -63,7 +63,8 @@ void Sys_PlatformInit( int argc, char *argv[] )
 	else
 		stdinIsATTY = qfalse;
 
-	// raise open file limit to allow more pk3 files
+#ifndef VITA
+	// raise open file limit to allow more pk3 files (Vita newlib has no rlimit)
 	int retval;
 	struct rlimit rlim;
 	rlim_t maxfds = MAX_OPEN_FILES;
@@ -81,6 +82,9 @@ void Sys_PlatformInit( int argc, char *argv[] )
 	if (retval == -1) {
 		Com_Printf("Warning: Failed to raise open file limit. %s\n", strerror(errno));
 	}
+#else
+	(void)argc; (void)argv;
+#endif
 }
 
 void Sys_PlatformExit( void )
@@ -162,12 +166,17 @@ bool Sys_RandomBytes( byte *string, int len )
  */
 char *Sys_GetCurrentUser( void )
 {
+#ifdef VITA
+	// No passwd database on the Vita.
+	return "player";
+#else
 	struct passwd *p;
 
 	if ( (p = getpwuid( getuid() )) == NULL ) {
 		return "player";
 	}
 	return p->pw_name;
+#endif
 }
 
 #define MEM_THRESHOLD 96*1024*1024
@@ -441,12 +450,22 @@ char *Sys_Cwd( void )
 {
 	static char cwd[MAX_OSPATH];
 
+#ifdef VITA
+	// All game data (base/, saves, config) lives under ux0:data/<game>.
+#ifdef JK2_MODE
+	Q_strncpyz( cwd, "ux0:data/JK2VITA", sizeof( cwd ) );
+#else
+	Q_strncpyz( cwd, "ux0:data/JAVITA", sizeof( cwd ) );
+#endif
+	return cwd;
+#else
 	if ( getcwd( cwd, sizeof( cwd ) - 1 ) == NULL )
 		cwd[0] = '\0';
 	else
 		cwd[MAX_OSPATH-1] = '\0';
 
 	return cwd;
+#endif
 }
 
 /* Resolves path names and determines if they are the same */
@@ -476,7 +495,18 @@ bool Sys_PathCmp( const char *path1, const char *path2 )
 Sys_DefaultHomePath
 ==================
 */
-#if defined(BUILD_PORTABLE)
+#if defined(VITA)
+char *Sys_DefaultHomePath(void)
+{
+	// Saves/config live alongside the assets under ux0:data/<game>.
+#ifdef JK2_MODE
+	Q_strncpyz( homePath, "ux0:data/JK2VITA", sizeof( homePath ) );
+#else
+	Q_strncpyz( homePath, "ux0:data/JAVITA", sizeof( homePath ) );
+#endif
+	return homePath;
+}
+#elif defined(BUILD_PORTABLE)
 char *Sys_DefaultHomePath(void)
 {
 	return NULL;
@@ -537,7 +567,7 @@ char *Sys_DefaultHomePath(void)
 #endif
 
 void Sys_SetProcessorAffinity( void ) {
-#if defined(__linux__)
+#if defined(__linux__) && !defined(VITA)
 	uint32_t cores;
 
 	if ( sscanf( com_affinity->string, "%X", &cores ) != 1 )
