@@ -53,11 +53,17 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 
 
-extern bool	HFILEopen_read(int& handle,	const char* filepath);
-extern bool	HFILEopen_write(int& handle, const char* filepath);
-extern bool	HFILEread(int& handle,		void*		data, int size);
-extern bool	HFILEwrite(int& handle,		const void* data, int size);
-extern bool	HFILEclose(int& handle);
+// Standard C stdio bindings for Raven's handle-file (the template commented in
+// hfile.h). OpenJK never ships a definition for these (the platform was expected
+// to provide them); the static Vita build needs them. The handle is stored in an
+// int, which is pointer-width on the Vita's 32-bit ABI.
+#include <cstdio>
+#include <cstdint>
+bool	HFILEopen_read(int& handle,	const char* filepath)	{ handle = (int)(intptr_t)fopen(filepath, "rb"); return (handle != 0); }
+bool	HFILEopen_write(int& handle, const char* filepath)	{ handle = (int)(intptr_t)fopen(filepath, "wb"); return (handle != 0); }
+bool	HFILEread(int& handle,		void*		data, int size)	{ return (fread(data, size, 1, (FILE*)(intptr_t)handle) > 0); }
+bool	HFILEwrite(int& handle,		const void* data, int size)	{ return (fwrite(data, size, 1, (FILE*)(intptr_t)handle) > 0); }
+bool	HFILEclose(int& handle)									{ return (fclose((FILE*)(intptr_t)handle) == 0); }
 
 
 
