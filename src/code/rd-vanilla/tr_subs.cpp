@@ -27,6 +27,10 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 // tr_subs.cpp - common function replacements for modular renderer
 #include "tr_local.h"
 
+// On the unified static Vita build the engine (qcommon/common.cpp) provides
+// Com_Printf/Com_Error/Com_DPrintf directly, so these modular-renderer forwarders
+// would be duplicate definitions. The renderer just links the engine's.
+#ifndef VITA
 void QDECL Com_Printf( const char *msg, ... )
 {
 	va_list         argptr;
@@ -69,6 +73,7 @@ void Com_DPrintf(const char *format, ...)
 
 	ri.Printf(PRINT_DEVELOPER, "%s", text);
 }
+#endif // !VITA
 
 // HUNK
 
