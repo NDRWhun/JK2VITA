@@ -1,5 +1,3 @@
-# JK2VITA
-
 **Star Wars Jedi Knight II: Jedi Outcast — single-player, on the PS Vita**
 
 [![License: GPL v2](https://img.shields.io/badge/License-GPLv2-blue.svg)](LICENSE)
@@ -9,13 +7,11 @@ A port of Jedi Outcast's single-player to the PS Vita, built on
 [vitaGL](https://github.com/Rinnegatamante/vitaGL), which translates the engine's OpenGL to the
 Vita's GXM.
 
-Work in progress. The game boots, the menu works, and an early level (`kejim_post`) loads and
-renders on device. The full campaign, saves, and cutscenes aren't verified yet; audio, the
-quit-crash fix, and the dynamic-resolution upscale are built but unconfirmed on hardware.
+Please report bugs if you find any -> Issues
 
 ## Setup (for players)
 
-You need your own legally-owned copy of Jedi Outcast — no game assets ship here.
+You need your own legally-owned copy of Jedi Outcast (eg.: from Steam)
 
 - Install `libshacccg.suprx` (the runtime shader compiler vitaGL needs) at
   `ur0:data/libshacccg.suprx` —
@@ -27,11 +23,57 @@ You need your own legally-owned copy of Jedi Outcast — no game assets ship her
 
 ## Controls
 
-Left stick moves, right stick looks. Attack is on R; jump, crouch, use, and force power are the four
-face buttons. The rear touch panel is a modifier plus four corner zones that reach Force powers,
-inventory, and saber controls. Start opens the menu; Select shows the datapad.
+## Sticks
 
-Texture detail is pinned to `r_picmip 2` on Vita to fit VRAM; dynamic resolution is off by default.
+| Input | Action |
+|-------|--------|
+| Left stick | Move (forward/back/strafe) — also the menu cursor |
+| Right stick | Look / turn |
+| Front touchscreen | In menus acting like a pointer moving the cursor |
+
+In menus, Cross selects/clicks and Circle goes back/cancels. That face-button remap is in `cl_keys.cpp`. Navigate menus with the left stick plus those two buttons.
+
+## Base layer (physical buttons)
+
+| Button | Action |
+|--------|--------|
+| R | Attack / saber swing (`+attack`) |
+| L | Alt-attack / saber special (`+altattack`) |
+| ✕ Cross | Jump (`+moveup`) |
+| ◻ Square | Crouch (`+movedown`) |
+| ○ Circle | Use / activate (`+use`) |
+| △ Triangle | Use selected force power (`+useforce`) |
+| D-pad Up / Down | Next / previous weapon |
+| D-pad Left / Right | Select previous / next force power |
+| Select | Mission objectives — datapad (`datapad`) |
+| Start | In-game menu (`togglemenu`) |
+
+## Rear touch panel
+
+The rear panel is split into four corner zones. A cross-shaped dead band down the middle ignores the fingers that grip the console. Set `vita_rearTouch 0` to disable all of it.
+
+| Rear zone | Action |
+|-----------|--------|
+| Top-left (HOLD) | Combo modifier — see below |
+| Top-right | Binocular zoom (`zoom`) |
+| Bottom-left | Secondary force fire (`+useforce`) |
+| Bottom-right | Run / walk (`+speed`) |
+
+## Combo layer — hold rear top-left, then press:
+
+| Combo | Action |
+|-------|--------|
+| + △ Triangle | Force Speed |
+| + ○ Circle | Force Heal |
+| + ✕ Cross | Force Push (`force_throw`) |
+| + ◻ Square | Force Pull |
+| + R | Cycle saber stance (`saberAttackCycle`) |
+| + D-pad Up / Down | Inventory next / previous |
+| + D-pad Left | Use inventory item (`invuse`) |
+| + D-pad Right | Quick-select lightsaber (`weapon 1`) |
+
+The combo layer only fires instant commands. The modifier role is latched per button at the moment it is pressed, so releasing the rear modifier mid-press can't strand a held action. The combo layer is inactive while a menu is open.
+
 
 ## Build (for developers)
 
@@ -54,11 +96,9 @@ Cloned without `--recursive`? Run `git submodule update --init` first (the setup
 ## Credits
 
 - [OpenJK](https://github.com/JACoders/OpenJK) (JACoders) — the open-source JK2/JKA engine this builds on.
-- id Software — the id Tech 3 / Quake III GPL release underneath.
 - Raven Software / LucasArts — the original *Jedi Knight II: Jedi Outcast*.
 - [Rinnegatamante](https://github.com/Rinnegatamante) — vitaGL, and vitaQuakeIII as the reference id Tech 3 Vita port.
 - [Northfear](https://github.com/Northfear/SDL) — SDL2 with the vitaGL backend.
-- StaticJK — the Jedi Academy single-ELF blueprint for Vita.
 
 ## License
 
