@@ -1103,6 +1103,15 @@ extern cvar_t	*r_measureOverdraw;		// enables stencil buffer overdraw measuremen
 
 extern cvar_t	*r_lodbias;				// push/pull LOD transitions
 extern cvar_t	*r_lodscale;
+extern cvar_t	*r_ghoul2CrowdLod;		// crowd LOD: visible ghoul2 char count to start dropping LOD (0 = off)
+extern cvar_t	*r_ghoul2CrowdLodStep;	// extra visible chars per +1 LOD step
+extern cvar_t	*r_distanceCull;		// render-distance cap, clamps the map's distanceCull (0 = off)
+extern cvar_t	*r_forceFog;			// forced global fog END distance in units (0 = off)
+extern cvar_t	*r_forceFogColor;		// forced fog colour "r g b"
+extern cvar_t	*r_g2Threaded;			// skin ghoul2 verts on the worker pool (0 = off)
+extern cvar_t	*r_texCache;			// pre-decoded RGBA texture cache on ux0 (0 = off)
+extern cvar_t	*r_texCacheCompressed;	// DXT mip-chain texture cache on ux0 (0 = off)
+extern cvar_t	*r_dxtFast;				// DXT encode quality (1 = fast/STB_DXT_NORMAL, 0 = high)
 
 extern cvar_t	*r_primitives;			// "0" = based on compiled vertex array existance
 										// "1" = glDrawElemet tristrips
@@ -1587,6 +1596,7 @@ public:
 #endif
  	CBoneCache 		*boneCache;		// pointer to transformed bone list for this surf
 	mdxmSurface_t	*surfaceData;	// pointer to surface data loaded into file - only used by client renderer DO NOT USE IN GAME SIDE - if there is a vid restart this will be out of wack on the game
+	float			*skinOut;		// pre-skinned xyz+normal from a worker thread (r_g2Threaded). NULL => skin inline on main thread.
 #ifdef _G2_GORE
 	float			*alternateTex;		// alternate texture coordinates.
 	void			*goreChain;
@@ -1602,6 +1612,7 @@ public:
 		ident	 = src.ident;
 		boneCache = src.boneCache;
 		surfaceData = src.surfaceData;
+		skinOut = 0;	// don't carry a stale skin buffer across copies
 		alternateTex = src.alternateTex;
 		goreChain = src.goreChain;
 
@@ -1612,12 +1623,12 @@ public:
 CRenderableSurface():
 	ident(SF_MDX),
 	boneCache(0),
-#ifdef _G2_GORE
 	surfaceData(0),
+	skinOut(0)
+#ifdef _G2_GORE
+	,
 	alternateTex(0),
 	goreChain(0)
-#else
-	surfaceData(0)
 #endif
 	{}
 
@@ -1625,6 +1636,7 @@ CRenderableSurface():
 	{
 		boneCache=0;
 		surfaceData=0;
+		skinOut=0;
 #ifdef _G2_GORE
 		ident = SF_MDX;
 		alternateTex=0;
@@ -1635,6 +1647,11 @@ CRenderableSurface():
 
 void R_AddGhoulSurfaces( trRefEntity_t *ent );
 void RB_SurfaceGhoul( CRenderableSurface *surface );
+#ifdef VITA
+// skin all visible Ghoul2 chars on the worker pool (one job per boneCache) up front,
+// result lands in CRenderableSurface::skinOut for RB_SurfaceGhoul to pick up.
+void RB_PrepGhoulSkinMT( drawSurf_t *drawSurfs, int numDrawSurfs );
+#endif
 /*
 Ghoul2 Insert End
 */
