@@ -199,6 +199,7 @@ void SV_SpawnServer( const char *server, ForceReload_e eForceReload, qboolean bA
 	int			i;
 	int			checksum;
 
+
 	re.RegisterMedia_LevelLoadBegin( server, eForceReload, bAllowScreenDissolve );
 
 

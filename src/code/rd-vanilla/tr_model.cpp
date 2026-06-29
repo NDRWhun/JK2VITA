@@ -179,6 +179,7 @@ qboolean RE_RegisterModels_GetDiskFile( const char *psModelFileName, void **ppvB
 
 // if return == true, no further action needed by the caller...
 //
+
 void *RE_RegisterModels_Malloc(int iSize, void *pvDiskBufferIfJustLoaded, const char *psModelFileName, qboolean *pqbAlreadyFound, memtag_t eTag)
 {
 	char sModelName[MAX_QPATH];

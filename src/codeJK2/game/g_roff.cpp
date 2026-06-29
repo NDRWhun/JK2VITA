@@ -503,6 +503,7 @@ void G_Roff( gentity_t *ent )
 	const roff_list_t *  roff	= &roffs[ roff_id - 1 ];
 	vec3_t	org, ang;
 
+
 	if ( roff->type == 2 )
 	{
 		move_rotate2_t	*data	= &((move_rotate2_t *)roff->data)[ ent->roff_ctr ];

@@ -397,7 +397,6 @@ void SCR_Init( void ) {
 	scr_initialized = qtrue;
 }
 
-
 //=======================================================
 
 void UI_SetActiveMenu( const char* menuname,const char *menuID );

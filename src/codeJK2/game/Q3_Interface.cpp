@@ -8600,10 +8600,8 @@ static int Q3_GetString( int entID, int type, const char *name, char **value )
 	if( strlen(name) > 5 && !Q_stricmpn(name, "cvar_", 5) )
 	{
 		const char* cvar_name = name + 5;
-		// by allocating and then re-using the same sufficiently large buffer,
-		// we ensure that pointers to it never become invalid,
-		// so we can support expressions using the same cvar twice,
-		// e.g. if(get(cvar_x) == get(cvar_x))
+		// keep one persistent buffer per cvar so the returned pointer stays valid
+		// when an expression reads the same cvar twice, e.g. if(get(cvar_x) == get(cvar_x))
 		std::array<char, MAX_STRING_CHARS>& buf = ICARUS_CvarList[cvar_name];
 		gi.Cvar_VariableStringBuffer(cvar_name, buf.data(), buf.size());
 		*value = buf.data();
