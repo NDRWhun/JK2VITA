@@ -1318,6 +1318,34 @@ void CL_KeyUpEvent( int key, unsigned time )
 		_UI_KeyEvent( key, qfalse );
 }
 
+#ifdef VITA
+// --- Vita combo (held-modifier) layer ----------------------------------------
+// The rear-touch top-left zone (synthesized as A_AUX1 in IN_VitaRearTouch) is a held
+// modifier. While it is down, the face / d-pad buttons fire INSTANT alternate
+// commands (force powers, saber stance, inventory, quick-saber) instead of their
+// normal gameplay bind. Only INSTANT commands live here, so a modifier released
+// mid-press can never strand a held (+) command; the alt role is latched per key at
+// its down edge. Table index = key - A_JOY0  (Triangle=JOY1 .. Start=JOY12).
+static qboolean			vita_modDown  = qfalse;
+static unsigned			vita_altLatch = 0;
+static const char * const vita_altTable[16] = {
+	NULL,				// 0  JOY0
+	"force_speed",		// 1  JOY1  Triangle
+	"force_heal",		// 2  JOY2  Circle
+	"force_throw",		// 3  JOY3  Cross    (Force Push)
+	"force_pull",		// 4  JOY4  Square
+	NULL,				// 5  JOY5  L        (keep +altattack)
+	"saberAttackCycle",	// 6  JOY6  R        (cycle saber stance)
+	"invprev",			// 7  JOY7  D-Down
+	"invuse",			// 8  JOY8  D-Left
+	"invnext",			// 9  JOY9  D-Up
+	"weapon 1",			// 10 JOY10 D-Right  (quick-select lightsaber)
+	NULL,				// 11 JOY11 Select   (keep datapad)
+	NULL,				// 12 JOY12 Start    (keep togglemenu)
+	NULL, NULL, NULL
+};
+#endif
+
 /*
 ===================
 CL_KeyEvent
@@ -1326,6 +1354,42 @@ Called by the system for both key up and key down events
 ===================
 */
 void CL_KeyEvent (int key, qboolean down, unsigned time) {
+#ifdef VITA
+	// Rear top-left zone = combo modifier: latch state, never run a bind.
+	if ( key == A_AUX1 ) {
+		vita_modDown = down;
+		return;
+	}
+
+	// Combo layer (in-game only, never in menus): when the modifier is held, a face /
+	// d-pad button fires an INSTANT alt command and swallows its normal bind. The role
+	// is latched per key so releasing the modifier mid-press cannot strand a +command.
+	if ( key >= A_JOY0 && key <= A_JOY31 && !( Key_GetCatcher() & KEYCATCH_UI ) ) {
+		unsigned idx = (unsigned)( key - A_JOY0 );
+		unsigned bit = 1u << ( idx & 31 );
+		if ( down ) {
+			if ( vita_modDown && idx < 16 && vita_altTable[idx] ) {
+				vita_altLatch |= bit;
+				Cbuf_AddText( vita_altTable[idx] );
+				Cbuf_AddText( "\n" );
+				return;
+			}
+		} else if ( vita_altLatch & bit ) {
+			vita_altLatch &= ~bit;	// swallow the up edge of a consumed alt press
+			return;
+		}
+	}
+
+	// In the cursor-driven menus, make the face buttons act like a pointer:
+	// Cross = click, Circle = back/cancel. (The sticks drive the cursor in
+	// CL_JoystickMove.) Outside the UI they keep their gameplay bindings.
+	if ( Key_GetCatcher() & KEYCATCH_UI ) {
+		if ( key == A_JOY3 )		// Cross
+			key = A_MOUSE1;
+		else if ( key == A_JOY2 )	// Circle
+			key = A_ESCAPE;
+	}
+#endif
 	if( down )
 		CL_KeyDownEvent( key, time );
 	else
