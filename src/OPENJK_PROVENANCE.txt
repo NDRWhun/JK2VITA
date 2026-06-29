@@ -1,0 +1,7 @@
+JK2VITA src/ vendored from OpenJK upstream.
+Repo:   https://github.com/JACoders/OpenJK
+Commit: 2ba50212c2c24e90c6b28753340cc53e71fd5d0b
+Date:   2026-06-25T21:21:44Z
+Subset: code/ (engine+renderer+ui+qcommon+libs), codeJK2/ (JK2 SP game/cgame/icarus),
+        shared/ (sys+sdl+qcommon), lib/{minizip,gsl-lite}.
+Game data assets are NOT included (user must supply base/*.pk3).
