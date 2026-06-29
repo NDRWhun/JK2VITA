@@ -47,6 +47,11 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #define	LS(x) x=LittleShort(x)
 #define	LF(x) x=LittleFloat(x)
 
+#ifdef VITA
+#include "../qcommon/vita_jobpool.h"
+#include <stdlib.h>		// malloc for the skin arena
+#endif
+
 #ifdef G2_PERFORMANCE_ANALYSIS
 #include "../qcommon/timing.h"
 timing_c G2PerformanceTimer_RB_SurfaceGhoul;
@@ -831,6 +836,13 @@ static int R_GComputeFogNum( trRefEntity_t *ent ) {
 }
 
 // work out lod for this entity.
+#ifdef VITA
+// Crowd LOD: count of visible ghoul2 chars. We bias on last frame's count, not this
+// one, otherwise it's chicken-and-egg within a frame. Counted after the cull in
+// R_AddGhoulSurfaces, read in G2_ComputeLOD.
+int g_g2VisibleCount = 0, g_g2VisibleCountPrev = 0, g_g2VisFrame = -1;
+#endif
+
 static int G2_ComputeLOD( trRefEntity_t *ent, const model_t *currentModel, int lodBias )
 {
 	float flod, lodscale;
@@ -897,6 +909,21 @@ static int G2_ComputeLOD( trRefEntity_t *ent, const model_t *currentModel, int l
 
 	lod += lodBias;
 
+#ifdef VITA
+	// Crowd LOD: with a lot of characters on screen, drop the far ones a LOD to cut
+	// skinning cost. The distance LOD above keeps near ones detailed. Skip the
+	// third-person player so it stays crisp.
+	if ( r_ghoul2CrowdLod && r_ghoul2CrowdLod->integer > 0 && !( ent->e.renderfx & RF_THIRD_PERSON ) )
+	{
+		const int over = g_g2VisibleCountPrev - r_ghoul2CrowdLod->integer;
+		if ( over > 0 )
+		{
+			int step = ( r_ghoul2CrowdLodStep && r_ghoul2CrowdLodStep->integer > 0 ) ? r_ghoul2CrowdLodStep->integer : 3;
+			lod += ( over + step - 1 ) / step;	// +1 past the threshold, then +1 per `step` over
+		}
+	}
+#endif
+
 	if ( lod >= currentModel->numLods )
 		lod = currentModel->numLods - 1;
 	if ( lod < 0 )
@@ -906,8 +933,36 @@ static int G2_ComputeLOD( trRefEntity_t *ent, const model_t *currentModel, int l
 }
 
 
+#if defined(__ARM_NEON)
+#include <arm_neon.h>
+#endif
+
+// Inlined dot3 for the skin loop. Same math as DotProduct, but that's an out-of-line
+// extern (no LTO here), so the skin loop would eat a call per matrix row per vertex.
+// Render-only, never read back by gameplay.
+static inline float G2_Dot3( const float *a, const float *b )
+{
+	return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+}
+
 void Multiply_3x4Matrix(mdxaBone_t *out,const  mdxaBone_t *in2,const mdxaBone_t *in)
 {
+#if defined(__ARM_NEON)
+	// out = in2 * in (3x4 affine). Each output row is in's three rows scaled by in2[i],
+	// plus in2's translation in lane 3. ~9 FMAs instead of 36 mults + 24 adds.
+	const float32x4_t b0 = vld1q_f32( in->matrix[0] );
+	const float32x4_t b1 = vld1q_f32( in->matrix[1] );
+	const float32x4_t b2 = vld1q_f32( in->matrix[2] );
+	for ( int i = 0; i < 3; i++ )
+	{
+		const float *ar = in2->matrix[i];
+		float32x4_t r = vmulq_n_f32( b0, ar[0] );
+		r = vmlaq_n_f32( r, b1, ar[1] );
+		r = vmlaq_n_f32( r, b2, ar[2] );
+		r = vsetq_lane_f32( vgetq_lane_f32( r, 3 ) + ar[3], r, 3 );	// add in2's translation
+		vst1q_f32( out->matrix[i], r );
+	}
+#else
 	// first row of out
 	out->matrix[0][0] = (in2->matrix[0][0] * in->matrix[0][0]) + (in2->matrix[0][1] * in->matrix[1][0]) + (in2->matrix[0][2] * in->matrix[2][0]);
 	out->matrix[0][1] = (in2->matrix[0][0] * in->matrix[0][1]) + (in2->matrix[0][1] * in->matrix[1][1]) + (in2->matrix[0][2] * in->matrix[2][1]);
@@ -923,6 +978,7 @@ void Multiply_3x4Matrix(mdxaBone_t *out,const  mdxaBone_t *in2,const mdxaBone_t 
 	out->matrix[2][1] = (in2->matrix[2][0] * in->matrix[0][1]) + (in2->matrix[2][1] * in->matrix[1][1]) + (in2->matrix[2][2] * in->matrix[2][1]);
 	out->matrix[2][2] = (in2->matrix[2][0] * in->matrix[0][2]) + (in2->matrix[2][1] * in->matrix[1][2]) + (in2->matrix[2][2] * in->matrix[2][2]);
 	out->matrix[2][3] = (in2->matrix[2][0] * in->matrix[0][3]) + (in2->matrix[2][1] * in->matrix[1][3]) + (in2->matrix[2][2] * in->matrix[2][3]) + in2->matrix[2][3];
+#endif
 }
 
 static int G2_GetBonePoolIndex(const mdxaHeader_t *pMDXAHeader, int iFrame, int iBone)
@@ -1576,7 +1632,7 @@ void G2_TransformBone (int child,CBoneCache &BC)
 			// this is crazy, we are gonna drive the animation to ID while we are doing post mults to compensate.
 			Multiply_3x4Matrix(&temp,&firstPass, &skel->BasePoseMat);
 			float	matrixScale = VectorLength((float*)&temp);
-			static mdxaBone_t		toMatrix =
+			mdxaBone_t		toMatrix =	// was static; the shared static raced under r_g2Threaded
 			{
 				{
 					{ 1.0f, 0.0f, 0.0f, 0.0f },
@@ -2592,6 +2648,16 @@ void R_AddGhoulSurfaces( trRefEntity_t *ent ) {
 	{
 		return;
 	}
+#ifdef VITA
+	// Crowd LOD: count this visible character; the total feeds next frame's bias.
+	if ( tr.frameCount != g_g2VisFrame )
+	{
+		g_g2VisibleCountPrev = g_g2VisibleCount;
+		g_g2VisibleCount     = 0;
+		g_g2VisFrame         = tr.frameCount;
+	}
+	g_g2VisibleCount++;
+#endif
 	HackadelicOnClient=true;
 	// are any of these models setting a new origin?
 	RootMatrix(ghoul2,currentTime, ent->e.modelScale,rootMatrix);
@@ -2762,6 +2828,191 @@ void G2_ConstructGhoulSkeleton( CGhoul2Info_v &ghoul2,const int frameNum,bool ch
 		}
 	}
 }
+
+#ifdef VITA
+// Threaded Ghoul2 vertex skinning (r_g2Threaded).
+//
+// Skinning is the combat bottleneck, so push it to the worker pool: one job per
+// character. One CBoneCache, one owner, so the lazy Eval (which mutates the cache)
+// can't race. Main thread waits before walking the draw list; RB_SurfaceGhoul then
+// just memcpys the result. texCoords aren't skinned, still copied on the main thread.
+//
+// Safe because: one owner per cache, toMatrix is now stack-local, HackadelicOnClient
+// doesn't change during the backend, and mesh/skel data is immutable. Off by default;
+// the serial path below is the fallback.
+
+// Deform one surface's xyz + normal into the buffers (vec4 stride, like tess).
+// Has to match the weighted-skin loop in RB_SurfaceGhoul exactly.
+static void G2_SkinSurfaceToBuffer( CRenderableSurface *surf, float *outXyz, float *outNormal )
+{
+	mdxmSurface_t  *surface  = surf->surfaceData;
+	CBoneCache     *bones    = surf->boneCache;
+	const int       numVerts = surface->numVerts;
+	int            *piBoneReferences = (int*)((byte*)surface + surface->ofsBoneReferences);
+	mdxmVertex_t   *v = (mdxmVertex_t*)((byte*)surface + surface->ofsVerts);
+
+	for ( int j = 0; j < numVerts; j++, v++ )
+	{
+		float *oX = &outXyz[j*4];
+		float *oN = &outNormal[j*4];
+#ifdef JK2_MODE
+		const mdxaBone_t *bone = &bones->Eval( piBoneReferences[ G2_GetVertBoneIndex( v, 0 ) ] );
+#else
+		const mdxaBone_t *bone = &bones->EvalRender( piBoneReferences[ G2_GetVertBoneIndex( v, 0 ) ] );
+#endif
+		const int iNumWeights = G2_GetVertWeights( v );
+
+		oN[0] = G2_Dot3( bone->matrix[0], v->normal );
+		oN[1] = G2_Dot3( bone->matrix[1], v->normal );
+		oN[2] = G2_Dot3( bone->matrix[2], v->normal );
+
+		if ( iNumWeights == 1 )
+		{
+			oX[0] = ( G2_Dot3( bone->matrix[0], v->vertCoords ) + bone->matrix[0][3] );
+			oX[1] = ( G2_Dot3( bone->matrix[1], v->vertCoords ) + bone->matrix[1][3] );
+			oX[2] = ( G2_Dot3( bone->matrix[2], v->vertCoords ) + bone->matrix[2][3] );
+		}
+		else
+		{
+			float fBoneWeight = G2_GetVertBoneWeightNotSlow( v, 0 );
+			if ( iNumWeights == 2 )
+			{
+#ifdef JK2_MODE
+				const mdxaBone_t *bone2 = &bones->Eval( piBoneReferences[ G2_GetVertBoneIndex( v, 1 ) ] );
+#else
+				const mdxaBone_t *bone2 = &bones->EvalRender( piBoneReferences[ G2_GetVertBoneIndex( v, 1 ) ] );
+#endif
+				float t1, t2;
+				t1 = ( G2_Dot3( bone->matrix[0], v->vertCoords ) + bone->matrix[0][3] );
+				t2 = ( G2_Dot3( bone2->matrix[0], v->vertCoords ) + bone2->matrix[0][3] );
+				oX[0] = fBoneWeight * (t1-t2) + t2;
+				t1 = ( G2_Dot3( bone->matrix[1], v->vertCoords ) + bone->matrix[1][3] );
+				t2 = ( G2_Dot3( bone2->matrix[1], v->vertCoords ) + bone2->matrix[1][3] );
+				oX[1] = fBoneWeight * (t1-t2) + t2;
+				t1 = ( G2_Dot3( bone->matrix[2], v->vertCoords ) + bone->matrix[2][3] );
+				t2 = ( G2_Dot3( bone2->matrix[2], v->vertCoords ) + bone2->matrix[2][3] );
+				oX[2] = fBoneWeight * (t1-t2) + t2;
+			}
+			else
+			{
+				oX[0] = fBoneWeight * ( G2_Dot3( bone->matrix[0], v->vertCoords ) + bone->matrix[0][3] );
+				oX[1] = fBoneWeight * ( G2_Dot3( bone->matrix[1], v->vertCoords ) + bone->matrix[1][3] );
+				oX[2] = fBoneWeight * ( G2_Dot3( bone->matrix[2], v->vertCoords ) + bone->matrix[2][3] );
+
+				float fTotalWeight = fBoneWeight;
+				int k;
+				for ( k = 1; k < iNumWeights-1; k++ )
+				{
+#ifdef JK2_MODE
+					bone = &bones->Eval( piBoneReferences[ G2_GetVertBoneIndex( v, k ) ] );
+#else
+					bone = &bones->EvalRender( piBoneReferences[ G2_GetVertBoneIndex( v, k ) ] );
+#endif
+					fBoneWeight = G2_GetVertBoneWeightNotSlow( v, k );
+					fTotalWeight += fBoneWeight;
+					oX[0] += fBoneWeight * ( G2_Dot3( bone->matrix[0], v->vertCoords ) + bone->matrix[0][3] );
+					oX[1] += fBoneWeight * ( G2_Dot3( bone->matrix[1], v->vertCoords ) + bone->matrix[1][3] );
+					oX[2] += fBoneWeight * ( G2_Dot3( bone->matrix[2], v->vertCoords ) + bone->matrix[2][3] );
+				}
+#ifdef JK2_MODE
+				bone = &bones->Eval( piBoneReferences[ G2_GetVertBoneIndex( v, k ) ] );
+#else
+				bone = &bones->EvalRender( piBoneReferences[ G2_GetVertBoneIndex( v, k ) ] );
+#endif
+				fBoneWeight = 1.0f - fTotalWeight;
+				oX[0] += fBoneWeight * ( G2_Dot3( bone->matrix[0], v->vertCoords ) + bone->matrix[0][3] );
+				oX[1] += fBoneWeight * ( G2_Dot3( bone->matrix[1], v->vertCoords ) + bone->matrix[1][3] );
+				oX[2] += fBoneWeight * ( G2_Dot3( bone->matrix[2], v->vertCoords ) + bone->matrix[2][3] );
+			}
+		}
+	}
+}
+
+#define G2MT_MAX_CHARS			64
+#define G2MT_MAX_SURFS_PER_CHAR	64
+
+struct g2SkinGroup_t {
+	CBoneCache         *cache;
+	CRenderableSurface *surfs[G2MT_MAX_SURFS_PER_CHAR];
+	int                 n;
+};
+
+static g2SkinGroup_t s_g2Groups[G2MT_MAX_CHARS];
+static int           s_g2NumGroups;
+static byte         *s_g2Arena     = NULL;
+static size_t        s_g2ArenaSize = 0;
+static size_t        s_g2ArenaUsed = 0;
+
+// One job = one character: skin all its surfaces in order. Single owner of the
+// boneCache, so the lazy Eval is safe.
+static void G2_SkinGroupJob( void *arg )
+{
+	g2SkinGroup_t *g = (g2SkinGroup_t*)arg;
+	for ( int s = 0; s < g->n; s++ )
+	{
+		CRenderableSurface *surf = g->surfs[s];
+		const int nv = surf->surfaceData->numVerts;
+		G2_SkinSurfaceToBuffer( surf, surf->skinOut, surf->skinOut + nv*4 );
+	}
+}
+
+void RB_PrepGhoulSkinMT( drawSurf_t *drawSurfs, int numDrawSurfs )
+{
+	if ( !r_g2Threaded || !r_g2Threaded->integer || !JobPool_Available() ) {
+		return;
+	}
+
+	if ( !s_g2Arena ) {
+		s_g2ArenaSize = 8 * 1024 * 1024;	// xyz+normal = 8 floats/vert; plenty for a combat scene
+		s_g2Arena = (byte*)malloc( s_g2ArenaSize );
+		if ( !s_g2Arena ) { s_g2ArenaSize = 0; return; }
+	}
+	s_g2ArenaUsed = 0;
+	s_g2NumGroups = 0;
+
+	// Group SF_MDX surfaces by boneCache, give each a slice of the arena.
+	for ( int i = 0; i < numDrawSurfs; i++ )
+	{
+		surfaceType_t *st = drawSurfs[i].surface;
+		if ( !st || *st != SF_MDX ) continue;
+		CRenderableSurface *surf = (CRenderableSurface*)st;
+		surf->skinOut = NULL;	// default: skin inline on the main thread
+#ifdef _G2_GORE
+		if ( surf->alternateTex ) continue;	// gore surface carries its own pre-deformed verts
+#endif
+		if ( !surf->surfaceData || !surf->boneCache ) continue;
+
+		const int nv = surf->surfaceData->numVerts;
+		const size_t need = (size_t)nv * 8 * sizeof(float);
+		if ( s_g2ArenaUsed + need > s_g2ArenaSize ) continue;	// arena full -> inline
+
+		g2SkinGroup_t *g = NULL;
+		for ( int k = 0; k < s_g2NumGroups; k++ ) {
+			if ( s_g2Groups[k].cache == surf->boneCache ) { g = &s_g2Groups[k]; break; }
+		}
+		if ( !g ) {
+			if ( s_g2NumGroups >= G2MT_MAX_CHARS ) continue;	// too many characters -> inline
+			g = &s_g2Groups[ s_g2NumGroups++ ];
+			g->cache = surf->boneCache;
+			g->n = 0;
+		}
+		if ( g->n >= G2MT_MAX_SURFS_PER_CHAR ) continue;		// character has too many surfaces -> inline
+
+		surf->skinOut = (float*)( s_g2Arena + s_g2ArenaUsed );
+		s_g2ArenaUsed += need;
+		g->surfs[ g->n++ ] = surf;
+	}
+
+	if ( !s_g2NumGroups ) return;
+
+	JobPool_ResetGroup( JOBGROUP_SKIN );
+	for ( int i = 0; i < s_g2NumGroups; i++ ) {
+		JobPool_Enqueue( JOBGROUP_SKIN, G2_SkinGroupJob, &s_g2Groups[i] );
+	}
+	JobPool_Signal( s_g2NumGroups );
+	JobPool_WaitGroup( JOBGROUP_SKIN );	// main pitches in as a worker until all chars are done
+}
+#endif // VITA
 
 /*
 ==============
@@ -2952,13 +3203,13 @@ void RB_SurfaceGhoul( CRenderableSurface *surf )
 			float	fBoneWeight = G2_GetVertBoneWeight( v, k, fTotalWeight, iNumWeights );
 			const mdxaBone_t *bone = &bones->EvalRender(piBoneReferences[iBoneIndex]);
 
-			tess.xyz[baseVertex][0] = fBoneWeight * ( DotProduct( bone->matrix[0], v->vertCoords ) + bone->matrix[0][3] );
-			tess.xyz[baseVertex][1] = fBoneWeight * ( DotProduct( bone->matrix[1], v->vertCoords ) + bone->matrix[1][3] );
-			tess.xyz[baseVertex][2] = fBoneWeight * ( DotProduct( bone->matrix[2], v->vertCoords ) + bone->matrix[2][3] );
+			tess.xyz[baseVertex][0] = fBoneWeight * ( G2_Dot3( bone->matrix[0], v->vertCoords ) + bone->matrix[0][3] );
+			tess.xyz[baseVertex][1] = fBoneWeight * ( G2_Dot3( bone->matrix[1], v->vertCoords ) + bone->matrix[1][3] );
+			tess.xyz[baseVertex][2] = fBoneWeight * ( G2_Dot3( bone->matrix[2], v->vertCoords ) + bone->matrix[2][3] );
 
-			tess.normal[baseVertex][0] = fBoneWeight * DotProduct( bone->matrix[0], v->normal );
-			tess.normal[baseVertex][1] = fBoneWeight * DotProduct( bone->matrix[1], v->normal );
-			tess.normal[baseVertex][2] = fBoneWeight * DotProduct( bone->matrix[2], v->normal );
+			tess.normal[baseVertex][0] = fBoneWeight * G2_Dot3( bone->matrix[0], v->normal );
+			tess.normal[baseVertex][1] = fBoneWeight * G2_Dot3( bone->matrix[1], v->normal );
+			tess.normal[baseVertex][2] = fBoneWeight * G2_Dot3( bone->matrix[2], v->normal );
 
 			for ( k++ ; k < iNumWeights ; k++)
 			{
@@ -2967,13 +3218,13 @@ void RB_SurfaceGhoul( CRenderableSurface *surf )
 
 				bone = &bones->EvalRender(piBoneReferences[iBoneIndex]);
 
-				tess.xyz[baseVertex][0] += fBoneWeight * ( DotProduct( bone->matrix[0], v->vertCoords ) + bone->matrix[0][3] );
-				tess.xyz[baseVertex][1] += fBoneWeight * ( DotProduct( bone->matrix[1], v->vertCoords ) + bone->matrix[1][3] );
-				tess.xyz[baseVertex][2] += fBoneWeight * ( DotProduct( bone->matrix[2], v->vertCoords ) + bone->matrix[2][3] );
+				tess.xyz[baseVertex][0] += fBoneWeight * ( G2_Dot3( bone->matrix[0], v->vertCoords ) + bone->matrix[0][3] );
+				tess.xyz[baseVertex][1] += fBoneWeight * ( G2_Dot3( bone->matrix[1], v->vertCoords ) + bone->matrix[1][3] );
+				tess.xyz[baseVertex][2] += fBoneWeight * ( G2_Dot3( bone->matrix[2], v->vertCoords ) + bone->matrix[2][3] );
 
-				tess.normal[baseVertex][0] += fBoneWeight * DotProduct( bone->matrix[0], v->normal );
-				tess.normal[baseVertex][1] += fBoneWeight * DotProduct( bone->matrix[1], v->normal );
-				tess.normal[baseVertex][2] += fBoneWeight * DotProduct( bone->matrix[2], v->normal );
+				tess.normal[baseVertex][0] += fBoneWeight * G2_Dot3( bone->matrix[0], v->normal );
+				tess.normal[baseVertex][1] += fBoneWeight * G2_Dot3( bone->matrix[1], v->normal );
+				tess.normal[baseVertex][2] += fBoneWeight * G2_Dot3( bone->matrix[2], v->normal );
 			}
 
 			tess.texCoords[baseVertex][0][0] = pTexCoords[j].texCoords[0];
@@ -2989,6 +3240,21 @@ void RB_SurfaceGhoul( CRenderableSurface *surf )
 		float t2;
 		const mdxaBone_t *bone;
 		const mdxaBone_t *bone2;
+#ifdef VITA
+		// Worker pool already deformed this surface: copy xyz+normal straight into tess,
+		// fill texCoords (not skinned) from the mesh.
+		if ( r_g2Threaded && r_g2Threaded->integer && surf->skinOut )
+		{
+			memcpy( &tess.xyz[baseVertex][0],    surf->skinOut,              sizeof(float)*4*numVerts );
+			memcpy( &tess.normal[baseVertex][0], surf->skinOut + 4*numVerts, sizeof(float)*4*numVerts );
+			for ( j = 0; j < numVerts; j++ )
+			{
+				tess.texCoords[baseVertex+j][0][0] = pTexCoords[j].texCoords[0];
+				tess.texCoords[baseVertex+j][0][1] = pTexCoords[j].texCoords[1];
+			}
+		}
+		else
+#endif
 		for ( j = 0; j < numVerts; j++, baseVertex++,v++ )
 		{
 #ifdef JK2_MODE
@@ -2997,15 +3263,15 @@ void RB_SurfaceGhoul( CRenderableSurface *surf )
 			bone = &bones->EvalRender(piBoneReferences[G2_GetVertBoneIndex( v, 0 )]);
 #endif // JK2_MODE
 			int iNumWeights = G2_GetVertWeights( v );
-			tess.normal[baseVertex][0] = DotProduct( bone->matrix[0], v->normal );
-			tess.normal[baseVertex][1] = DotProduct( bone->matrix[1], v->normal );
-			tess.normal[baseVertex][2] = DotProduct( bone->matrix[2], v->normal );
+			tess.normal[baseVertex][0] = G2_Dot3( bone->matrix[0], v->normal );
+			tess.normal[baseVertex][1] = G2_Dot3( bone->matrix[1], v->normal );
+			tess.normal[baseVertex][2] = G2_Dot3( bone->matrix[2], v->normal );
 
 			if (iNumWeights==1)
 			{
-				tess.xyz[baseVertex][0] = ( DotProduct( bone->matrix[0], v->vertCoords ) + bone->matrix[0][3] );
-				tess.xyz[baseVertex][1] = ( DotProduct( bone->matrix[1], v->vertCoords ) + bone->matrix[1][3] );
-				tess.xyz[baseVertex][2] = ( DotProduct( bone->matrix[2], v->vertCoords ) + bone->matrix[2][3] );
+				tess.xyz[baseVertex][0] = ( G2_Dot3( bone->matrix[0], v->vertCoords ) + bone->matrix[0][3] );
+				tess.xyz[baseVertex][1] = ( G2_Dot3( bone->matrix[1], v->vertCoords ) + bone->matrix[1][3] );
+				tess.xyz[baseVertex][2] = ( G2_Dot3( bone->matrix[2], v->vertCoords ) + bone->matrix[2][3] );
 			}
 			else
 			{
@@ -3025,22 +3291,22 @@ void RB_SurfaceGhoul( CRenderableSurface *surf )
 					v[2]*(w*(bone->matrix[0][2]-bone2->matrix[0][2])+bone2->matrix[0][2])+
 					w*(bone->matrix[0][3]-bone2->matrix[0][3]) + bone2->matrix[0][3];
 					*/
-					t1 = ( DotProduct( bone->matrix[0], v->vertCoords ) + bone->matrix[0][3] );
-					t2 = ( DotProduct( bone2->matrix[0], v->vertCoords ) + bone2->matrix[0][3] );
+					t1 = ( G2_Dot3( bone->matrix[0], v->vertCoords ) + bone->matrix[0][3] );
+					t2 = ( G2_Dot3( bone2->matrix[0], v->vertCoords ) + bone2->matrix[0][3] );
 					tess.xyz[baseVertex][0] = fBoneWeight * (t1-t2) + t2;
-					t1 = ( DotProduct( bone->matrix[1], v->vertCoords ) + bone->matrix[1][3] );
-					t2 = ( DotProduct( bone2->matrix[1], v->vertCoords ) + bone2->matrix[1][3] );
+					t1 = ( G2_Dot3( bone->matrix[1], v->vertCoords ) + bone->matrix[1][3] );
+					t2 = ( G2_Dot3( bone2->matrix[1], v->vertCoords ) + bone2->matrix[1][3] );
 					tess.xyz[baseVertex][1] = fBoneWeight * (t1-t2) + t2;
-					t1 = ( DotProduct( bone->matrix[2], v->vertCoords ) + bone->matrix[2][3] );
-					t2 = ( DotProduct( bone2->matrix[2], v->vertCoords ) + bone2->matrix[2][3] );
+					t1 = ( G2_Dot3( bone->matrix[2], v->vertCoords ) + bone->matrix[2][3] );
+					t2 = ( G2_Dot3( bone2->matrix[2], v->vertCoords ) + bone2->matrix[2][3] );
 					tess.xyz[baseVertex][2] = fBoneWeight * (t1-t2) + t2;
 				}
 				else
 				{
 
-					tess.xyz[baseVertex][0] = fBoneWeight * ( DotProduct( bone->matrix[0], v->vertCoords ) + bone->matrix[0][3] );
-					tess.xyz[baseVertex][1] = fBoneWeight * ( DotProduct( bone->matrix[1], v->vertCoords ) + bone->matrix[1][3] );
-					tess.xyz[baseVertex][2] = fBoneWeight * ( DotProduct( bone->matrix[2], v->vertCoords ) + bone->matrix[2][3] );
+					tess.xyz[baseVertex][0] = fBoneWeight * ( G2_Dot3( bone->matrix[0], v->vertCoords ) + bone->matrix[0][3] );
+					tess.xyz[baseVertex][1] = fBoneWeight * ( G2_Dot3( bone->matrix[1], v->vertCoords ) + bone->matrix[1][3] );
+					tess.xyz[baseVertex][2] = fBoneWeight * ( G2_Dot3( bone->matrix[2], v->vertCoords ) + bone->matrix[2][3] );
 
 					fTotalWeight=fBoneWeight;
 					for (k=1; k < iNumWeights-1 ; k++)
@@ -3054,9 +3320,9 @@ void RB_SurfaceGhoul( CRenderableSurface *surf )
 						fBoneWeight = G2_GetVertBoneWeightNotSlow( v, k);
 						fTotalWeight += fBoneWeight;
 
-						tess.xyz[baseVertex][0] += fBoneWeight * ( DotProduct( bone->matrix[0], v->vertCoords ) + bone->matrix[0][3] );
-						tess.xyz[baseVertex][1] += fBoneWeight * ( DotProduct( bone->matrix[1], v->vertCoords ) + bone->matrix[1][3] );
-						tess.xyz[baseVertex][2] += fBoneWeight * ( DotProduct( bone->matrix[2], v->vertCoords ) + bone->matrix[2][3] );
+						tess.xyz[baseVertex][0] += fBoneWeight * ( G2_Dot3( bone->matrix[0], v->vertCoords ) + bone->matrix[0][3] );
+						tess.xyz[baseVertex][1] += fBoneWeight * ( G2_Dot3( bone->matrix[1], v->vertCoords ) + bone->matrix[1][3] );
+						tess.xyz[baseVertex][2] += fBoneWeight * ( G2_Dot3( bone->matrix[2], v->vertCoords ) + bone->matrix[2][3] );
 					}
 
 #ifdef JK2_MODE
@@ -3066,9 +3332,9 @@ void RB_SurfaceGhoul( CRenderableSurface *surf )
 #endif // JK2_MODE
 					fBoneWeight	= 1.0f-fTotalWeight;
 
-					tess.xyz[baseVertex][0] += fBoneWeight * ( DotProduct( bone->matrix[0], v->vertCoords ) + bone->matrix[0][3] );
-					tess.xyz[baseVertex][1] += fBoneWeight * ( DotProduct( bone->matrix[1], v->vertCoords ) + bone->matrix[1][3] );
-					tess.xyz[baseVertex][2] += fBoneWeight * ( DotProduct( bone->matrix[2], v->vertCoords ) + bone->matrix[2][3] );
+					tess.xyz[baseVertex][0] += fBoneWeight * ( G2_Dot3( bone->matrix[0], v->vertCoords ) + bone->matrix[0][3] );
+					tess.xyz[baseVertex][1] += fBoneWeight * ( G2_Dot3( bone->matrix[1], v->vertCoords ) + bone->matrix[1][3] );
+					tess.xyz[baseVertex][2] += fBoneWeight * ( G2_Dot3( bone->matrix[2], v->vertCoords ) + bone->matrix[2][3] );
 				}
 			}
 
