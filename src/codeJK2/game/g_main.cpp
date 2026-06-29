@@ -158,7 +158,11 @@ cvar_t	*g_debugDamage;
 cvar_t	*g_weaponRespawn;
 cvar_t	*g_subtitles;
 cvar_t	*g_ICARUSDebug;
+#ifdef VITA
+extern cvar_t	*com_buildScript;	// engine owns it (static build)
+#else
 cvar_t	*com_buildScript;
+#endif
 cvar_t	*g_skippingcin;
 cvar_t	*g_AIsurrender;
 cvar_t	*g_numEntities;
@@ -677,6 +681,11 @@ void InitGame(  const char *mapname, const char *spawntarget, int checkSum, cons
 	Interface_Init( &interface_export );
 	ICARUS_Init();
 
+	// stop_icarus stays qtrue after a player-death reload because we don't reload a game DLL
+	// (single static ELF), so every script stays frozen - trams/doors/objectives never fire.
+	// Reset it here.
+	stop_icarus = qfalse;
+
 	gi.Printf ("-----------------------------------\n");
 
 	//ICARUS INIT END
@@ -833,6 +842,9 @@ void QDECL G_Error( const char *fmt, ... ) {
 	gi.Error( ERR_DROP, "%s", text);
 }
 
+// On Vita the engine and game are one binary, so common.cpp's Com_Error/Com_Printf
+// link directly - these forwarders would be duplicate symbols.
+#ifndef VITA
 /*
 -------------------------
 Com_Error
@@ -866,6 +878,7 @@ void Com_Printf( const char *msg, ... ) {
 
 	gi.Printf ("%s", text);
 }
+#endif // !VITA
 
 /*
 ========================================================================
@@ -1505,9 +1518,22 @@ void G_LoadSave_ReadMiscData(void)
 	ojk::SavedGameHelper saved_game(
 		::gi.saved_game);
 
+	int32_t locked = 0;
 	saved_game.read_chunk<int32_t>(
 		INT_ID('L', 'C', 'K', 'D'),
-		::player_locked);
+		locked);
+
+	// Autosaves can fire mid-cutscene with player_locked set (manual saves can't - blocked
+	// while in_camera). Nothing clears that stale lock after the load, leaving the player
+	// unable to move/shoot/use. Only drop it on autosave loads; full saves are always legit.
+	if ( g_eSavedGameJustLoaded == eAUTO )
+	{
+		::player_locked = qfalse;
+	}
+	else
+	{
+		::player_locked = locked ? qtrue : qfalse;
+	}
 }
 
 
