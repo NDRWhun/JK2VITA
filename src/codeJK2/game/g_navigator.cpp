@@ -556,6 +556,12 @@ void CNavigator::Free( void )
 	{
 		delete (*ni);
 	}
+
+	// we just deleted these nodes, so clear the vector and the edge lookup too.
+	// Load() appends to both, so on a save/load reload the freed pointers would
+	// otherwise stick around and the AI would walk off them (data abort in GetNearestNode).
+	m_nodes.clear();
+	m_edgeLookupMap.clear();
 }
 
 /*
