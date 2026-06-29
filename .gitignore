@@ -1,0 +1,21 @@
+build/
+*.vpk
+*.elf
+*.velf
+*.self
+*.o
+*.a
+param.sfo
+eboot.bin
+
+# your own game data
+/base/
+*.pk3
+
+# editor/os
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+.DS_Store
+*.psp2dmp

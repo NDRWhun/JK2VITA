@@ -1,0 +1,6 @@
+# Shell scripts must stay LF so they run under Linux/macOS bash regardless of
+# the checkout host (CRLF would break the shebang / line parsing).
+*.sh text eol=lf
+
+# PowerShell is happiest as CRLF on Windows.
+*.ps1 text eol=crlf
