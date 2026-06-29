@@ -41,7 +41,7 @@ class CMapBlock
 	int			mLastNode;
 
 public:
-	CMapBlock(int id,vector <void *> &freeList) :
+	CMapBlock(int id, std::vector <void *> &freeList) :
 		mLastNode(0)
 	{
 		// Alloc node storage for MAPBLOCK_SIZE_NODES worth of nodes.
@@ -91,10 +91,8 @@ CMapPoolLow::~CMapPoolLow()
 	if (mFreeList.size()<mMapBlocks.size()*MAPBLOCK_SIZE_NODES)
 	{
 		sprintf(mess, "[MEM][EXE]  !!!! Map Pool Leaked %d nodes\n",(MAPBLOCK_SIZE_NODES*mMapBlocks.size())-mFreeList.size());
-		OutputDebugString(mess);
 	}
 	sprintf(mess, "[MEM][EXE] Map Pool max. mem used = %d\n",mMapBlocks.size()*MAPBLOCK_SIZE_NODES*MAP_NODE_SIZE);
-	OutputDebugString(mess);
 #endif
 #endif
 
@@ -314,7 +312,7 @@ public:
 
 class CPool
 {
-	vector<CHSBlock *>	mBlockVec;
+    std::vector<CHSBlock *>	mBlockVec;
 
 public:
 	int					mNextStringId;
@@ -428,7 +426,6 @@ public:
 #else
 		sprintf(mess,"[MEM][EXE]  String Pool %d unique strings, %dK\n",ThePool().mNextStringId,(ThePool().mLastBlockNum+1)*BLOCK_SIZE/1024);
 #endif
-		OutputDebugString(mess);
 #endif
 		// if this fails it means the string storage is CORRUPTED, let someone know
 		assert(TheDebugPool()==ThePool());
@@ -493,23 +490,13 @@ void hstring::Init(const char *str)
 
 }
 
-const char *hstring::c_str(void) const
+std::string hstring::str(void) const
 {
 	if(!mId)
 	{
-		return("");
+		return(std::string());
 	}
 	assert(mId>0&&mId<ThePool().mNextStringId);
-	return(gCharPtrs[mId]);
-}
-
-string hstring::str(void) const
-{
-	if(!mId)
-	{
-		return(string());
-	}
-	assert(mId>0&&mId<ThePool().mNextStringId);
-	return string(gCharPtrs[mId]);
+	return std::string(gCharPtrs[mId]);
 }
 
