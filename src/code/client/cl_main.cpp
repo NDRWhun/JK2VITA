@@ -1081,15 +1081,26 @@ static CMiniHeap *GetG2VertSpaceServer( void ) {
 #define DEFAULT_RENDER_LIBRARY	"rdsp-vanilla"
 #endif
 
+#ifdef VITA
+// On the Vita the rd-vanilla renderer is linked into the binary; bind its
+// GetRefAPI export directly instead of dlopen-ing a separate renderer module.
+extern "C" refexport_t* QDECL GetRefAPI( int apiVersion, refimport_t *refimp );
+#endif
+
 void CL_InitRef( void ) {
 	refexport_t	*ret;
 	static refimport_t rit;
 	char		dllName[MAX_OSPATH];
-	GetRefAPI_t	GetRefAPI;
+	GetRefAPI_t	GetRefAPI2;
 
 	Com_Printf( "----- Initializing Renderer ----\n" );
     cl_renderer = Cvar_Get( "cl_renderer", DEFAULT_RENDER_LIBRARY, CVAR_ARCHIVE|CVAR_LATCH );
 
+#ifdef VITA
+	(void)dllName;
+	memset( &rit, 0, sizeof( rit ) );
+	GetRefAPI2 = (GetRefAPI_t)GetRefAPI;	// statically-linked rd-vanilla export
+#else
 	Com_sprintf( dllName, sizeof( dllName ), "%s_" ARCH_STRING DLL_EXT, cl_renderer->string );
 
 	if( !(rendererLib = Sys_LoadDll( dllName, qfalse )) && strcmp( cl_renderer->string, cl_renderer->resetString ) )
@@ -1107,9 +1118,10 @@ void CL_InitRef( void ) {
 
 	memset( &rit, 0, sizeof( rit ) );
 
-	GetRefAPI = (GetRefAPI_t)Sys_LoadFunction( rendererLib, "GetRefAPI" );
-	if ( !GetRefAPI )
+	GetRefAPI2 = (GetRefAPI_t)Sys_LoadFunction( rendererLib, "GetRefAPI" );
+	if ( !GetRefAPI2 )
 		Com_Error( ERR_FATAL, "Can't load symbol GetRefAPI: '%s'", Sys_LibraryError() );
+#endif
 
 #define RIT(y)	rit.y = y
 	RIT(CIN_PlayCinematic);
@@ -1189,7 +1201,7 @@ void CL_InitRef( void ) {
 
 	rit.saved_game = &ojk::SavedGame::get_instance();
 
-	ret = GetRefAPI( REF_API_VERSION, &rit );
+	ret = GetRefAPI2( REF_API_VERSION, &rit );
 
 	if ( !ret ) {
 		Com_Error (ERR_FATAL, "Couldn't initialize refresh" );

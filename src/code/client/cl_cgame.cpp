@@ -58,11 +58,25 @@ extern qboolean R_inPVS( vec3_t p1, vec3_t p2 );
 
 void UI_SetActiveMenu( const char* menuname,const char *menuID );
 
+#ifdef VITA
+// Statically-linked cgame entry points (no dynamic loading on the Vita).
+extern "C" intptr_t vmMain( int command, intptr_t arg0, intptr_t arg1, intptr_t arg2, intptr_t arg3, intptr_t arg4, intptr_t arg5, intptr_t arg6, intptr_t arg7 );
+extern "C" void QDECL dllEntry( intptr_t (QDECL *syscallptr)( intptr_t arg, ... ) );
+#endif
+
 qboolean CL_InitCGameVM( void *gameLibrary )
 {
 	typedef intptr_t SyscallProc( intptr_t, ... );
 	typedef void DllEntryProc( SyscallProc * );
 
+#ifdef VITA
+	// cgame is statically linked into the binary; bind its vmMain/dllEntry
+	// exports directly (the Vita has no dynamic loading; decls at file scope).
+	(void)gameLibrary;
+	cgvm.entryPoint = (intptr_t (*)(int,intptr_t,intptr_t,intptr_t,intptr_t,intptr_t,intptr_t,intptr_t,intptr_t))vmMain;
+	dllEntry( VM_DllSyscall );
+	return qtrue;
+#else
 	DllEntryProc *dllEntry = (DllEntryProc *)Sys_LoadFunction( gameLibrary, "dllEntry" );
 
 	// NOTE: arm64 mac has a different calling convention for fixed parameters vs. variadic parameters.
@@ -85,6 +99,7 @@ qboolean CL_InitCGameVM( void *gameLibrary )
 	dllEntry( VM_DllSyscall );
 
 	return qtrue;
+#endif
 }
 
 /*
