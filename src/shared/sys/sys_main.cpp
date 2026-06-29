@@ -32,6 +32,13 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "sys_public.h"
 #include "con_local.h"
 
+#ifdef VITA
+#include <psp2/apputil.h>
+#include <psp2/appmgr.h>
+#include <psp2/kernel/processmgr.h>
+#include <cstring>
+#endif
+
 static char binaryPath[ MAX_OSPATH ] = { 0 };
 static char installPath[ MAX_OSPATH ] = { 0 };
 
@@ -184,6 +191,12 @@ static void NORETURN Sys_Exit( int ex ) {
 
 	CON_Shutdown();
 
+#ifdef VITA
+	// plain exit() drags in newlib's atexit + stdio _cleanup, which prefetch-aborts
+	// on Vita (exit() -> __sinit/findfp -> abort). Kill the process via the kernel
+	// so we skip that libc teardown entirely.
+	sceKernelExitProcess( ex );
+#endif
     exit( ex );
 }
 
@@ -740,10 +753,48 @@ char *Sys_StripAppBundle( char *dir )
 #	endif
 #endif
 
+#ifdef VITA
+/*
+=================
+Sys_Vita_CheckConfigGate
+
+The LiveArea "Configuration" gate launches us with a "-config" param
+(target psla:-config). On that, hand off to companion.bin before we touch
+SDL/vitaGL -- it owns its own GL context and re-launches eboot.bin when done.
+=================
+*/
+static void Sys_Vita_CheckConfigGate( void )
+{
+	SceAppUtilInitParam initParam;
+	SceAppUtilBootParam bootParam;
+	memset( &initParam, 0, sizeof( initParam ) );
+	memset( &bootParam, 0, sizeof( bootParam ) );
+	sceAppUtilInit( &initParam, &bootParam );
+
+	SceAppUtilAppEventParam eventParam;
+	memset( &eventParam, 0, sizeof( eventParam ) );
+	sceAppUtilReceiveAppEvent( &eventParam );
+
+	if ( eventParam.type == 0x05 ) {
+		char buffer[2048];
+		memset( buffer, 0, sizeof( buffer ) );
+		sceAppUtilAppEventParseLiveArea( &eventParam, buffer );
+		// configurator disabled: the -config gate is gone from template.xml. to
+		// re-enable, restore that and drop the 0 below.
+		if ( 0 && strstr( buffer, "-config" ) )
+			sceAppMgrLoadExec( "app0:/companion.bin", NULL, NULL );
+	}
+}
+#endif
+
 int main ( int argc, char* argv[] )
 {
 	int		i;
 	char	commandLine[ MAX_STRING_CHARS ] = { 0 };
+
+#ifdef VITA
+	Sys_Vita_CheckConfigGate();
+#endif
 
 	Sys_PlatformInit( argc, argv );
 	CON_Init();
