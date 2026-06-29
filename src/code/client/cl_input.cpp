@@ -482,6 +482,42 @@ void CL_JoystickMove( usercmd_t *cmd ) {
 		return;
 	}
 
+#ifdef VITA
+	{
+		// PS Vita: left stick moves (strafe + forward/back), right stick looks
+		// (turn + pitch). Axis values are raw SDL Sint16. Sensitivities are
+		// first-pass and easily tuned from on-device feel.
+		const float dead = 0.16f;
+		float lx = cl.joystickAxis[AXIS_SIDE]    / 32767.0f;	// left stick X
+		float ly = cl.joystickAxis[AXIS_FORWARD] / 32767.0f;	// left stick Y
+		float rx = cl.joystickAxis[AXIS_UP]      / 32767.0f;	// right stick X
+		float ry = cl.joystickAxis[AXIS_ROLL]    / 32767.0f;	// right stick Y
+		if ( lx > -dead && lx < dead ) lx = 0.0f;
+		if ( ly > -dead && ly < dead ) ly = 0.0f;
+		if ( rx > -dead && rx < dead ) rx = 0.0f;
+		if ( ry > -dead && ry < dead ) ry = 0.0f;
+
+		float dt = cls.frametime * 0.001f;
+
+		// In menus the cursor is driven from IN_JoyMove (which runs every frame,
+		// even with no game active); CL_JoystickMove only runs in-game.
+		if ( Key_GetCatcher() & KEYCATCH_UI )
+			return;
+
+		if ( !(in_speed.active ^ cl_run->integer) )
+			cmd->buttons |= BUTTON_WALKING;
+
+		// Move from the left stick (stick up = forward).
+		cmd->rightmove   = ClampChar( cmd->rightmove   + (int)( lx * 127.0f ) );
+		cmd->forwardmove = ClampChar( cmd->forwardmove - (int)( ly * 127.0f ) );
+
+		// Look from the right stick (frame-rate independent, deg/sec).
+		cl.viewangles[YAW]   -= rx * 220.0f * dt;
+		cl.viewangles[PITCH] += ry * 155.0f * dt;
+		return;
+	}
+#endif
+
 	if ( !(in_speed.active ^ cl_run->integer) ) {
 		cmd->buttons |= BUTTON_WALKING;
 	}
