@@ -731,6 +731,14 @@ of a forced fallback of a player specific sound	(or of a wav/mp3 substitution no
 ==============
 */
 qboolean gbInsideLoadSound = qfalse;
+
+#ifdef VITA
+// [snd probe] per-load timing, read+reset by S_memoryLoad (snd_dma.cpp).
+// FsMs = FS read, Mp3Ms = the MP3 frame-walk that sizes the stream.
+int g_sndLoadFsMs  = 0;
+int g_sndLoadMp3Ms = 0;
+#endif
+
 static qboolean S_LoadSound_Actual( sfx_t *sfx )
 {
 	byte	*data;
@@ -767,10 +775,16 @@ static qboolean S_LoadSound_Actual( sfx_t *sfx )
 		len = strlen(sLoadName);
 	}
 
+#ifdef VITA
+	const int _fsT0 = Sys_Milliseconds();
+#endif
 	if (!S_LoadSound_FileLoadAndNameAdjuster(sLoadName, &data, &size, len))
 	{
 		return qfalse;
 	}
+#ifdef VITA
+	g_sndLoadFsMs = Sys_Milliseconds() - _fsT0;	// [snd probe] FS read (open + locate + read from pk3)
+#endif
 
 	SND_TouchSFX(sfx);
 //=========
@@ -780,7 +794,13 @@ static qboolean S_LoadSound_Actual( sfx_t *sfx )
 		//
 		if (MP3_IsValid(sLoadName,data, size, qfalse))
 		{
+#ifdef VITA
+			const int _mp3T0 = Sys_Milliseconds();
+#endif
 			int iRawPCMDataSize = MP3_GetUnpackedSize(sLoadName,data,size,qfalse,qfalse);
+#ifdef VITA
+			g_sndLoadMp3Ms = Sys_Milliseconds() - _mp3T0;	// [snd probe] frame-walk that sizes the unpacked stream
+#endif
 
 			if (S_LoadSound_DirIsAllowedToKeepMP3s(sfx->sSoundName)	// NOT sLoadName, this uses original un-languaged name
 				&&

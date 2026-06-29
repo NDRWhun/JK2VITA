@@ -450,8 +450,20 @@ void S_Init( void ) {
 
 	s_allowDynamicMusic = Cvar_Get( "s_allowDynamicMusic", "1",       CVAR_ARCHIVE_ND );
 	s_debugdynamic      = Cvar_Get( "s_debugdynamic",      "0",       0 );
+#ifdef VITA
+	// [snd probe] force on every boot. No console on the Vita, and a stale "seta s_sndLoadLog 0"
+	// in the card cfg would silently kill it, so Cvar_Set wins over the cfg. Temporary.
+	Cvar_Get( "s_sndLoadLog", "1", 0 );
+	Cvar_Set( "s_sndLoadLog", "1" );
+#endif
 	s_initsound         = Cvar_Get( "s_initsound",         "1",       CVAR_ARCHIVE | CVAR_LATCH );
+#ifdef VITA
+	// source audio is already 22 kHz, so run the mixer at 22 kHz too: ResampleSfx becomes a
+	// 1:1 copy instead of a 2x upsample. Halves PCM footprint and mix cost, no quality loss.
+	s_khz               = Cvar_Get( "s_khz",               "22",      CVAR_ARCHIVE | CVAR_LATCH );
+#else
 	s_khz               = Cvar_Get( "s_khz",               "44",      CVAR_ARCHIVE | CVAR_LATCH );
+#endif
 	s_language          = Cvar_Get( "s_language",          "english", CVAR_ARCHIVE | CVAR_NORESTART );
 	s_lip_threshold_1   = Cvar_Get( "s_threshold1",        "0.3",     0 );
 	s_lip_threshold_2   = Cvar_Get( "s_threshold2",        "4",       0 );
@@ -1003,6 +1015,7 @@ S_RegisterSound
 Creates a default buzz sound if the file can't be loaded
 ==================
 */
+
 sfxHandle_t	S_RegisterSound( const char *name)
 {
 	sfx_t	*sfx;
@@ -1056,12 +1069,26 @@ void S_memoryLoad(sfx_t	*sfx)
 {
 	// load the sound file...
 	//
+#ifdef VITA
+	// [snd probe] gated by s_sndLoadLog. Times the synchronous on-demand load (it runs on the render
+	// thread) and splits it FS read vs MP3 frame-walk, so the log tells us which part causes the hitch.
+	extern int	g_sndLoadFsMs, g_sndLoadMp3Ms;	// set per load in S_LoadSound_Actual (snd_mem.cpp)
+	const int	_sndProbe = Cvar_VariableIntegerValue( "s_sndLoadLog" );
+	const int	_sndT0    = _sndProbe ? Sys_Milliseconds() : 0;
+	g_sndLoadFsMs = g_sndLoadMp3Ms = 0;
+#endif
 	if ( !S_LoadSound( sfx ) )
 	{
 //		Com_Printf( S_COLOR_YELLOW "WARNING: couldn't load sound: %s\n", sfx->sSoundName );
 		sfx->bDefaultSound = true;
 	}
 	sfx->bInMemory = true;
+#ifdef VITA
+	if ( _sndProbe ) {
+		Com_Printf( "[sndload] %4i ms  (fs %i, mp3scan %i)  %s\n",
+			Sys_Milliseconds() - _sndT0, g_sndLoadFsMs, g_sndLoadMp3Ms, sfx->sSoundName );
+	}
+#endif
 }
 
 //=============================================================================
@@ -5064,7 +5091,14 @@ byte *SND_malloc(int iSize, sfx_t *sfx)
 //
 void SND_setup()
 {
+#ifdef VITA
+	// big enough to keep a whole level's sounds resident (~33 MB at 22 kHz) so the pool never
+	// evicts mid-level. Otherwise a replayed sound re-decodes on the main thread and hangs.
+	// Costs heap (shared with Hunk/vitaGL); drop to 25 if memory gets tight.
+	s_soundpoolmegs = Cvar_Get("s_soundpoolmegs", "64", CVAR_ARCHIVE);
+#else
 	s_soundpoolmegs = Cvar_Get("s_soundpoolmegs", "25", CVAR_ARCHIVE);
+#endif
 	if (Sys_LowPhysicalMemory() )
 	{
 		Cvar_Set("s_soundpoolmegs", "0");
