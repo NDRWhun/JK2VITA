@@ -23,6 +23,9 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 #pragma once
 
+#ifdef VITA
+#include <vitaGL.h>
+#else
 #if defined( __LINT__ )
 #	include <GL/gl.h>
 #elif defined( _WIN32 )
@@ -33,8 +36,12 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #	define GL_GLEXT_LEGACY
 #	include <OpenGL/gl.h>
 #elif defined( __linux__ )
+#ifndef __EMSCRIPTEN__
 #	include <GL/gl.h>
 #	include <GL/glx.h>
+#else
+#include <GL/Regal.h>
+#endif
 // bk001129 - from cvs1.17 (mkv)
 #	if defined(__FX__)
 #		include <GL/fxmesa.h>
@@ -48,8 +55,10 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #else
 #	include <gl.h>
 #endif
-
+#ifndef __EMSCRIPTEN__
 #include "glext.h"
+#endif
+#endif
 
 #define qglAccum glAccum
 #define qglAlphaFunc glAlphaFunc
@@ -354,6 +363,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #define qglTexGeniv glTexGeniv
 #define qglTexImage1D glTexImage1D
 #define qglTexImage2D glTexImage2D
+#define qglCompressedTexImage2D glCompressedTexImage2D
 #define qglTexParameterf glTexParameterf
 #define qglTexParameterfv glTexParameterfv
 #define qglTexParameteri glTexParameteri
@@ -389,6 +399,54 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #define qglVertexPointer glVertexPointer
 #define qglViewport glViewport
 
+#ifdef VITA
+#define GL_MAX_TEXTURE_UNITS_ARB GL_MAX_TEXTURE_UNITS
+#define qglActiveTextureARB glActiveTexture
+#define qglClientActiveTextureARB glClientActiveTexture
+#define GL_TEXTURE0_ARB GL_TEXTURE0
+#define GL_TEXTURE1_ARB GL_TEXTURE1
+#define GL_TEXTURE2_ARB GL_TEXTURE2
+#define GL_TEXTURE3_ARB GL_TEXTURE3
+#define qglStencilOpSeparate glStencilOpSeparate
+#define GL_RGB8 GL_RGB
+// ARB alias for the core multitexture coord
+#define qglMultiTexCoord2fARB glMultiTexCoord2f
+// internal-format enums vitaGL doesn't define. real GL values keep the
+// format-select switch cases distinct; vitaGL ignores them and picks the GXM
+// format from format/type anyway.
+#ifndef GL_RGBA4
+#define GL_RGBA4 0x8056
+#endif
+#ifndef GL_RGBA16
+#define GL_RGBA16 0x805B
+#endif
+#ifndef GL_RGB5
+#define GL_RGB5 0x8050
+#endif
+#ifndef GL_RGB4_S3TC
+#define GL_RGB4_S3TC 0x83A1
+#endif
+// framebuffer/readback enums for the glDrawBuffer/glReadPixels paths
+#ifndef GL_BACK_LEFT
+#define GL_BACK_LEFT GL_BACK
+#endif
+#ifndef GL_BACK_RIGHT
+#define GL_BACK_RIGHT GL_BACK
+#endif
+#ifndef GL_STENCIL_INDEX
+#define GL_STENCIL_INDEX 0x1901
+#endif
+#ifndef GL_TEXTURE_BORDER_COLOR
+#define GL_TEXTURE_BORDER_COLOR 0x1004
+#endif
+#ifndef GL_TEXTURE_RECTANGLE_ARB
+#define GL_TEXTURE_RECTANGLE_ARB 0x84F5
+#endif
+// typedefs + null pointers for extensions vitaGL lacks (NV combiners, ARB
+// programs, EXT compiled arrays) plus a glTexParameterfv shim, so the gated
+// call sites still compile
+#include "gl_vita_ext.h"
+#else
 #if !defined(__APPLE__)
 extern PFNGLSTENCILOPSEPARATEPROC qglStencilOpSeparate;
 #endif
@@ -434,3 +492,4 @@ extern PFNGLISPROGRAMARBPROC qglIsProgramARB;
 
 extern PFNGLLOCKARRAYSEXTPROC qglLockArraysEXT;
 extern PFNGLUNLOCKARRAYSEXTPROC qglUnlockArraysEXT;
+#endif
