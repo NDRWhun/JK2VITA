@@ -408,6 +408,10 @@ Uses temp mem, but then copies back to input, quartering the size of the texture
 Proper linear filter
 ================
 */
+#if defined(__ARM_NEON)
+#include <arm_neon.h>		// NEON box-mip + alpha scan
+#endif
+
 static void R_MipMap2( unsigned *in, int inWidth, int inHeight ) {
 	int			i, j, k;
 	byte		*outpix;
@@ -494,7 +498,26 @@ static void R_MipMap (byte *in, int width, int height) {
 	}
 
 	for (i=0 ; i<height ; i++, in+=row) {
-		for (j=0 ; j<width ; j++, out+=4, in+=8) {
+		j = 0;
+#if defined(__ARM_NEON)
+		// 8 px/iter: deinterleave, sum each 2x2 box per channel across both rows, >>2.
+		// bit-exact with the scalar tail below.
+		for ( ; j+8 <= width ; j += 8, out += 32, in += 64 ) {
+			uint8x16x4_t r0 = vld4q_u8( in );
+			uint8x16x4_t r1 = vld4q_u8( in + row );
+			uint16x8_t R = vshrq_n_u16( vaddq_u16( vpaddlq_u8(r0.val[0]), vpaddlq_u8(r1.val[0]) ), 2 );
+			uint16x8_t G = vshrq_n_u16( vaddq_u16( vpaddlq_u8(r0.val[1]), vpaddlq_u8(r1.val[1]) ), 2 );
+			uint16x8_t B = vshrq_n_u16( vaddq_u16( vpaddlq_u8(r0.val[2]), vpaddlq_u8(r1.val[2]) ), 2 );
+			uint16x8_t A = vshrq_n_u16( vaddq_u16( vpaddlq_u8(r0.val[3]), vpaddlq_u8(r1.val[3]) ), 2 );
+			uint8x8x4_t o;
+			o.val[0] = vmovn_u16(R);
+			o.val[1] = vmovn_u16(G);
+			o.val[2] = vmovn_u16(B);
+			o.val[3] = vmovn_u16(A);
+			vst4_u8( out, o );
+		}
+#endif
+		for ( ; j<width ; j++, out+=4, in+=8) {
 			out[0] = (in[0] + in[4] + in[row+0] + in[row+4])>>2;
 			out[1] = (in[1] + in[5] + in[row+1] + in[row+5])>>2;
 			out[2] = (in[2] + in[6] + in[row+2] + in[row+6])>>2;
@@ -554,6 +577,69 @@ Upload32
 
 ===============
 */
+#ifdef VITA
+// DXT cache: keep the encoded mip chain on ux0 so we don't re-encode DXT every load. First
+// load encodes once, later loads upload the pre-compressed blocks (vitaGL just swizzles).
+// Own magic + dir, separate from the RGBA cache below. Gated by r_texCacheCompressed; any
+// failure falls back to the RGBA path. Load/store + hit-path live with the RGBA cache.
+#define TEXCACHE_MAGIC_DXT 0x33435456u	// "VTC3"; bump to invalidate old files (RGBA cache = 0x31435456)
+#define TEXCACHE_MAX_MIPS  16
+enum { TEXCACHE_FMT_DXT1 = 1, TEXCACHE_FMT_DXT5 = 5 };
+typedef struct {					// 32-byte LE header, native Vita byte order
+	unsigned int magic;
+	unsigned int format;			// TEXCACHE_FMT_DXT1 | TEXCACHE_FMT_DXT5
+	unsigned int width;				// mip0, after picmip + maxTextureSize clamp
+	unsigned int height;
+	unsigned int mipCount;			// 1..TEXCACHE_MAX_MIPS
+	unsigned int picmip;			// r_picmip it was baked with; mismatch = rebuild
+	unsigned int texbits;			// r_texturebits it was baked with; mismatch = rebuild
+	unsigned int totalSize;			// sum of per-mip sizes
+} texCacheHdrDxt_t;
+
+extern "C" void stb_compress_dxt_block( unsigned char *dst, const unsigned char *src, int alpha, int mode );
+
+static void R_TexCacheStoreDxt( const char *name, const texCacheHdrDxt_t *hdr,
+								const unsigned *mipSizes, const byte *blob );	// defined with the RGBA cache below
+static char s_uploadDxtKey[MAX_QPATH];	// asset name of the in-flight Upload32, set by R_CreateImage
+
+// Encode one mip as row-major, edge-clamped 4x4 DXT blocks into blob+blobOfs, upload it
+// pre-compressed, return the level's byte size.
+static int R_DxtEncodeUploadAppend( int level, GLenum glFmt, int w, int h, const byte *rgba,
+									byte *blob, int blobOfs )
+{
+	const int isDxt5     = ( glFmt == GL_COMPRESSED_RGBA_S3TC_DXT5_EXT );
+	const int blockBytes = isDxt5 ? 16 : 8;
+	const int bw = (w + 3) >> 2, bh = (h + 3) >> 2;
+	const int mipSize = bw * bh * blockBytes;
+	const int mode = ( r_dxtFast && r_dxtFast->integer ) ? 0 : 2;	// STB_DXT_NORMAL vs HIGHQUAL
+	byte *dst = blob + blobOfs;
+	for ( int by = 0; by < bh; ++by )
+	{
+		for ( int bx = 0; bx < bw; ++bx )
+		{
+			byte block[64];
+			for ( int r = 0; r < 4; ++r )
+			{
+				int sy = by * 4 + r; if ( sy >= h ) sy = h - 1;
+				const byte *srow = rgba + (size_t)sy * w * 4;
+				byte *brow = block + r * 16;
+				for ( int cc = 0; cc < 4; ++cc )
+				{
+					int sx = bx * 4 + cc; if ( sx >= w ) sx = w - 1;
+					const byte *s = srow + sx * 4;
+					brow[cc*4+0] = s[0]; brow[cc*4+1] = s[1];
+					brow[cc*4+2] = s[2]; brow[cc*4+3] = s[3];
+				}
+			}
+			stb_compress_dxt_block( dst, block, isDxt5, mode );
+			dst += blockBytes;
+		}
+	}
+	qglCompressedTexImage2D( GL_TEXTURE_2D, level, glFmt, w, h, 0, mipSize, blob + blobOfs );
+	return mipSize;
+}
+#endif // VITA
+
 static void Upload32( unsigned *data,
 						  GLenum format,
 						  qboolean mipmap,
@@ -607,20 +693,32 @@ static void Upload32( unsigned *data,
 	    c = width*height;
 	    scan = ((byte *)data);
 	    samples = 3;
-	    for ( i = 0; i < c; i++ )
+	    i = 0;
+	    (void)rMax; (void)gMax; (void)bMax;	// computed but never read
+#if defined(__ARM_NEON)
+	    // only the alpha test drives 'samples', so just scan 16 px/iter for any alpha != 255
 	    {
-		    if ( scan[i*4+0] > rMax )
+		    int n = c;
+		    const uint8_t *p = scan;
+		    const uint8x16_t v255 = vdupq_n_u8( 255 );
+		    while ( n >= 16 )
 		    {
-			    rMax = scan[i*4+0];
+			    uint8x16x4_t px = vld4q_u8( p );
+			    uint8x16_t eq = vceqq_u8( px.val[3], v255 );	// 0xFF where alpha == 255
+			    uint64x2_t e = vreinterpretq_u64_u8( eq );
+			    if ( ( vgetq_lane_u64(e,0) & vgetq_lane_u64(e,1) ) != ~0ULL )
+			    {
+				    samples = 4;	// hit an alpha != 255
+				    break;
+			    }
+			    p += 64; n -= 16;
 		    }
-		    if ( scan[i*4+1] > gMax )
-		    {
-			    gMax = scan[i*4+1];
-		    }
-		    if ( scan[i*4+2] > bMax )
-		    {
-			    bMax = scan[i*4+2];
-		    }
+		    i = c - n;	// scalar handles the tail; i == c if we broke or fully scanned
+	    }
+	    if ( samples == 3 )
+#endif
+	    for ( ; i < c; i++ )
+	    {
 		    if ( scan[i*4 + 3] != 255 )
 		    {
 			    samples = 4;
@@ -640,6 +738,11 @@ static void Upload32( unsigned *data,
 			    if ( r_texturebits->integer == 16 ) {
 				    *pformat = GL_COMPRESSED_RGB_S3TC_DXT1_EXT;	//this format cuts to 16 bit
 			    }
+#ifdef VITA
+			    else if ( r_texCacheCompressed && r_texCacheCompressed->integer ) {
+				    *pformat = GL_COMPRESSED_RGB_S3TC_DXT1_EXT;	// opaque -> DXT1 8:1; DXT5's alpha block would be wasted
+			    }
+#endif
 			    else {//if we aren't using 16 bit then, use 32 bit compression
 				    *pformat = GL_COMPRESSED_RGBA_S3TC_DXT5_EXT;
 			    }
@@ -691,6 +794,60 @@ static void Upload32( unsigned *data,
 
 		*pUploadWidth = width;
 		*pUploadHeight = height;
+
+#ifdef VITA
+	    // DXT cache write path. We picked a DXT format and the cache is on: encode the mip chain
+	    // once (mirroring the RGBA mip loop below so the cached blocks match), upload it
+	    // pre-compressed, and write it out. If the alloc fails we fall through to the stock RGBA path.
+	    if ( r_texCacheCompressed && r_texCacheCompressed->integer && s_uploadDxtKey[0]
+	        && ( *pformat == GL_COMPRESSED_RGB_S3TC_DXT1_EXT || *pformat == GL_COMPRESSED_RGBA_S3TC_DXT5_EXT ) )
+	    {
+		    const int isDxt5  = ( *pformat == GL_COMPRESSED_RGBA_S3TC_DXT5_EXT );
+		    const int blobCap = width * height * 2 + 4096;	// full DXT5 chain < w*h*4/3, so *2 is plenty
+		    byte *blob = (byte *)R_Malloc( blobCap, TAG_TEMP_WORKSPACE, qfalse );
+		    if ( blob )
+		    {
+			    unsigned mipSizes[TEXCACHE_MAX_MIPS];
+			    int      mipCount = 0, blobOfs = 0;
+			    int      mw = width, mh = height, miplevel = 0;
+
+			    if ( mipmap )
+				    R_LightScaleTexture( data, mw, mh, qfalse );
+
+			    mipSizes[mipCount] = R_DxtEncodeUploadAppend( 0, *pformat, mw, mh, (byte *)data, blob, blobOfs );
+			    blobOfs += mipSizes[mipCount]; mipCount++;
+
+			    if ( mipmap )
+			    {
+				    while ( ( mw > 1 || mh > 1 ) && mipCount < TEXCACHE_MAX_MIPS )
+				    {
+					    R_MipMap( (byte *)data, mw, mh );
+					    mw >>= 1; mh >>= 1;
+					    if ( mw < 1 ) mw = 1;
+					    if ( mh < 1 ) mh = 1;
+					    miplevel++;
+					    if ( r_colorMipLevels->integer )
+						    R_BlendOverTexture( (byte *)data, mw * mh, mipBlendColors[miplevel] );
+					    mipSizes[mipCount] = R_DxtEncodeUploadAppend( miplevel, *pformat, mw, mh, (byte *)data, blob, blobOfs );
+					    blobOfs += mipSizes[mipCount]; mipCount++;
+				    }
+			    }
+
+			    texCacheHdrDxt_t hdr;
+			    hdr.magic     = TEXCACHE_MAGIC_DXT;
+			    hdr.format    = isDxt5 ? TEXCACHE_FMT_DXT5 : TEXCACHE_FMT_DXT1;
+			    hdr.width     = (unsigned)width;
+			    hdr.height    = (unsigned)height;
+			    hdr.mipCount  = (unsigned)mipCount;
+			    hdr.picmip    = (unsigned)( r_picmip ? r_picmip->integer : 0 );
+			    hdr.texbits   = (unsigned)( r_texturebits ? r_texturebits->integer : 0 );
+			    hdr.totalSize = (unsigned)blobOfs;
+			    R_TexCacheStoreDxt( s_uploadDxtKey, &hdr, mipSizes, blob );
+			    R_Free( blob );
+			    goto done;
+		    }
+	    }
+#endif
 
 	    // copy or resample data as appropriate for first MIP level
 	    if (!mipmap)
@@ -1033,6 +1190,16 @@ image_t *R_CreateImage( const char *name, const byte *pic, int width, int height
 
 	GL_Bind(image);
 
+#ifdef VITA
+	// Hand the asset name to Upload32 so its DXT cache can key the stored mip chain. Skip lightmaps
+	// ($, artifact-prone) and built-ins (*white/*default/etc., not on-disk assets); empty key turns
+	// the DXT path off for them.
+	if ( name[0] != '$' && name[0] != '*' )
+		Q_strncpyz( s_uploadDxtKey, name, sizeof( s_uploadDxtKey ) );
+	else
+		s_uploadDxtKey[0] = '\0';
+#endif
+
 	Upload32( (unsigned *)pic,	format,
 								(qboolean)image->mipmap,
 								allowPicmip,
@@ -1041,6 +1208,10 @@ image_t *R_CreateImage( const char *name, const byte *pic, int width, int height
 								&image->internalFormat,
 								&image->width,
 								&image->height );
+
+#ifdef VITA
+	s_uploadDxtKey[0] = '\0';	// clear it so a later upload can't reuse this name
+#endif
 
 	qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, glWrapClampMode );
 	qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, glWrapClampMode );
@@ -1063,6 +1234,219 @@ Finds or loads the given image.
 Returns NULL if it fails, not a default image.
 ==============
 */
+#ifdef VITA
+#include <psp2/io/fcntl.h>
+#include <psp2/io/stat.h>
+
+// Optional pre-decoded texture cache on ux0 (r_texCache). Stores the full-res RGBA that
+// R_LoadImage produces, keyed by a hash of the asset name, so repeat level loads skip the
+// JPEG/PNG/TGA decode and read RGBA straight off the card. Cached before picmip downscale, so
+// it's picmip-independent. Off by default; wipe the texcache dir if you change assets.
+#define TEXCACHE_MAGIC 0x31435456u
+
+static qboolean s_texCacheDirReady = qfalse;
+
+static void R_TexCache_Path( const char *name, char *out, int outSize )
+{
+	unsigned long long h = 14695981039346656037ULL;	// FNV-1a 64-bit of the asset name
+	for ( const char *p = name; *p; ++p ) { h ^= (unsigned char)*p; h *= 1099511628211ULL; }
+	Com_sprintf( out, outSize, "ux0:data/JK2VITA/texcache/%016llx.bin", h );
+}
+
+static qboolean R_TexCacheLoad( const char *name, byte **pic, int *width, int *height )
+{
+	if ( !r_texCache || !r_texCache->integer ) return qfalse;
+	char path[256];
+	R_TexCache_Path( name, path, sizeof(path) );
+	SceUID fd = sceIoOpen( path, SCE_O_RDONLY, 0 );
+	if ( fd < 0 ) return qfalse;
+	unsigned int hdr[3];
+	qboolean ok = qfalse;
+	if ( sceIoRead( fd, hdr, sizeof(hdr) ) == (int)sizeof(hdr) && hdr[0] == TEXCACHE_MAGIC )
+	{
+		const int w = (int)hdr[1], h = (int)hdr[2];
+		if ( w > 0 && h > 0 && w <= 8192 && h <= 8192 )
+		{
+			const int bytes = w * h * 4;
+			byte *buf = (byte*)R_Malloc( bytes, TAG_TEMP_WORKSPACE, qfalse );	// same tag R_LoadImage uses
+			if ( buf && sceIoRead( fd, buf, bytes ) == bytes )
+			{
+				*pic = buf; *width = w; *height = h;
+				ok = qtrue;
+			}
+			else if ( buf )
+			{
+				R_Free( buf );
+			}
+		}
+	}
+	sceIoClose( fd );
+	return ok;
+}
+
+static void R_TexCacheStore( const char *name, byte *pic, int width, int height )
+{
+	if ( !r_texCache || !r_texCache->integer || !pic || width <= 0 || height <= 0 ) return;
+	if ( !s_texCacheDirReady )
+	{
+		sceIoMkdir( "ux0:data/JK2VITA", 0777 );
+		sceIoMkdir( "ux0:data/JK2VITA/texcache", 0777 );
+		s_texCacheDirReady = qtrue;
+	}
+	char path[256];
+	R_TexCache_Path( name, path, sizeof(path) );
+	SceUID test = sceIoOpen( path, SCE_O_RDONLY, 0 );
+	if ( test >= 0 ) { sceIoClose( test ); return; }	// already cached
+	SceUID fd = sceIoOpen( path, SCE_O_WRONLY | SCE_O_CREAT | SCE_O_TRUNC, 0666 );
+	if ( fd < 0 ) return;
+	unsigned int hdr[3] = { TEXCACHE_MAGIC, (unsigned)width, (unsigned)height };
+	sceIoWrite( fd, hdr, sizeof(hdr) );
+	sceIoWrite( fd, pic, width * height * 4 );
+	sceIoClose( fd );
+}
+
+// DXT mip-chain cache (see the block above Upload32)
+static void R_TexCacheDxt_Path( const char *name, char *out, int outSize )
+{
+	unsigned long long h = 14695981039346656037ULL;	// FNV-1a 64-bit of the asset name
+	for ( const char *p = name; *p; ++p ) { h ^= (unsigned char)*p; h *= 1099511628211ULL; }
+	Com_sprintf( out, outSize, "ux0:data/JK2VITA/texcache_dxt/%016llx.bin", h );
+}
+
+// Build an image_t straight from a cached DXT mip chain, no decode or encode. Returns NULL on a
+// miss, version/picmip mismatch, or corruption so the caller falls back to the load path.
+static image_t *R_CreateImageFromDxtCache( const char *name, qboolean mipmap, qboolean allowPicmip,
+										   qboolean allowTC, int glWrapClampMode )
+{
+	if ( !r_texCacheCompressed || !r_texCacheCompressed->integer ) return NULL;
+	char path[256];
+	R_TexCacheDxt_Path( name, path, sizeof(path) );
+	SceUID fd = sceIoOpen( path, SCE_O_RDONLY, 0 );
+	if ( fd < 0 ) return NULL;
+
+	texCacheHdrDxt_t hdr;
+	unsigned mipSizes[TEXCACHE_MAX_MIPS];
+	if ( sceIoRead( fd, &hdr, sizeof(hdr) ) != (int)sizeof(hdr)
+		|| hdr.magic != TEXCACHE_MAGIC_DXT
+		|| ( hdr.format != TEXCACHE_FMT_DXT1 && hdr.format != TEXCACHE_FMT_DXT5 )
+		|| hdr.mipCount < 1 || hdr.mipCount > TEXCACHE_MAX_MIPS
+		|| hdr.width == 0 || hdr.height == 0
+		|| (int)hdr.width > glConfig.maxTextureSize || (int)hdr.height > glConfig.maxTextureSize
+		|| hdr.picmip != (unsigned)( r_picmip ? r_picmip->integer : 0 )
+		|| hdr.texbits != (unsigned)( r_texturebits ? r_texturebits->integer : 0 ) )
+	{
+		sceIoClose( fd );
+		return NULL;
+	}
+	if ( sceIoRead( fd, mipSizes, hdr.mipCount * sizeof(unsigned) ) != (int)( hdr.mipCount * sizeof(unsigned) ) )
+	{
+		sceIoClose( fd );
+		return NULL;
+	}
+	unsigned total = 0;
+	for ( unsigned i = 0; i < hdr.mipCount; ++i ) total += mipSizes[i];
+	if ( total != hdr.totalSize || total == 0 || total > (unsigned)( hdr.width * hdr.height * 2 + 4096 ) )
+	{
+		sceIoClose( fd );
+		return NULL;
+	}
+	byte *blob = (byte *)R_Malloc( total, TAG_TEMP_WORKSPACE, qfalse );
+	if ( !blob || sceIoRead( fd, blob, total ) != (int)total )
+	{
+		if ( blob ) R_Free( blob );
+		sceIoClose( fd );
+		return NULL;
+	}
+	sceIoClose( fd );
+
+	const GLenum glFmt = ( hdr.format == TEXCACHE_FMT_DXT5 )
+		? GL_COMPRESSED_RGBA_S3TC_DXT5_EXT : GL_COMPRESSED_RGB_S3TC_DXT1_EXT;
+
+	image_t *image = (image_t *)R_Malloc( sizeof( image_t ), TAG_IMAGE_T, qtrue );
+	image->texnum = 1024 + giTextureBindNum++;
+	image->iLastLevelUsedOn = RE_RegisterMedia_GetLevel();
+	image->mipmap = !!mipmap;
+	image->allowPicmip = !!allowPicmip;
+	image->width = (int)hdr.width;
+	image->height = (int)hdr.height;
+	image->wrapClampMode = glWrapClampMode;
+	image->internalFormat = (int)glFmt;
+	Q_strncpyz( image->imgName, name, sizeof( image->imgName ) );
+
+	if ( qglActiveTextureARB ) GL_SelectTexture( 0 );
+	GL_Bind( image );
+
+	qglGetError();	// flush any stale GL error so the check after the uploads is ours
+	{
+		int w = (int)hdr.width, h = (int)hdr.height, ofs = 0;
+		for ( unsigned i = 0; i < hdr.mipCount; ++i )
+		{
+			qglCompressedTexImage2D( GL_TEXTURE_2D, (int)i, glFmt, w, h, 0, (int)mipSizes[i], blob + ofs );
+			ofs += (int)mipSizes[i];
+			w >>= 1; if ( w < 1 ) w = 1;
+			h >>= 1; if ( h < 1 ) h = 1;
+		}
+	}
+	R_Free( blob );
+
+	if ( qglGetError() != GL_NO_ERROR )
+	{
+		// upload rejected the cached blob, so drop this image and let the normal load path rebuild it
+		GLuint tn = (GLuint)image->texnum;
+		qglDeleteTextures( 1, &tn );
+		qglBindTexture( GL_TEXTURE_2D, 0 );
+		glState.currenttextures[glState.currenttmu] = 0;
+		R_Free( image );
+		return NULL;
+	}
+
+	if ( mipmap )
+	{
+		qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, gl_filter_min );
+		qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gl_filter_max );
+		if ( r_ext_texture_filter_anisotropic->integer > 1 && glConfig.maxTextureFilterAnisotropy > 0 )
+			qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, r_ext_texture_filter_anisotropic->value );
+	}
+	else
+	{
+		qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+		qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+	}
+	qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, glWrapClampMode );
+	qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, glWrapClampMode );
+
+	qglBindTexture( GL_TEXTURE_2D, 0 );
+	glState.currenttextures[glState.currenttmu] = 0;
+
+	const char *psNewName = GenerateImageMappingName( name );
+	Q_strncpyz( image->imgName, psNewName, sizeof( image->imgName ) );
+	AllocatedImages[ image->imgName ] = image;
+	return image;
+}
+
+static void R_TexCacheStoreDxt( const char *name, const texCacheHdrDxt_t *hdr,
+								const unsigned *mipSizes, const byte *blob )
+{
+	if ( !r_texCacheCompressed || !r_texCacheCompressed->integer || !hdr || !mipSizes || !blob ) return;
+	if ( !s_texCacheDirReady )
+	{
+		sceIoMkdir( "ux0:data/JK2VITA", 0777 );
+		sceIoMkdir( "ux0:data/JK2VITA/texcache", 0777 );
+		s_texCacheDirReady = qtrue;
+	}
+	sceIoMkdir( "ux0:data/JK2VITA/texcache_dxt", 0777 );
+	char path[256];
+	R_TexCacheDxt_Path( name, path, sizeof(path) );
+	// Always overwrite (no exists-check) so a stale or corrupt entry just gets rewritten.
+	SceUID fd = sceIoOpen( path, SCE_O_WRONLY | SCE_O_CREAT | SCE_O_TRUNC, 0666 );
+	if ( fd < 0 ) return;
+	sceIoWrite( fd, hdr, sizeof(*hdr) );
+	sceIoWrite( fd, mipSizes, hdr->mipCount * sizeof(unsigned) );
+	sceIoWrite( fd, blob, hdr->totalSize );
+	sceIoClose( fd );
+}
+#endif // VITA
+
 image_t	*R_FindImageFile( const char *name, qboolean mipmap, qboolean allowPicmip, qboolean allowTC, int glWrapClampMode ) {
 	image_t	*image;
 	int		width, height;
@@ -1084,13 +1468,33 @@ image_t	*R_FindImageFile( const char *name, qboolean mipmap, qboolean allowPicmi
 		return image;
 	}
 
+#ifdef VITA
+	// DXT cache hit: build straight from the cached mip chain, no decode/encode/picmip. A miss
+	// or mismatch returns NULL and falls through to the normal load below.
+	if ( r_texCacheCompressed && r_texCacheCompressed->integer && allowTC && name[0] != '$' && name[0] != '*' ) {
+		image = R_CreateImageFromDxtCache( name, mipmap, allowPicmip, allowTC, glWrapClampMode );
+		if ( image ) {
+			return image;
+		}
+	}
+#endif
+
 	//
-	// load the pic from disk
+	// load the pic from disk (or the ux0 RGBA cache)
 	//
+#ifdef VITA
+	qboolean fromCache = R_TexCacheLoad( name, &pic, &width, &height );
+	if ( !fromCache )
+#endif
 	R_LoadImage( name, &pic, &width, &height );
 	if ( !pic ) {
         return NULL;
 	}
+#ifdef VITA
+	if ( !fromCache ) {
+		R_TexCacheStore( name, pic, width, height );	// save the decode for next load
+	}
+#endif
 
 	image = R_CreateImage( ( char * ) name, pic, width, height, GL_RGBA, mipmap, allowPicmip, allowTC, glWrapClampMode );
 	R_Free( pic );
@@ -1330,6 +1734,7 @@ void R_CreateBuiltinImages( void ) {
 	tr.screenImage = R_CreateImage("*screen", (byte *)data, 8, 8, GL_RGBA, qfalse, qfalse, qfalse, GL_REPEAT );
 
 
+#ifndef VITA
 	// Create the scene glow image. - AReis
 	tr.screenGlow = 1024 + giTextureBindNum++;
 	qglDisable( GL_TEXTURE_2D );
@@ -1368,6 +1773,14 @@ void R_CreateBuiltinImages( void ) {
 	qglTexParameteri( GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
 	qglDisable( GL_TEXTURE_RECTANGLE_ARB );
 	qglEnable( GL_TEXTURE_2D );
+#else
+	// vitaGL/GXM has no GL_TEXTURE_RECTANGLE_ARB target, and dynamic glow is off on the
+	// Vita anyway (tr_init.cpp), so skip these rectangle textures entirely. Creating them
+	// just spammed GL_INVALID_ENUM and gave a corrupt frame.
+	tr.screenGlow = 0;
+	tr.sceneImage = 0;
+	tr.blurImage  = 0;
+#endif
 
 
 	// with overbright bits active, we need an image which is some fraction of full color,
