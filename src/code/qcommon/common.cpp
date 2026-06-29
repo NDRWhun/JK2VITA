@@ -1130,6 +1130,12 @@ void Com_Init( char *commandLine ) {
 
 		com_developer = Cvar_Get ("developer", "0", CVAR_TEMP );
 		com_logfile = Cvar_Get ("logfile", "0", CVAR_TEMP );
+#ifdef VITA
+		// no console on Vita, so log to qconsole.log. 2 = flush per line so the
+		// last lines survive a crash. set logfile 0 in the cfg to disable.
+		Cvar_Set( "logfile", "2" );
+		com_logfile->integer = 2;
+#endif
 		com_speedslog = Cvar_Get ("speedslog", "0", CVAR_TEMP );
 
 		com_timescale = Cvar_Get ("timescale", "1", CVAR_CHEAT );
