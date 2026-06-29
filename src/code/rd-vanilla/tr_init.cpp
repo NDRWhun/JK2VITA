@@ -31,6 +31,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "tr_stl.h"
 #include "../rd-common/tr_font.h"
 #include "tr_WorldEffects.h"
+#include "../qcommon/vita_jobpool.h"
 
 glconfig_t	glConfig;
 glstate_t	glState;
@@ -56,6 +57,15 @@ cvar_t	*r_dynamiclight;
 
 cvar_t	*r_lodbias;
 cvar_t	*r_lodscale;
+cvar_t	*r_ghoul2CrowdLod;
+cvar_t	*r_ghoul2CrowdLodStep;
+cvar_t	*r_distanceCull;
+cvar_t	*r_forceFog;
+cvar_t	*r_forceFogColor;
+cvar_t	*r_g2Threaded;
+cvar_t	*r_texCache;
+cvar_t	*r_texCacheCompressed;
+cvar_t	*r_dxtFast;
 
 cvar_t	*r_norefresh;
 cvar_t	*r_drawentities;
@@ -174,6 +184,9 @@ cvar_t	*broadsword_ragtobase;
 cvar_t	*broadsword_dircap;
 
 // More bullshit needed for the proper modular renderer --eez
+// Vita is a static build, so the engine already owns these globals. Redefining
+// them here = duplicate symbols (rd-vanilla isn't a separate module).
+#ifndef VITA
 cvar_t	*sv_mapname;
 cvar_t	*sv_mapChecksum;
 cvar_t	*se_language;			// JKA
@@ -181,10 +194,24 @@ cvar_t	*se_language;			// JKA
 cvar_t	*sp_language;			// JK2
 #endif
 cvar_t	*com_buildScript;
+#else
+// just reference the engine's copies
+extern cvar_t	*sv_mapname;
+extern cvar_t	*sv_mapChecksum;
+extern cvar_t	*se_language;
+#ifdef JK2_MODE
+extern cvar_t	*sp_language;
+#endif
+extern cvar_t	*com_buildScript;
+#endif // VITA
 
 cvar_t	*r_environmentMapping;
 cvar_t *r_screenshotJpegQuality;
 
+// On Vita these qgl* names are either macros onto core vitaGL funcs
+// (multitexture/stencil) or NULL ptrs from gl_vita_ext.cpp (the ARB program /
+// NV combiner / EXT compiled-array stuff vitaGL doesn't have). Don't redefine them.
+#ifndef VITA
 #if !defined(__APPLE__)
 PFNGLSTENCILOPSEPARATEPROC qglStencilOpSeparate;
 #endif
@@ -230,6 +257,7 @@ PFNGLISPROGRAMARBPROC qglIsProgramARB;
 
 PFNGLLOCKARRAYSEXTPROC qglLockArraysEXT;
 PFNGLUNLOCKARRAYSEXTPROC qglUnlockArraysEXT;
+#endif // !VITA
 
 bool g_bTextureRectangleHack = false;
 
@@ -460,6 +488,14 @@ static void GLimp_InitExtensions( void )
 	Com_Printf ("...using GL_EXT_texture_edge_clamp\n" );
 
 	// GL_ARB_multitexture
+#ifdef VITA
+	// vitaGL has core multitexture and qgl*ARB are macros onto core gl*, so
+	// nothing to load -- just report the texture-unit count.
+	qglGetIntegerv( GL_MAX_TEXTURE_UNITS_ARB, &glConfig.maxActiveTextures );
+	if ( glConfig.maxActiveTextures < 2 )
+		glConfig.maxActiveTextures = 2;
+	Com_Printf ("...using GL_ARB_multitexture (vitaGL)\n" );
+#else
 	qglMultiTexCoord2fARB = NULL;
 	qglActiveTextureARB = NULL;
 	qglClientActiveTextureARB = NULL;
@@ -497,6 +533,7 @@ static void GLimp_InitExtensions( void )
 	{
 		Com_Printf ("...GL_ARB_multitexture not found\n" );
 	}
+#endif // VITA
 
 	// GL_EXT_compiled_vertex_array
 	qglLockArraysEXT = NULL;
@@ -660,6 +697,14 @@ static void GLimp_InitExtensions( void )
 		qglGetIntegerv( GL_MAX_GENERAL_COMBINERS_NV, &iNumGeneralCombiners );
 
 	// Only allow dynamic glows/flares if they have the hardware
+#ifdef VITA
+	// Dynamic glow needs rectangle textures (GL_TEXTURE_RECTANGLE_ARB) and ARB
+	// assembly programs; vitaGL/GXM has neither. Force it off, otherwise the
+	// renderer binds rectangle textures that spam GL_INVALID_ENUM and corrupt the
+	// frame. Overrides whatever r_DynamicGlow the device cfg saved.
+	g_bDynamicGlowSupported = false;
+	ri.Cvar_Set( "r_DynamicGlow", "0" );
+#else
 	if ( bTexRectSupported && bARBVertexProgram && qglActiveTextureARB && glConfig.maxActiveTextures >= 4 &&
 		( ( bNVRegisterCombiners && iNumGeneralCombiners >= 2 ) || bARBFragmentProgram ) )
 	{
@@ -672,14 +717,16 @@ static void GLimp_InitExtensions( void )
 		g_bDynamicGlowSupported = false;
 		ri.Cvar_Set( "r_DynamicGlow","0" );
 	}
+#endif
 
-#if !defined(__APPLE__)
+#if !defined(__APPLE__) && !defined(VITA)
 	qglStencilOpSeparate = (PFNGLSTENCILOPSEPARATEPROC)ri.GL_GetProcAddress("glStencilOpSeparate");
 	if (qglStencilOpSeparate)
 	{
 		glConfig.doStencilShadowsInOneDrawcall = qtrue;
 	}
 #else
+	// vitaGL has glStencilOpSeparate (the qglStencilOpSeparate macro).
 	glConfig.doStencilShadowsInOneDrawcall = qtrue;
 #endif
 }
@@ -1138,6 +1185,13 @@ void GL_SetDefaultState( void )
 {
 	qglClearDepth( 1.0f );
 
+#ifdef VITA
+	// Pick vitaGL's fast DXT encoder (STB_DXT_NORMAL) over the exhaustive HIGHQUAL
+	// path. Runtime S3TC encode dominates level-load time, and with picmip the
+	// quality difference isn't visible at 960x544.
+	qglHint( GL_TEXTURE_COMPRESSION_HINT, GL_FASTEST );
+#endif
+
 	qglCullFace(GL_FRONT);
 
 	qglColor4f (1,1,1,1);
@@ -1514,6 +1568,23 @@ void R_Register( void )
 
 	r_allowExtensions = ri.Cvar_Get( "r_allowExtensions", "1", CVAR_ARCHIVE_ND | CVAR_LATCH );
 	r_ext_compressed_textures = ri.Cvar_Get( "r_ext_compress_textures", "1", CVAR_ARCHIVE_ND | CVAR_LATCH );
+#ifdef VITA
+	// r_texCacheCompressed drives DXT compression. Runtime S3TC encode (every mip of
+	// every texture, on one ARM core) is the biggest single-threaded level-load cost,
+	// so by default it's OFF and we upload uncompressed RGBA. With the cache on, the
+	// encoded mip chain is stored on ux0 (tr_image.cpp) so we pay the encode once per
+	// asset and then compression pays off (4-8x less texture VRAM) -- so turn
+	// r_ext_compress_textures back on. Both latched, read before the world loads.
+	r_texCacheCompressed = ri.Cvar_Get( "r_texCacheCompressed", "0", CVAR_ARCHIVE_ND | CVAR_LATCH );
+	r_dxtFast            = ri.Cvar_Get( "r_dxtFast",            "1", CVAR_ARCHIVE_ND );
+	{
+		const int on = r_texCacheCompressed->integer ? 1 : 0;
+		ri.Cvar_Set( "r_ext_compress_textures", on ? "1" : "0" );
+		r_ext_compressed_textures->integer  = on;
+		r_ext_compressed_textures->value    = (float)on;
+		r_ext_compressed_textures->modified = qtrue;
+	}
+#endif
 	r_ext_compressed_lightmaps = ri.Cvar_Get( "r_ext_compress_lightmaps", "0", CVAR_ARCHIVE_ND | CVAR_LATCH );
 	r_ext_preferred_tc_method = ri.Cvar_Get( "r_ext_preferred_tc_method", "0", CVAR_ARCHIVE_ND | CVAR_LATCH );
 	r_ext_gamma_control = ri.Cvar_Get( "r_ext_gamma_control", "1", CVAR_ARCHIVE_ND | CVAR_LATCH );
@@ -1531,6 +1602,17 @@ void R_Register( void )
 	r_DynamicGlowHeight = ri.Cvar_Get( "r_DynamicGlowHeight", "240", CVAR_ARCHIVE_ND | CVAR_LATCH );
 
 	r_picmip = ri.Cvar_Get ("r_picmip", "0", CVAR_ARCHIVE | CVAR_LATCH );
+#ifdef VITA
+	// Floor picmip at 2. With runtime DXT off (above), picmip 2 drops texel area 16x,
+	// so the uncompressed RGBA8 working set lands at about the same VRAM as compressed
+	// picmip 1 -- it fits the GPU pool and the upload is a plain memcpy instead of a
+	// compress, which is the load-time win. Latched and the saved cfg pins it, so
+	// override the live value here before textures load.
+	ri.Cvar_Set( "r_picmip", "2" );
+	r_picmip->integer  = 2;
+	r_picmip->value    = 2.0f;
+	r_picmip->modified = qtrue;
+#endif
 	ri.Cvar_CheckRange( r_picmip, 0, 16, qtrue );
 	r_colorMipLevels = ri.Cvar_Get ("r_colorMipLevels", "0", CVAR_LATCH );
 	r_detailTextures = ri.Cvar_Get( "r_detailtextures", "1", CVAR_ARCHIVE_ND | CVAR_LATCH );
@@ -1538,6 +1620,22 @@ void R_Register( void )
 	r_texturebitslm = ri.Cvar_Get( "r_texturebitslm", "0", CVAR_ARCHIVE_ND | CVAR_LATCH );
 	r_overBrightBits = ri.Cvar_Get ("r_overBrightBits", "0", CVAR_ARCHIVE_ND | CVAR_LATCH );
 	r_mapOverBrightBits = ri.Cvar_Get( "r_mapOverBrightBits", "0", CVAR_ARCHIVE_ND|CVAR_LATCH );
+#ifdef VITA
+	// No hardware gamma ramp and we run windowed, so R_SetColorMappings forces
+	// tr.overbrightBits = 0 (identityLight 1.0). Fine for dynamic/model/HUD, but it
+	// makes R_ColorShiftLightingBytes shift by 0, so baked world lighting (lightmaps,
+	// BSP vertex colors, lightgrid) stays at its dim authored values while rgbGen
+	// identity/vertex surfaces sit at 255 -- the flat "world dark, objects bright" look.
+	// Retail hides this with hardware-gamma overbright doubling, which we can't do.
+	// r_mapOverBrightBits = 1 re-applies the +1 lightmap lift at load time (normalized,
+	// tr_bsp.cpp) without touching identityLight, so nothing goes black (unlike OpenJK's
+	// r_overbrightbits 1 software-path blackness bug). Latched and pinned to 0 by the
+	// cfg, so force it here before the world loads, same as r_picmip.
+	ri.Cvar_Set( "r_mapOverBrightBits", "1" );
+	r_mapOverBrightBits->integer  = 1;
+	r_mapOverBrightBits->value    = 1.0f;
+	r_mapOverBrightBits->modified = qtrue;
+#endif
 	r_simpleMipMaps = ri.Cvar_Get( "r_simpleMipMaps", "1", CVAR_ARCHIVE_ND | CVAR_LATCH );
 	r_vertexLight = ri.Cvar_Get( "r_vertexLight", "0", CVAR_ARCHIVE | CVAR_LATCH );
 	r_subdivisions = ri.Cvar_Get ("r_subdivisions", "4", CVAR_ARCHIVE_ND | CVAR_LATCH);
@@ -1557,6 +1655,32 @@ void R_Register( void )
 	r_lodbias = ri.Cvar_Get( "r_lodbias", "0", CVAR_ARCHIVE_ND );
 	r_flares = ri.Cvar_Get ("r_flares", "1", CVAR_ARCHIVE_ND );
 	r_lodscale = ri.Cvar_Get( "r_lodscale", "10", CVAR_ARCHIVE_ND );
+#ifdef VITA
+	// Crowd LOD: past r_ghoul2CrowdLod visible ghoul2 characters, push the distant
+	// non-player ones to a lower LOD to cut skinning cost in big fights. 0 = off.
+	// Step = visible characters per extra LOD level.
+	r_ghoul2CrowdLod     = ri.Cvar_Get( "r_ghoul2CrowdLod",     "4", CVAR_ARCHIVE_ND );
+	r_ghoul2CrowdLodStep = ri.Cvar_Get( "r_ghoul2CrowdLodStep", "3", CVAR_ARCHIVE_ND );
+	// Render-distance cap: >0 clamps the map's distanceCull, pulling in both the far
+	// frustum plane (CPU cull) and the zFar clip so long sightlines don't drag the whole
+	// PVS into view and overdraw. 0 = use the map value. Sane range ~4000-8000.
+	r_distanceCull       = ri.Cvar_Get( "r_distanceCull",       "0", CVAR_ARCHIVE_ND );
+	// Forced distance fog: global GL_LINEAR fog, independent of map fog volumes, to mask
+	// the r_distanceCull cut and add depth. r_forceFog = fog end distance (0 = off),
+	// builds over the last half. r_forceFogColor = "r g b" 0..1.
+	r_forceFog           = ri.Cvar_Get( "r_forceFog",           "0", CVAR_ARCHIVE_ND );
+	r_forceFogColor      = ri.Cvar_Get( "r_forceFogColor", "0.55 0.6 0.7", CVAR_ARCHIVE_ND );
+
+	// Thread ghoul2 skinning across the worker pool (cores 1/2 + main work-steal), one
+	// job per character, main barriers before the draw list. Off by default until it's
+	// validated on device; serial skinning is the fallback.
+	r_g2Threaded         = ri.Cvar_Get( "r_g2Threaded",         "0", CVAR_ARCHIVE_ND );
+
+	// Pre-decoded RGBA cache on ux0:data/JK2VITA/texcache. Build once, then later loads
+	// read RGBA off the card and skip the JPEG/PNG/TGA decode. Bigger reads for no
+	// decode -- a win on faster cards. Off by default.
+	r_texCache           = ri.Cvar_Get( "r_texCache",           "0", CVAR_ARCHIVE_ND );
+#endif
 
 	r_znear = ri.Cvar_Get( "r_znear", "4", CVAR_ARCHIVE_ND );	//if set any lower, you lose a lot of precision in the distance
 	ri.Cvar_CheckRange( r_znear, 0.001f, 10, qfalse ); // was qtrue in JA, is qfalse properly in ioq3
@@ -1632,6 +1756,16 @@ void R_Register( void )
 	r_lockpvs = ri.Cvar_Get ("r_lockpvs", "0", CVAR_CHEAT);
 	r_noportals = ri.Cvar_Get ("r_noportals", "0", CVAR_CHEAT);
 	r_shadows = ri.Cvar_Get( "cg_shadows", "1", 0 );
+#ifdef VITA
+	// Stencil shadow volumes (cg_shadows 2) emit their silhouette via immediate-mode
+	// glBegin/glVertex3fv, which vitaGL doesn't draw, so the shadows just vanish.
+	// Bounce that mode to the blob/decal path (cg_shadows 1, glDrawElements). Only
+	// touches a stale/forced 2; 0 and 1 are left alone.
+	if ( r_shadows->integer == 2 ) {
+		ri.Cvar_Set( "cg_shadows", "1" );
+		r_shadows->integer = 1;
+	}
+#endif
 	r_shadowRange = ri.Cvar_Get( "r_shadowRange", "1000", CVAR_ARCHIVE_ND );
 
 /*
@@ -1767,6 +1901,14 @@ void R_Init( void ) {
 	R_ModelInit();
 	R_InitWorldEffects();
 	R_InitFonts();
+
+#ifdef VITA
+	// Start the worker pool (cores 1/2) for threaded ghoul2 skinning + async decode.
+	// Idempotent, and sits idle until r_g2Threaded / r_asyncTexLoad actually queue work.
+	JobPool_Init();
+	ri.Printf( PRINT_ALL, "JobPool: %s\n",
+		JobPool_Available() ? "UP (worker threads on cores 1/2)" : "DOWN - skinning will run serial" );
+#endif
 
 	err = qglGetError();
 	if ( err != GL_NO_ERROR )
