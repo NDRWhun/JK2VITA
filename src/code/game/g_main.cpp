@@ -179,7 +179,11 @@ cvar_t	*g_weaponRespawn;
 cvar_t	*g_subtitles;
 cvar_t	*g_ICARUSDebug;
 
+#ifdef VITA
+extern cvar_t	*com_buildScript;	// common.cpp owns it in the single-ELF build
+#else
 cvar_t	*com_buildScript;
+#endif
 
 cvar_t	*g_skippingcin;
 cvar_t	*g_AIsurrender;
@@ -937,6 +941,9 @@ void QDECL G_Error( const char *fmt, ... ) {
 	gi.Error( ERR_DROP, "%s", text);
 }
 
+// common.cpp already defines these; the game's copies would clash at link in the
+// single-ELF Vita build.
+#ifndef VITA
 /*
 -------------------------
 Com_Error
@@ -970,6 +977,7 @@ void Com_Printf( const char *msg, ... ) {
 
 	gi.Printf ("%s", text);
 }
+#endif // !VITA
 
 /*
 ========================================================================

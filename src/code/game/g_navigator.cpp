@@ -37,11 +37,15 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 ////////////////////////////////////////////////////////////////////////////////////////
 // HFile Bindings
 ////////////////////////////////////////////////////////////////////////////////////////
+// Rufl/hfile.cpp already provides these; the game's gi.FS_* copies would clash at
+// link in the single-ELF build (JK2 does the same).
+#ifndef VITA
 bool	HFILEopen_read(int& handle,	const char* filepath)		{gi.FS_FOpenFile(filepath, &handle, FS_READ);	return (handle!=0);}
 bool	HFILEopen_write(int& handle, const char* filepath)		{gi.FS_FOpenFile(filepath, &handle, FS_WRITE);	return (handle!=0);}
 bool	HFILEread(int& handle,		void*		data, int size)	{return (gi.FS_Read(data, size, handle)!=0);}
 bool	HFILEwrite(int& handle,		const void* data, int size)	{return (gi.FS_Write(data, size, handle)!=0);}
 bool	HFILEclose(int& handle)									{gi.FS_FCloseFile(handle); return true;}
+#endif // !VITA
 
 
 
