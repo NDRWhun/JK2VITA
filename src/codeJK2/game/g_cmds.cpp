@@ -960,6 +960,24 @@ Cmd_UseInventory_f
 */
 void Cmd_UseInventory_f(gentity_t *ent)
 {
+#ifdef VITA
+	// If the selection isn't a usable, owned item, fall back to the first owned
+	// one so a single press always uses something (e.g. bacta) instead of no-op.
+	int sel = cg.inventorySelect;
+	if ( sel < INV_ELECTROBINOCULARS || sel > INV_SENTRY || ent->client->ps.inventory[sel] <= 0 )
+	{
+		sel = -1;
+		for ( int i = INV_ELECTROBINOCULARS; i <= INV_SENTRY; i++ )
+		{
+			if ( ent->client->ps.inventory[i] > 0 ) { sel = i; break; }
+		}
+		if ( sel < 0 )
+		{
+			return;
+		}
+		cg.inventorySelect = sel;
+	}
+#endif
 	switch (cg.inventorySelect)
 	{
 		case INV_ELECTROBINOCULARS :

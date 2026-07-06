@@ -453,6 +453,12 @@ static qboolean SV_G2API_AttachG2Model( CGhoul2Info *ghlInfo, CGhoul2Info *ghlIn
 
 static void SV_G2API_CleanGhoul2Models( CGhoul2Info_v &ghoul2 )
 {
+	// On a fatal error the signal handler shuts the client down first, zeroing `re`;
+	// ShutdownGame's entity cleanup then lands here. Skip instead of jumping to NULL
+	// so the crash dump points at the real failure, not this cascade.
+	if ( !re.G2API_CleanGhoul2Models ) {
+		return;
+	}
 	return re.G2API_CleanGhoul2Models( ghoul2 );
 }
 

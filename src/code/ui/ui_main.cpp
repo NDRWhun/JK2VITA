@@ -539,7 +539,12 @@ void _UI_Refresh( int realtime )
 	UI_SetColor( NULL );
 	if (Menu_Count() > 0)
 	{
+#ifdef VITA
+		extern qboolean cl_vitaHideMenuCursor;
+		if (uiInfo.uiDC.cursorShow == qtrue && !cl_vitaHideMenuCursor)
+#else
 		if (uiInfo.uiDC.cursorShow == qtrue)
+#endif
 		{
 			UI_DrawHandlePic( uiInfo.uiDC.cursorx, uiInfo.uiDC.cursory, 48, 48, uiInfo.uiDC.Assets.cursor);
 		}
@@ -3447,6 +3452,10 @@ qboolean Asset_Parse(char **buffer)
 UI_Update
 =================
 */
+#ifdef VITA
+static int s_lastGlPreset = -1;	// last ui_r_glCustom value UI_Update reacted to
+#endif
+
 static void UI_Update(const char *name)
 {
 	int	val = trap_Cvar_VariableValue(name);
@@ -3498,9 +3507,22 @@ static void UI_Update(const char *name)
 				Cvar_SetValue( "ui_r_subdivisions", 20 );
 				break;
 		}
+#ifdef VITA
+		// editing an individual value voids the preset
+		Cvar_Set( "ui_r_glCustom", "4" );
+		s_lastGlPreset = 4;
+#endif
 	}
 	else if (Q_stricmp(name, "ui_r_glCustom") == 0)
 	{
+#ifdef VITA
+		// D-pad cycling re-fires this with an unchanged value, which used to stomp
+		// freshly edited staging cvars right before apply - only react to changes.
+		if (val == s_lastGlPreset) {
+			return;
+		}
+		s_lastGlPreset = val;
+#endif
 		switch (val)
 		{
 			case 0:	// high quality
