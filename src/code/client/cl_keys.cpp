@@ -1329,6 +1329,7 @@ void CL_KeyUpEvent( int key, unsigned time )
 static qboolean			vita_modDown  = qfalse;
 static unsigned			vita_altLatch = 0;
 static qboolean			vita_circleClosedConsole = qfalse;
+qboolean				cl_vitaHideMenuCursor = qfalse;	// set on d-pad menu nav, cleared by stick/touch
 static const char * const vita_altTable[16] = {
 	NULL,				// 0  JOY0
 	"force_speed",		// 1  JOY1  Triangle
@@ -1399,10 +1400,23 @@ void CL_KeyEvent (int key, qboolean down, unsigned time) {
 	// Cross = click, Circle = back/cancel. (The sticks drive the cursor in
 	// CL_JoystickMove.) Outside the UI they keep their gameplay bindings.
 	if ( Key_GetCatcher() & KEYCATCH_UI ) {
-		if ( key == A_JOY3 )		// Cross
-			key = A_MOUSE1;
-		else if ( key == A_JOY2 )	// Circle
+		if ( key == A_JOY3 )		// Cross: enter (activate highlighted) in d-pad mode, else click
+			key = cl_vitaHideMenuCursor ? A_ENTER : A_MOUSE1;
+		else if ( key == A_JOY2 )	// Circle -> back
 			key = A_ESCAPE;
+		else if ( key == A_JOY9 )	// D-Up
+			key = A_CURSOR_UP;
+		else if ( key == A_JOY7 )	// D-Down
+			key = A_CURSOR_DOWN;
+		else if ( key == A_JOY8 )	// D-Left
+			key = A_CURSOR_LEFT;
+		else if ( key == A_JOY10 )	// D-Right
+			key = A_CURSOR_RIGHT;
+		// hide the pointer while navigating by d-pad; the stick/touch shows it again
+		if ( down && ( key == A_CURSOR_UP || key == A_CURSOR_DOWN ||
+					   key == A_CURSOR_LEFT || key == A_CURSOR_RIGHT ) ) {
+			cl_vitaHideMenuCursor = qtrue;
+		}
 	}
 #endif
 	if( down )

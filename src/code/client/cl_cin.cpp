@@ -1567,8 +1567,9 @@ int CIN_PlayCinematic( const char *arg, int x, int y, int w, int h, int systemBi
 
 		Con_Close();
 
-		if ( !cinTable[currentHandle].silent )
+		if ( !cinTable[currentHandle].silent ) {
 			s_rawend = s_soundtime;
+		}
 
 		return currentHandle;
 	}
