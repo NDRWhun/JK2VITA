@@ -1692,6 +1692,7 @@ void RB_SurfaceGhoul( CRenderableSurface *surface );
 void RB_PrepGhoulSkinMT( drawSurf_t *drawSurfs, int numDrawSurfs );
 // per-frame recycle of the frontend's bone snapshot arena (render-thread mode)
 void R_ResetGhoulSkinArena( void );
+void R_FreeGhoulSkinArena( void );
 #endif
 /*
 Ghoul2 Insert End

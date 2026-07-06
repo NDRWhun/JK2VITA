@@ -2847,11 +2847,8 @@ void G2_ConstructGhoulSkeleton( CGhoul2Info_v &ghoul2,const int frameNum,bool ch
 }
 
 #ifdef VITA
-// Render-thread Ghoul2 split, after vitaRTCW's multithreaded renderer: the frontend
-// snapshots each visible character's bone matrices - the only Ghoul2 state whose lazy
-// Eval mutates the CBoneCache and so races the frontend's next-frame setup - and the
-// backend does the heavy per-vertex skinning from that immutable snapshot on the
-// render thread, overlapped with the next frame's scene build.
+// Render-thread Ghoul2 split (after vitaRTCW): frontend snapshots bones (lazy Eval would
+// race the next frame); backend skins from that immutable snapshot.
 
 // Sized for the worst case: stencil shadows (cg_shadows 2) allocate TWO render
 // surfaces per model surface (shadow + normal) on the same bone cache, so a complex
@@ -2867,37 +2864,43 @@ struct g2SkinGroup_t {
 	int                 n;
 };
 
-// Groups are transient (the snapshot fill finishes before the prep call returns); the
-// arenas are not: the backend skins from frame X's snapshots while the frontend fills
-// frame X+1's, so there is one arena per frontend buffer, indexed like RSStorage.
+// One arena per frontend buffer: backend skins frame X while frontend fills X+1.
 static g2SkinGroup_t s_g2Groups[G2MT_MAX_CHARS];
 static int           s_g2NumGroups;
-static byte         *s_g2Arena[2]     = { NULL, NULL };
-static size_t        s_g2ArenaSize    = 0;
-static size_t        s_g2ArenaUsed[2] = { 0, 0 };
+// Separate pools so the large optional pre-skin verts can't starve the mandatory snapshots.
+static byte         *s_g2SnapArena[2] = { NULL, NULL };
+static byte         *s_g2SkinArena[2] = { NULL, NULL };
+static size_t        s_g2SnapUsed[2]  = { 0, 0 };
+static size_t        s_g2SkinUsed[2]  = { 0, 0 };
+#define G2_SNAP_ARENA_SIZE ( 1 * 1024 * 1024 )	// snapshots: 1 MB fits any real scene
+#define G2_SKIN_ARENA_SIZE ( 1 * 1024 * 1024 )	// pre-skin verts: overflow -> backend skins
 
-// Per-frame arena reset for the render-thread mode. Called from R_InitNextFrame, which
-// runs after the hand-off flip; the hand-off waited for the backend to finish its
-// previous frame, so the buffer being reset is no longer read by anyone.
+// Per-frame reset from R_InitNextFrame (post hand-off; the reset buffer is idle).
 void R_ResetGhoulSkinArena( void )
 {
 	if ( r_renderThread && r_renderThread->integer ) {
-		s_g2ArenaUsed[activeBackEnd] = 0;
+		s_g2SnapUsed[activeBackEnd] = 0;
+		s_g2SkinUsed[activeBackEnd] = 0;
 	}
 }
 
-// Render-thread mode only: called from R_AddDrawSurfCmd on the FRONTEND, once per view.
-// Mandatory - every bone Eval must happen here, before hand-off, because an Eval on
-// the render thread races the frontend's G2_TransformGhoulBones for the next frame
-// (confirmed device crash in G2_TransformBone). Snapshot slices accumulate across the
-// frame's views (reset per-frame in R_ResetGhoulSkinArena). Single-threaded mode keeps
-// the stock inline backend skinning.
-int g_g2PrepMsec = 0;	// frontend ms spent snapshotting bones; read+reset by the perf probe (RE_EndFrame)
+// Free on shutdown so the arenas aren't resident during a load; re-malloc'd lazily.
+void R_FreeGhoulSkinArena( void )
+{
+	for ( int i = 0; i < 2; i++ ) {
+		if ( s_g2SnapArena[i] ) { free( s_g2SnapArena[i] ); s_g2SnapArena[i] = NULL; }
+		if ( s_g2SkinArena[i] ) { free( s_g2SkinArena[i] ); s_g2SkinArena[i] = NULL; }
+		s_g2SnapUsed[i] = 0;
+		s_g2SkinUsed[i] = 0;
+	}
+}
+
+// Frontend bone snapshot before hand-off: a render-thread Eval would race
+// G2_TransformGhoulBones (device crash). Accumulates across views, reset per-frame.
+int g_g2PrepMsec = 0;	// frontend bone-snapshot ms; read+reset by the perf probe
 
 
-// Skin one surface's vertices from a bone snapshot. Frontend (render-thread mode)
-// only, called from RB_PrepGhoulSkinMT; same math as the backend loop in
-// RB_SurfaceGhoul so the two paths stay bit-identical. xyz+normal interleaved.
+// Frontend pre-skin of one surface; same math as RB_SurfaceGhoul. xyz+normal interleaved.
 static void G2_PreSkinSurface( const mdxmSurface_t *surface, const mdxaBone_t *snap, float *out )
 {
 	const int numVerts = surface->numVerts;
@@ -2972,12 +2975,12 @@ void RB_PrepGhoulSkinMT( drawSurf_t *drawSurfs, int numDrawSurfs )
 	const int prepStart = ri.Milliseconds();
 	const int buf = activeBackEnd;
 
-	if ( !s_g2Arena[buf] ) {
-		// Bone snapshots (48 bytes/bone) plus pre-skinned vertices (24 bytes/vert):
-		// a full combat scene runs to ~1.5MB. Overflow degrades per-surface.
-		s_g2ArenaSize = 2 * 1024 * 1024;
-		s_g2Arena[buf] = (byte*)malloc( s_g2ArenaSize );
-		if ( !s_g2Arena[buf] ) { return; }
+	if ( !s_g2SnapArena[buf] ) {
+		s_g2SnapArena[buf] = (byte*)malloc( G2_SNAP_ARENA_SIZE );
+		if ( !s_g2SnapArena[buf] ) { return; }	// no snapshots -> can't prep this frame
+	}
+	if ( !s_g2SkinArena[buf] ) {
+		s_g2SkinArena[buf] = (byte*)malloc( G2_SKIN_ARENA_SIZE );	// best-effort; NULL -> pre-skin skipped
 	}
 	s_g2NumGroups = 0;
 
@@ -3009,20 +3012,18 @@ void RB_PrepGhoulSkinMT( drawSurf_t *drawSurfs, int numDrawSurfs )
 		g->surfs[ g->n++ ] = surf;
 	}
 
-	// Snapshot each cache's referenced bones once, then stamp every surface of that
-	// character with the snapshot. The backend indexes it by the same global bone
-	// numbers the vertex weights use, so only referenced entries need filling.
+	// Snapshot each cache's referenced bones once, stamp all its surfaces.
 	for ( int i = 0; i < s_g2NumGroups; i++ )
 	{
 		g2SkinGroup_t *g = &s_g2Groups[i];
 		CBoneCache *cache = g->cache;
 		const int numBones = cache->mNumBones;
 		const size_t need = (size_t)numBones * sizeof(mdxaBone_t);
-		if ( numBones > G2MT_MAX_BONES || s_g2ArenaUsed[buf] + need > s_g2ArenaSize ) {
+		if ( numBones > G2MT_MAX_BONES || s_g2SnapUsed[buf] + need > G2_SNAP_ARENA_SIZE ) {
 			continue;	// no snapshot -> this character's surfaces drop for one frame
 		}
-		mdxaBone_t *snap = (mdxaBone_t *)( s_g2Arena[buf] + s_g2ArenaUsed[buf] );
-		s_g2ArenaUsed[buf] += need;
+		mdxaBone_t *snap = (mdxaBone_t *)( s_g2SnapArena[buf] + s_g2SnapUsed[buf] );
+		s_g2SnapUsed[buf] += need;
 
 		uint32_t seen[G2MT_MAX_BONES / 32] = { 0 };
 		for ( int s = 0; s < g->n; s++ )
@@ -3046,20 +3047,17 @@ void RB_PrepGhoulSkinMT( drawSurf_t *drawSurfs, int numDrawSurfs )
 			g->surfs[s]->boneMats = snap;
 		}
 
-		// Pre-skin each surface from the snapshot so the backend only copies: the
-		// per-vertex math runs here, hidden under the backend's frame, and the
-		// backend never touches bone data at all. Arena overflow leaves preSkinned
-		// NULL -> that surface skins on the backend from the snapshot instead.
+		// Pre-skin here so the backend only copies; overflow -> preSkinned NULL (backend skins from the snapshot).
 		for ( int s = 0; s < g->n; s++ )
 		{
 			CRenderableSurface *rs = g->surfs[s];
 			const mdxmSurface_t *surface = rs->surfaceData;
 			const size_t vneed = (size_t)surface->numVerts * 6 * sizeof(float);
-			if ( s_g2ArenaUsed[buf] + vneed > s_g2ArenaSize ) {
-				continue;
+			if ( !s_g2SkinArena[buf] || s_g2SkinUsed[buf] + vneed > G2_SKIN_ARENA_SIZE ) {
+				continue;	// overflow -> backend skins from the snapshot (harmless)
 			}
-			float *out = (float *)( s_g2Arena[buf] + s_g2ArenaUsed[buf] );
-			s_g2ArenaUsed[buf] += vneed;
+			float *out = (float *)( s_g2SkinArena[buf] + s_g2SkinUsed[buf] );
+			s_g2SkinUsed[buf] += vneed;
 			G2_PreSkinSurface( surface, snap, out );
 			rs->preSkinned = out;
 		}
@@ -3208,15 +3206,9 @@ void RB_SurfaceGhoul( CRenderableSurface *surf )
 	CBoneCache *bones = surf->boneCache;
 
 #ifdef VITA
-	// Under the render thread the skin loop below must read the frontend's immutable
-	// no bone snapshot (arena/cap overflow): drop the surface for this frame - a live
-	// CBoneCache Eval here would race the frontend building the next frame.
+	// No snapshot (rare): drop rather than Eval bones on the render thread (races the frontend).
 	if ( r_renderThread && r_renderThread->integer && !surf->boneMats )
 	{
-		static int s_dropWarn = 0;
-		if ( !( s_dropWarn++ & 255 ) ) {
-			ri.Printf( PRINT_ALL, "^3[MT] RB_SurfaceGhoul: dropped surface without bone snapshot #%d (prep cap/arena overflow)\n", s_dropWarn );
-		}
 		return;
 	}
 #endif
@@ -3329,9 +3321,7 @@ void RB_SurfaceGhoul( CRenderableSurface *surf )
 		const mdxaBone_t *bone;
 		const mdxaBone_t *bone2;
 #ifdef VITA
-		// Render-thread mode: skin from the frontend's immutable bone snapshot instead of
-		// the live cache, which the frontend is already mutating for the next frame.
-		// pSnapMats is NULL single-threaded -> stock lazy cache eval, unchanged.
+		// Render-thread: skin from the frontend's immutable snapshot; pSnapMats NULL single-threaded (stock eval).
 		const mdxaBone_t *pSnapMats = surf->boneMats;
 #ifdef JK2_MODE
 	#define G2_VERT_BONE(kk) ( pSnapMats ? &pSnapMats[ piBoneReferences[ G2_GetVertBoneIndex( v, (kk) ) ] ] : &bones->Eval( piBoneReferences[ G2_GetVertBoneIndex( v, (kk) ) ] ) )

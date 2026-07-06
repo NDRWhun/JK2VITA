@@ -2035,6 +2035,7 @@ void RE_Shutdown( qboolean destroyWindow, qboolean restarting ) {
 	// fonts) - the later drain at the R_DeleteTextures block is too late for those.
 	if ( tr.registered && r_renderThread && r_renderThread->integer ) {
 		R_IssuePendingRenderCommands();
+		R_FreeGhoulSkinArena();	// release the bone-snapshot arena during load; re-malloc'd next frame
 	}
 #endif
 
