@@ -1361,6 +1361,8 @@ int Com_TimeVal(int minMsec)
 	int timeVal;
 
 	timeVal = Sys_Milliseconds() - com_frameTime;
+	if(timeVal < 0)		// a backward clock step must never inflate the frame-cap sleep
+		timeVal = 0;
 
 	if(timeVal >= minMsec)
 		timeVal = 0;
@@ -1456,7 +1458,6 @@ void Com_Frame( void ) {
 		}
 
 		SV_Frame (msec, fractionMsec);
-
 
 		//
 		// client system
