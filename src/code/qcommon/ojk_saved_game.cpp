@@ -158,6 +158,8 @@ bool SavedGame::create(
 
 void SavedGame::close()
 {
+	flush_pending_write();
+
 	if (file_handle_ != 0)
 	{
 		::FS_FCloseFile(file_handle_);
@@ -171,9 +173,44 @@ void SavedGame::close()
 	saved_io_buffer_offset_ = 0;
 
 	rle_buffer_.clear();
+	file_buffer_.clear();
 
 	is_readable_ = false;
 	is_writable_ = false;
+}
+
+int SavedGame::sink_write(
+	const void* data,
+	int size,
+	int)
+{
+	if (size > 0)
+	{
+		const uint8_t* bytes = static_cast<const uint8_t*>(data);
+		file_buffer_.insert(file_buffer_.end(), bytes, bytes + size);
+	}
+
+	return size;
+}
+
+void SavedGame::flush_pending_write()
+{
+	if (!is_writable_ || file_handle_ == 0 || file_buffer_.empty())
+	{
+		return;
+	}
+
+	const int size = static_cast<int>(file_buffer_.size());
+	const int written = ::FS_Write(file_buffer_.data(), size, file_handle_);
+
+	if (written != size)
+	{
+		is_failed_ = true;
+		error_message_ = "Failed to flush saved game buffer to disk.";
+		::Com_Printf("%s%s\n", S_COLOR_RED, error_message_.c_str());
+	}
+
+	file_buffer_.clear();
 }
 
 bool SavedGame::read_chunk(
@@ -413,7 +450,7 @@ bool SavedGame::write_chunk(
 		io_buffer_.data(),
 		src_size);
 
-	uint32_t saved_chunk_size = ::FS_Write(
+	uint32_t saved_chunk_size = sink_write(
 		&chunk_id,
 		static_cast<int>(sizeof(chunk_id)),
 		file_handle_);
@@ -440,35 +477,35 @@ bool SavedGame::write_chunk(
 	{
 		const int size = -static_cast<int>(io_buffer_.size());
 
-		saved_chunk_size += ::FS_Write(
+		saved_chunk_size += sink_write(
 			&size,
 			static_cast<int>(sizeof(size)),
 			file_handle_);
 
 #ifdef JK2_MODE
-		saved_chunk_size += ::FS_Write(
+		saved_chunk_size += sink_write(
 			&checksum,
 			static_cast<int>(sizeof(checksum)),
 			file_handle_);
 #endif // JK2_MODE
 
-		saved_chunk_size += ::FS_Write(
+		saved_chunk_size += sink_write(
 			&compressed_size,
 			static_cast<int>(sizeof(compressed_size)),
 			file_handle_);
 
-		saved_chunk_size += ::FS_Write(
+		saved_chunk_size += sink_write(
 			rle_buffer_.data(),
 			compressed_size,
 			file_handle_);
 
 #ifdef JK2_MODE
-		saved_chunk_size += ::FS_Write(
+		saved_chunk_size += sink_write(
 			&magic_value,
 			static_cast<int>(sizeof(magic_value)),
 			file_handle_);
 #else
-		saved_chunk_size += ::FS_Write(
+		saved_chunk_size += sink_write(
 			&checksum,
 			static_cast<int>(sizeof(checksum)),
 			file_handle_);
@@ -503,30 +540,30 @@ bool SavedGame::write_chunk(
 	{
 		const uint32_t size = static_cast<uint32_t>(io_buffer_.size());
 
-		saved_chunk_size += ::FS_Write(
+		saved_chunk_size += sink_write(
 			&size,
 			static_cast<int>(sizeof(size)),
 			file_handle_);
 
 #ifdef JK2_MODE
-		saved_chunk_size += ::FS_Write(
+		saved_chunk_size += sink_write(
 			&checksum,
 			static_cast<int>(sizeof(checksum)),
 			file_handle_);
 #endif // JK2_MODE
 
-		saved_chunk_size += ::FS_Write(
+		saved_chunk_size += sink_write(
 			io_buffer_.data(),
 			size,
 			file_handle_);
 
 #ifdef JK2_MODE
-		saved_chunk_size += ::FS_Write(
+		saved_chunk_size += sink_write(
 			&magic_value,
 			static_cast<int>(sizeof(magic_value)),
 			file_handle_);
 #else
-		saved_chunk_size += ::FS_Write(
+		saved_chunk_size += sink_write(
 			&checksum,
 			static_cast<int>(sizeof(checksum)),
 			file_handle_);

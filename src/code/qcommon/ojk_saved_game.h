@@ -43,6 +43,10 @@ public:
 	// Closes the current saved game file.
 	void close();
 
+	// Flushes the buffered save image to disk in one write. Safe to call
+	// repeatedly; a no-op once the buffer is empty.
+	void flush_pending_write();
+
 
 	// Reads a chunk from the file into the internal buffer.
 	bool read_chunk(
@@ -153,6 +157,16 @@ private:
 
 	// RLE codec buffer.
 	Buffer rle_buffer_;
+
+	// Whole-file write accumulator: chunk writes append here and are flushed in
+	// one FS_Write at close, turning hundreds of small card writes into one.
+	Buffer file_buffer_;
+
+	// Appends to file_buffer_ (drop-in for FS_Write); returns size.
+	int sink_write(
+		const void* data,
+		int size,
+		int file_handle);
 
 	// True if saved game opened for reading.
 	bool is_readable_;

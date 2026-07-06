@@ -148,7 +148,7 @@ void SV_WipeGame_f(void)
 		return;
 	}
 	SG_WipeSavegame(Cmd_Argv(1));
-//	Com_Printf("%s has been wiped\n", Cmd_Argv(1));	// wurde gelöscht in german, but we've only got one string
+//	Com_Printf("%s has been wiped\n", Cmd_Argv(1));	// wurde gelï¿½scht in german, but we've only got one string
 //	Com_Printf("Ok\n"); // no localization of this
 }
 
@@ -1216,6 +1216,8 @@ qboolean SG_WriteSavegame(const char *psPathlessBaseName, qboolean qbAutosave)
 		SG_WriteServerConfigStrings();
 	}
 	ge->WriteLevel(qbAutosave);	// always done now, but ent saver only does player if auto
+
+	saved_game.flush_pending_write();	// one batched write; sets is_failed on error
 
 	bool is_write_failed = saved_game.is_failed();
 
