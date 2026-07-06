@@ -3,7 +3,6 @@
 #
 # Single statically-linked ELF -> .self -> .vpk via the VitaSDK toolchain.
 # Engine/renderer = OpenJK code/ ; game/cgame/icarus = OpenJK codeJK2/ ; JK2_MODE.
-# See docs/ARCHITECTURE.md and docs/ROADMAP.md.
 #============================================================================
 cmake_minimum_required(VERSION 3.10)
 
@@ -25,8 +24,18 @@ set(CMAKE_CXX_STANDARD 14)
 
 include("${VITASDK}/share/vita.cmake" REQUIRED)
 
-set(VITA_APP_NAME "JK2VITA: Jedi Outcast")
-set(VITA_TITLEID  "JK2VITA01")
+# Game selection: OFF -> Jedi Outcast (JK2VITA), ON -> Jedi Academy (JAVITA).
+# Configure JKA with:  cmake -S . -B build-jka -DBUILD_JKA=ON
+option(BUILD_JKA "Build Jedi Academy (JAVITA) instead of Jedi Outcast (JK2VITA)" OFF)
+if(BUILD_JKA)
+  set(GAME_TARGET   "JAVITA")
+  set(VITA_APP_NAME "JAVITA: Jedi Academy")
+  set(VITA_TITLEID  "JAVITA001")
+else()
+  set(GAME_TARGET   "JK2VITA")
+  set(VITA_APP_NAME "JK2VITA: Jedi Outcast")
+  set(VITA_TITLEID  "JK2VITA01")
+endif()
 set(VITA_VERSION  "00.01")
 
 #----------------------------------------------------------------------------
@@ -35,13 +44,27 @@ set(VITA_VERSION  "00.01")
 # over the shared code/ versions; code/game is kept after as a fallback for
 # engine-only headers not present under codeJK2/.
 #----------------------------------------------------------------------------
+# Game-specific include dirs FIRST so the selected game's headers win over the
+# shared code/ versions. JKA -> code/{game,cgame,icarus}; JK2 -> codeJK2/*.
+if(BUILD_JKA)
+  include_directories(
+    ${CMAKE_SOURCE_DIR}/src/compat   # newlib gap-fillers (e.g. <endian.h>); must be first
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/src/code/game
+    ${CMAKE_SOURCE_DIR}/src/code/cgame
+    ${CMAKE_SOURCE_DIR}/src/code/icarus
+  )
+else()
+  include_directories(
+    ${CMAKE_SOURCE_DIR}/src/compat   # newlib gap-fillers (e.g. <endian.h>); must be first
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/src/codeJK2/game
+    ${CMAKE_SOURCE_DIR}/src/codeJK2/cgame
+    ${CMAKE_SOURCE_DIR}/src/codeJK2/icarus
+    ${CMAKE_SOURCE_DIR}/src/codeJK2
+  )
+endif()
 include_directories(
-  ${CMAKE_SOURCE_DIR}/src/compat   # newlib gap-fillers (e.g. <endian.h>); must be first
-  ${CMAKE_SOURCE_DIR}/src
-  ${CMAKE_SOURCE_DIR}/src/codeJK2/game
-  ${CMAKE_SOURCE_DIR}/src/codeJK2/cgame
-  ${CMAKE_SOURCE_DIR}/src/codeJK2/icarus
-  ${CMAKE_SOURCE_DIR}/src/codeJK2
   ${CMAKE_SOURCE_DIR}/src/code
   ${CMAKE_SOURCE_DIR}/src/code/game
   ${CMAKE_SOURCE_DIR}/src/code/rd-common
@@ -70,8 +93,7 @@ configure_file(
 #----------------------------------------------------------------------------
 add_compile_definitions(
   SP_GAME
-  _JK2EXE
-  JK2_MODE
+  _JK2EXE              # single-player exe marker (both games)
   VITA
   __linux__
   ARCH_STRING="arm"
@@ -80,6 +102,10 @@ add_compile_definitions(
   __FLOAT_WORD_ORDER=1
   IOAPI_NO_64          # minizip: use fopen (newlib has no fopen64)
 )
+# Jedi Outcast behaviour toggle — defined ONLY for the JK2 build, not JKA.
+if(NOT BUILD_JKA)
+  add_compile_definitions(JK2_MODE)
+endif()
 
 #----------------------------------------------------------------------------
 # Flags (StaticJK-proven ARM/NEON hard-float set).
@@ -96,11 +122,11 @@ add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fpermissive>)
 add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-D__GNU_VISIBLE>)
 
 #----------------------------------------------------------------------------
-# Source set (generated: see cmake/jk2_sources.cmake + docs/PORTING_NOTES N-0004).
+# Source set (generated).
 #----------------------------------------------------------------------------
 include(${CMAKE_SOURCE_DIR}/cmake/jk2_sources.cmake)
 
-add_executable(${PROJECT_NAME}.elf ${JK2_SOURCES})
+add_executable(${GAME_TARGET}.elf ${JK2_SOURCES})
 
 # mp3code's global `window` (float decode table) collides with rd-vanilla's
 # `window_t window`. Rename it consistently across the (self-contained) mp3
@@ -108,7 +134,7 @@ add_executable(${PROJECT_NAME}.elf ${JK2_SOURCES})
 file(GLOB JK2_MP3_SOURCES ${CMAKE_SOURCE_DIR}/src/code/mp3code/*.c)
 set_source_files_properties(${JK2_MP3_SOURCES} PROPERTIES COMPILE_DEFINITIONS "window=mp3code_window")
 
-target_link_libraries(${PROJECT_NAME}.elf
+target_link_libraries(${GAME_TARGET}.elf
   # Vita GL stack
   SDL2
   vitaGL
@@ -177,10 +203,10 @@ vita_create_self(companion.bin companion.elf UNSAFE)
 #----------------------------------------------------------------------------
 # Package: ELF -> SELF -> VPK
 #----------------------------------------------------------------------------
-vita_create_self(${PROJECT_NAME}.self ${PROJECT_NAME}.elf UNSAFE)
+vita_create_self(${GAME_TARGET}.self ${GAME_TARGET}.elf UNSAFE)
 
 set(VITA_MKSFOEX_FLAGS "-d ATTRIBUTE2=12")
-vita_create_vpk(${PROJECT_NAME}.vpk ${VITA_TITLEID} ${PROJECT_NAME}.self
+vita_create_vpk(${GAME_TARGET}.vpk ${VITA_TITLEID} ${GAME_TARGET}.self
   VERSION ${VITA_VERSION}
   NAME ${VITA_APP_NAME}
   FILE ${CMAKE_SOURCE_DIR}/sce_sys/icon0.png sce_sys/icon0.png

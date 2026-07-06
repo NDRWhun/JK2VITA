@@ -80,6 +80,26 @@ The combo layer only fires instant commands. The modifier role is latched per bu
 
 Open with **Start + Select** — the on-screen keyboard pops up. Type a command, press **Enter** to run it. Close with **Circle** or **Start + Select** again.
 
+## Performance & tuning
+
+Tune by editing `ux0:data/JK2VITA/base/openjo_sp.cfg` on the card, or from the in-game console (**Start + Select**). *(latched)* cvars need a `vid_restart` or relaunch.
+
+| Cvar | Default | What it does |
+|------|---------|--------------|
+| `r_renderThread` | `1` | Dedicated backend render thread; `0` = single-threaded *(latched)* |
+| `s_asyncLoad` | `1` | Read sound files on a worker thread; `0` = synchronous |
+| `r_picmip` | `1` | Texture detail — higher = lower-res, less VRAM, faster *(latched)* |
+| `r_subdivisions` | `4` | Curve tessellation — higher = coarser curves, fewer verts *(latched)* |
+| `r_lodbias` | `0` | Model LOD bias — higher drops to low-detail models sooner |
+| `r_distanceCull` | `0` | Far draw-distance cap, in units (`0` = engine default) |
+| `r_forceFog` | `0` | Force fog at this distance (`0` = off) — hides far geometry |
+| `r_ghoul2CrowdLod` | `4` | Above this many on-screen characters, extras drop LOD |
+| `r_ghoul2CrowdLodStep` | `3` | How many LOD levels the crowd extras drop |
+| `cg_shadows` | `1` | Player/NPC shadows — `0` = off, `1` = blob |
+| `r_texCacheCompressed` | `1` | Cache textures as DXT (less VRAM; `0` = uncompressed) |
+| `s_khz` | `22` | Mixer rate — 22 matches the source assets *(latched)* |
+| `vita_rearTouch` | `1` | Rear-touch panel controls — `0` disables them |
+
 ## Build (for developers)
 
 Needs [VitaSDK](https://vitasdk.org) and [vdpm](https://github.com/vitasdk/vdpm) on `PATH`, plus cmake,
@@ -100,7 +120,7 @@ bash tools/build.sh        # vdpm deps + vitaGL + SDL + port -> build/JK2VITA.vp
 
 - [OpenJK](https://github.com/JACoders/OpenJK) (JACoders) — the open-source JK2/JKA engine this builds on.
 - Raven Software / LucasArts — the original *Jedi Knight II: Jedi Outcast*.
-- [Rinnegatamante](https://github.com/Rinnegatamante) — vitaGL, and vitaQuakeIII as the reference id Tech 3 Vita port.
+- [Rinnegatamante](https://github.com/Rinnegatamante) — vitaGL, vitaQuakeIII (the reference id Tech 3 Vita port), and [vitaRTCW](https://github.com/Rinnegatamante/vitaRTCW) — the reference for the multi-threaded rendering.
 - [Northfear](https://github.com/Northfear/SDL) — SDL2 with the vitaGL backend.
 
 ## License

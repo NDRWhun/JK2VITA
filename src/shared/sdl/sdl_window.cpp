@@ -160,6 +160,11 @@ void WIN_Present( window_t *window )
 
 	if ( r_fullscreen->modified )
 	{
+#ifdef VITA
+		// always-fullscreen device; the desktop toggle below would run IN_Restart
+		// on the render thread (WIN_Present runs there under r_renderThread)
+		r_fullscreen->modified = qfalse;
+#else
 		bool	fullscreen;
 		bool	needToToggle;
 		bool	sdlToggled = qfalse;
@@ -189,6 +194,7 @@ void WIN_Present( window_t *window )
 		}
 
 		r_fullscreen->modified = qfalse;
+#endif
 	}
 }
 
@@ -311,17 +317,19 @@ static bool GLimp_DetectAvailableModes(void)
 }
 
 #ifdef VITA
-// shrink the GXM parameter buffer (default 16 MB) so the freed CDRAM goes to vitaGL's
-// texture pool. must run before vglInit, which fires inside SDL_CreateWindow.
+// must run on the vglInit thread, before vglInit
 extern "C" void vglSetParamBufferSize( uint32_t size );
+extern "C" void vglSetCircularPoolSize( uint32_t size );
 #endif
 
 /*
 ===============
 GLimp_SetMode
+
+doParamBufferSize: qfalse if WIN_LoadGL already sized the pools
 ===============
 */
-static rserr_t GLimp_SetMode(glconfig_t *glConfig, const windowDesc_t *windowDesc, const char *windowTitle, int mode, qboolean fullscreen, qboolean noborder)
+static rserr_t GLimp_SetMode(glconfig_t *glConfig, const windowDesc_t *windowDesc, const char *windowTitle, int mode, qboolean fullscreen, qboolean noborder, qboolean doParamBufferSize = qtrue)
 {
 	int perChannelColorBits;
 	int colorBits, depthBits, stencilBits;
@@ -341,10 +349,11 @@ static rserr_t GLimp_SetMode(glconfig_t *glConfig, const windowDesc_t *windowDes
 	Com_Printf( "Initializing display\n");
 
 #ifdef VITA
-	// 4 MB is plenty for JK2's geometry at 960x544 with no MSAA; the rest of the default
-	// 16 MB goes to the texture pool. Bump this if a heavy scene starts dropping geometry.
-	// No-op once vitaGL is up, so vid_restart is safe.
-	vglSetParamBufferSize( 4 * 1024 * 1024 );
+	// 16 MB: 2-3 in-flight scenes share it, smaller overflows the tiler. no-op after init.
+	if ( doParamBufferSize ) {
+		vglSetParamBufferSize( 16 * 1024 * 1024 );
+		vglSetCircularPoolSize( 48 * 1024 * 1024 );	// match WIN_LoadGL; see comment there
+	}
 #endif
 
 	icon = SDL_CreateRGBSurfaceFrom(
@@ -688,7 +697,7 @@ static rserr_t GLimp_SetMode(glconfig_t *glConfig, const windowDesc_t *windowDes
 GLimp_StartDriverAndSetMode
 ===============
 */
-static qboolean GLimp_StartDriverAndSetMode(glconfig_t *glConfig, const windowDesc_t *windowDesc, int mode, qboolean fullscreen, qboolean noborder)
+static qboolean GLimp_StartDriverAndSetMode(glconfig_t *glConfig, const windowDesc_t *windowDesc, int mode, qboolean fullscreen, qboolean noborder, qboolean doParamBufferSize = qtrue)
 {
 	rserr_t err;
 
@@ -727,7 +736,7 @@ static qboolean GLimp_StartDriverAndSetMode(glconfig_t *glConfig, const windowDe
 		fullscreen = qfalse;
 	}
 
-	err = GLimp_SetMode(glConfig, windowDesc, CLIENT_WINDOW_TITLE, mode, fullscreen, noborder);
+	err = GLimp_SetMode(glConfig, windowDesc, CLIENT_WINDOW_TITLE, mode, fullscreen, noborder, doParamBufferSize);
 
 	switch ( err )
 	{
@@ -833,6 +842,149 @@ window_t WIN_Init( const windowDesc_t *windowDesc, glconfig_t *glConfig )
 
 	return window;
 }
+
+#ifdef VITA
+/*
+===============
+WIN_InitSDLVideo
+
+main thread: WIN_Init minus window/context creation; must run before WIN_LoadGL
+===============
+*/
+void WIN_InitSDLVideo( void )
+{
+	Cmd_AddCommand("modelist", R_ModeList_f);
+	Cmd_AddCommand("minimize", GLimp_Minimize);
+
+	r_sdlDriver			= Cvar_Get( "r_sdlDriver",			"",			CVAR_ROM );
+	r_allowSoftwareGL	= Cvar_Get( "r_allowSoftwareGL",	"0",		CVAR_ARCHIVE_ND|CVAR_LATCH );
+
+	// Window cvars
+	r_fullscreen		= Cvar_Get( "r_fullscreen",			"0",		CVAR_ARCHIVE|CVAR_LATCH );
+	r_noborder			= Cvar_Get( "r_noborder",			"0",		CVAR_ARCHIVE|CVAR_LATCH );
+	r_centerWindow		= Cvar_Get( "r_centerWindow",		"0",		CVAR_ARCHIVE|CVAR_LATCH );
+	r_customwidth		= Cvar_Get( "r_customwidth",		"1600",		CVAR_ARCHIVE|CVAR_LATCH );
+	r_customheight		= Cvar_Get( "r_customheight",		"1024",		CVAR_ARCHIVE|CVAR_LATCH );
+	r_swapInterval		= Cvar_Get( "r_swapInterval",		"0",		CVAR_ARCHIVE_ND );
+	r_stereo			= Cvar_Get( "r_stereo",				"0",		CVAR_ARCHIVE_ND|CVAR_LATCH );
+	r_mode				= Cvar_Get( "r_mode",				"4",		CVAR_ARCHIVE|CVAR_LATCH );
+	r_displayRefresh	= Cvar_Get( "r_displayRefresh",		"0",		CVAR_LATCH );
+	Cvar_CheckRange( r_displayRefresh, 0, 240, qtrue );
+
+	// pin the resolution engine-wide (see WIN_Init for rationale)
+	Cvar_Set( "r_customwidth",  "960" );
+	Cvar_Set( "r_customheight", "544" );
+	Cvar_Set( "r_mode",         "-1" );
+	r_customwidth->integer  = 960;
+	r_customheight->integer = 544;
+	r_mode->integer         = -1;
+
+	// Window render surface cvars
+	r_stencilbits		= Cvar_Get( "r_stencilbits",		"8",		CVAR_ARCHIVE_ND|CVAR_LATCH );
+	r_depthbits			= Cvar_Get( "r_depthbits",			"0",		CVAR_ARCHIVE_ND|CVAR_LATCH );
+	r_colorbits			= Cvar_Get( "r_colorbits",			"0",		CVAR_ARCHIVE_ND|CVAR_LATCH );
+	r_ignorehwgamma		= Cvar_Get( "r_ignorehwgamma",		"0",		CVAR_ARCHIVE_ND|CVAR_LATCH );
+	r_ext_multisample	= Cvar_Get( "r_ext_multisample",	"0",		CVAR_ARCHIVE_ND|CVAR_LATCH );
+	Cvar_Get( "r_availableModes", "", CVAR_ROM );
+
+	// Bring SDL video up on the MAIN thread so `_this` exists for the render thread.
+	// (GLimp_StartDriverAndSetMode's own SDL_Init is guarded by SDL_WasInit, so the
+	// later WIN_CreateWindow path will not re-init.)
+	if (!SDL_WasInit(SDL_INIT_VIDEO))
+	{
+		const char *driverName;
+
+		if (SDL_Init(SDL_INIT_VIDEO) == -1)
+		{
+			Com_Error( ERR_FATAL, "SDL_Init( SDL_INIT_VIDEO ) FAILED (%s)", SDL_GetError());
+			return;
+		}
+
+		driverName = SDL_GetCurrentVideoDriver();
+		if (!driverName)
+		{
+			Com_Error( ERR_FATAL, "No video driver initialized" );
+			return;
+		}
+
+		Com_Printf( "SDL using driver \"%s\"\n", driverName );
+		Cvar_Set( "r_sdlDriver", driverName );
+	}
+}
+
+/*
+===============
+WIN_LoadGL
+
+render thread: pool sizes + vglInit (fires inside SDL_GL_LoadLibrary),
+so the GXM context is owned here
+===============
+*/
+void WIN_LoadGL( void )
+{
+	vglSetParamBufferSize( 16 * 1024 * 1024 );
+	// default 32 MB spills into slow fallback allocations
+	vglSetCircularPoolSize( 48 * 1024 * 1024 );
+	if ( SDL_GL_LoadLibrary( NULL ) < 0 )
+	{
+		Com_Error( ERR_FATAL, "WIN_LoadGL: SDL_GL_LoadLibrary failed (%s)", SDL_GetError() );
+	}
+}
+
+/*
+===============
+WIN_CreateWindow
+
+main thread: window + GL context only; vglInit already ran in WIN_LoadGL
+===============
+*/
+window_t WIN_CreateWindow( const windowDesc_t *windowDesc, glconfig_t *glConfig )
+{
+	// Create the window and set up the context (SDL_Init is already done and guarded).
+	if(!GLimp_StartDriverAndSetMode( glConfig, windowDesc, r_mode->integer,
+										(qboolean)r_fullscreen->integer, (qboolean)r_noborder->integer, qfalse ))
+	{
+		if( r_mode->integer != R_MODE_FALLBACK )
+		{
+			Com_Printf( "Setting r_mode %d failed, falling back on r_mode %d\n", r_mode->integer, R_MODE_FALLBACK );
+
+			if (!GLimp_StartDriverAndSetMode( glConfig, windowDesc, R_MODE_FALLBACK, qfalse, qfalse, qfalse ))
+			{
+				// Nothing worked, give up
+				Com_Error( ERR_FATAL, "GLimp_Init() - could not load OpenGL subsystem" );
+			}
+		}
+	}
+
+	glConfig->deviceSupportsGamma =
+		(qboolean)(!r_ignorehwgamma->integer && SDL_SetWindowBrightness( screen, 1.0f ) >= 0);
+
+	// This depends on SDL_INIT_VIDEO, hence having it here
+	IN_Init( screen );
+
+	// window_t is only really useful for Windows if the renderer wants to create a D3D context.
+	window_t window = {};
+	window.api = windowDesc->api;
+
+	return window;
+}
+
+/*
+===============
+WIN_MakeCurrent
+
+render thread must call this before its first present:
+SDL_GL_SwapWindow no-ops unless the window is current on the calling thread
+===============
+*/
+void WIN_MakeCurrent( void )
+{
+	if ( SDL_GL_MakeCurrent( screen, opengl_context ) < 0 )
+	{
+		Com_Printf( "WIN_MakeCurrent: SDL_GL_MakeCurrent failed (%s)\n", SDL_GetError() );
+	}
+}
+#endif // VITA
 
 /*
 ===============

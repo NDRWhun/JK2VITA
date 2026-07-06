@@ -202,6 +202,11 @@ window_t	WIN_Init( const windowDesc_t *desc, glconfig_t *glConfig );
 void		WIN_Present( window_t *window );
 void		WIN_SetGamma( glconfig_t *glConfig, byte red[256], byte green[256], byte blue[256] );
 void		WIN_Shutdown( void );
+// render-thread window bring-up (Vita); see refimport_t / sdl_window.cpp.
+void		WIN_InitSDLVideo( void );
+void		WIN_LoadGL( void );
+window_t	WIN_CreateWindow( const windowDesc_t *desc, glconfig_t *glConfig );
+void		WIN_MakeCurrent( void );
 void *		WIN_GL_GetProcAddress( const char *proc );
 qboolean	WIN_GL_ExtensionSupported( const char *extension );
 

@@ -137,6 +137,10 @@ char *Sys_ConsoleInput(void)
 	return CON_Input( );
 }
 
+#ifdef VITA
+extern "C" int sceClibPrintf( const char *fmt, ... );
+#endif
+
 void Sys_Print( const char *msg ) {
 	// TTimo - prefix for text that shows up in console but not in notify
 	// backported from RTCW
@@ -148,6 +152,10 @@ void Sys_Print( const char *msg ) {
 	}
 	ConsoleLogAppend( msg );
 	CON_Print( msg );
+#ifdef VITA
+	// mirrored to the kernel debug printf so catlog can stream it over the network
+	sceClibPrintf( "%s", msg );
+#endif
 }
 
 /*

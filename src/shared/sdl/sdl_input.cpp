@@ -1289,8 +1289,11 @@ static void IN_JoyMove( void )
 			dx = (int)( ( (float) ax / 32767.0f ) * 16.0f );
 		if ( ay > deadzone || ay < -deadzone )
 			dy = (int)( ( (float) ay / 32767.0f ) * 16.0f );
-		if ( dx || dy )
+		if ( dx || dy ) {
+			extern qboolean cl_vitaHideMenuCursor;
+			cl_vitaHideMenuCursor = qfalse;	// stick moved: show the pointer again
 			Sys_QueEvent( 0, SE_MOUSE, dx, dy, 0, NULL );
+		}
 	}
 #endif
 }

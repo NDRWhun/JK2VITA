@@ -55,8 +55,6 @@ static Setting g_settings[] = {
 	{ "Texture detail (picmip)",  "r_picmip",            KIND_INT,   0.0f,  3.0f,  1.0f,  1.0f,  1.0f },
 	{ "Curve quality (subdiv)",   "r_subdivisions",      KIND_INT,   4.0f,  24.0f, 4.0f,  4.0f,  4.0f },
 	{ "Model LOD bias",           "r_lodbias",           KIND_INT,   0.0f,  2.0f,  1.0f,  0.0f,  0.0f },
-	{ "Threaded skinning",        "r_g2Threaded",        KIND_BOOL,  0.0f,  1.0f,  1.0f,  0.0f,  0.0f },
-	{ "Texture cache (ux0)",      "r_texCache",          KIND_BOOL,  0.0f,  1.0f,  1.0f,  0.0f,  0.0f },
 	{ "Render distance cap",      "r_distanceCull",      KIND_INT,   0.0f,  6000.0f, 500.0f, 0.0f, 0.0f },
 	{ "Forced fog distance",      "r_forceFog",          KIND_INT,   0.0f,  6000.0f, 500.0f, 0.0f, 0.0f },
 	{ "Crowd LOD (chars)",        "r_ghoul2CrowdLod",    KIND_INT,   0.0f,  16.0f, 1.0f,  4.0f,  4.0f },
