@@ -97,6 +97,9 @@ typedef struct sfx_s {
 	ALuint		Buffer;
 #endif
 	char		*lipSyncData;
+#ifdef VITA
+	volatile qboolean	bAsyncLoading;	// worker read in flight; skip play, don't re-enqueue
+#endif
 
 	struct sfx_s	*next;					// only used because of hash table when registering
 } sfx_t;
@@ -212,6 +215,12 @@ extern cvar_t *s_volumeVoice;
 wavinfo_t GetWavinfo (const char *name, byte *wav, int wavlength);
 
 qboolean S_LoadSound( sfx_t *sfx );
+
+#ifdef VITA
+// split load path (snd_mem.cpp): worker-safe read + main-thread decode/finalize.
+qboolean S_LoadSound_ReadFile( sfx_t *sfx, char *sLoadName, int iBufSize, byte **pData, int *piSize, qboolean bWorker );
+qboolean S_LoadSound_Finish( sfx_t *sfx, char *sLoadName, byte *data, int size, qboolean bDataIsMalloc );
+#endif
 
 
 void S_PaintChannels(int endtime);

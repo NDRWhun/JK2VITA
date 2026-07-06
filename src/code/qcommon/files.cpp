@@ -2833,10 +2833,97 @@ FS_Shutdown
 Frees all resources and closes all files
 ================
 */
+#ifdef VITA
+// ---- async sound loader: worker-thread-owned FS handles (independent unzOpen per pk3) ----
+#include <psp2/kernel/threadmgr.h>
+
+typedef struct fsWorkerPath_s {
+	struct fsWorkerPath_s	*next;
+	const pack_t			*pack;			// shared read-only directory
+	unzFile					packHandle;		// worker-owned 2nd handle (own FILE*); NULL for dirs
+	const directory_t		*dir;
+} fsWorkerPath_t;
+
+static fsWorkerPath_t	*fs_workerPaths = NULL;
+static SceUID			fs_workerMutex = -1;
+
+// mirror fs_searchpaths with worker-owned pk3 handles; called at end of FS_Startup.
+void FS_InitWorkerHandles( void ) {
+	if ( fs_workerMutex < 0 )
+		fs_workerMutex = sceKernelCreateMutex( "fs_worker", 0, 0, NULL );
+	sceKernelLockMutex( fs_workerMutex, 1, NULL );
+	fsWorkerPath_t **tail = &fs_workerPaths;
+	for ( searchpath_t *sp = fs_searchpaths ; sp ; sp = sp->next ) {
+		fsWorkerPath_t *w = (fsWorkerPath_t *)Z_Malloc( sizeof(*w), TAG_FILESYS, qtrue );
+		if ( sp->pack )	{ w->pack = sp->pack; w->packHandle = unzOpen( sp->pack->pakFilename ); }
+		else			{ w->dir = sp->dir; }
+		*tail = w; tail = &w->next;
+	}
+	sceKernelUnlockMutex( fs_workerMutex, 1 );
+}
+
+// free worker handles before FS frees fs_searchpaths; the mutex waits out any in-flight read.
+void FS_ShutdownWorkerHandles( void ) {
+	if ( fs_workerMutex < 0 ) return;
+	sceKernelLockMutex( fs_workerMutex, 1, NULL );
+	for ( fsWorkerPath_t *w = fs_workerPaths, *n = NULL ; w ; w = n ) {
+		n = w->next;
+		if ( w->packHandle ) unzClose( w->packHandle );
+		Z_Free( w );
+	}
+	fs_workerPaths = NULL;
+	sceKernelUnlockMutex( fs_workerMutex, 1 );
+}
+
+// whole-file read into a caller malloc'd buffer, same search order as FS_FOpenFileRead;
+// returns length or -1 (buffer==NULL queries length). safe from the sound worker thread.
+long FS_ReadFileWorker( const char *filename, void *buffer, long bufSize ) {
+	if ( fs_workerMutex < 0 || !filename || strstr(filename,"..") || strstr(filename,"::") ) return -1;
+	if ( filename[0]=='/' || filename[0]=='\\' ) filename++;
+	long ret = -1;
+	sceKernelLockMutex( fs_workerMutex, 1, NULL );
+	for ( fsWorkerPath_t *w = fs_workerPaths ; w ; w = w->next ) {
+		if ( w->packHandle ) {
+			const pack_t *pak = w->pack;
+			long hash = FS_HashFileName( filename, pak->hashSize );
+			for ( fileInPack_t *pf = pak->hashTable[hash] ; pf ; pf = pf->next ) {
+				if ( !FS_FilenameCompare( pf->name, filename ) ) {
+					if ( !buffer ) { ret = (long)pf->len; goto done; }
+					if ( (long)pf->len > bufSize ) goto done;
+					unzSetOffset( w->packHandle, pf->pos );
+					unzOpenCurrentFile( w->packHandle );
+					int r = unzReadCurrentFile( w->packHandle, buffer, pf->len );
+					unzCloseCurrentFile( w->packHandle );
+					if ( r == (int)pf->len ) ret = (long)pf->len;
+					goto done;
+				}
+			}
+		} else if ( w->dir ) {
+			char netpath[MAX_OSPATH];
+			Com_sprintf( netpath, sizeof(netpath), "%s%c%s%c%s", w->dir->path, PATH_SEP, w->dir->gamedir, PATH_SEP, filename );
+			FS_ReplaceSeparators( netpath );
+			FILE *fp = fopen( netpath, "rb" );
+			if ( !fp ) continue;
+			fseek( fp, 0, SEEK_END ); long len = ftell( fp ); fseek( fp, 0, SEEK_SET );
+			if ( !buffer ) { fclose(fp); ret = len; goto done; }
+			if ( len <= bufSize && fread( buffer, 1, (size_t)len, fp ) == (size_t)len ) ret = len;
+			fclose( fp );
+			goto done;
+		}
+	}
+done:
+	sceKernelUnlockMutex( fs_workerMutex, 1 );
+	return ret;
+}
+#endif // VITA
+
 void FS_Shutdown( qboolean keepModuleFiles ) {
 	searchpath_t	*p, *next;
 	int	i;
 
+#ifdef VITA
+	FS_ShutdownWorkerHandles();
+#endif
 	for(i = 0; i < MAX_FILE_HANDLES; i++) {
 		if (fsh[i].fileSize) {
 			if ( !keepModuleFiles ) FS_FCloseFile(i);
@@ -2960,6 +3047,9 @@ void FS_Startup( const char *gameName ) {
 
 	Com_Printf( "----------------------\n" );
 	Com_Printf( "%d files in pk3 files\n", fs_packFiles );
+#ifdef VITA
+	FS_InitWorkerHandles();
+#endif
 }
 
 /*
