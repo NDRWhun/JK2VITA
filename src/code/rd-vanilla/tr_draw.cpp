@@ -43,6 +43,39 @@ void RE_StretchRaw (int x, int y, int w, int h, int cols, int rows, const byte *
 		return;
 	}
 
+#ifdef VITA
+	// Render-thread mode: all GL runs on the render thread, so record a command
+	// with a staged copy of the frame instead of drawing from here.
+	if ( r_renderThread && r_renderThread->integer ) {
+		if ( (cols&(cols-1)) || (rows&(rows-1)) ) {
+			Com_Error (ERR_DROP, "Draw_StretchRaw: size not a power of 2: %i by %i", cols, rows);
+		}
+		static byte *stage[2][NUM_SCRATCH_IMAGES];
+		static int   stageSize[2][NUM_SCRATCH_IMAGES];
+		const int bytes = cols * rows * 4;
+		if ( stageSize[activeBackEnd][iClient] < bytes ) {
+			if ( stage[activeBackEnd][iClient] ) {
+				R_Free( stage[activeBackEnd][iClient] );
+			}
+			stage[activeBackEnd][iClient] = (byte *)R_Malloc( bytes, TAG_TEMP_WORKSPACE, qfalse );
+			stageSize[activeBackEnd][iClient] = bytes;
+		}
+		memcpy( stage[activeBackEnd][iClient], data, bytes );
+
+		cinematicCommand_t *cmd = (cinematicCommand_t *)R_GetCommandBuffer( sizeof( *cmd ) );
+		if ( !cmd ) {
+			return;
+		}
+		cmd->commandId = RC_CINEMATIC;
+		cmd->pixels = stage[activeBackEnd][iClient];
+		cmd->x = x; cmd->y = y; cmd->w = w; cmd->h = h;
+		cmd->cols = cols; cmd->rows = rows;
+		cmd->client = iClient;
+		cmd->dirty = bDirty;
+		return;
+	}
+#endif
+
 	R_IssuePendingRenderCommands();
 
 	if ( tess.numIndexes ) {
@@ -165,6 +198,27 @@ void RE_UploadCinematic (int cols, int rows, const byte *data, int client, qbool
 
 extern byte *RB_ReadPixels(int x, int y, int width, int height, size_t *offset, int *padlen);
 void RE_GetScreenShot(byte *buffer, int w, int h)
+{
+#ifdef VITA
+	// glReadPixels syncs the GPU and must run on the render thread: record a
+	// command and drain until the backend has filled the buffer.
+	if ( r_renderThread && r_renderThread->integer ) {
+		screenshotSPCommand_t *cmd = (screenshotSPCommand_t *)R_GetCommandBuffer( sizeof( *cmd ) );
+		if ( !cmd ) {
+			return;
+		}
+		cmd->commandId = RC_SCREENSHOT_SP;
+		cmd->buffer = buffer;
+		cmd->w = w;
+		cmd->h = h;
+		R_IssuePendingRenderCommands();
+		return;
+	}
+#endif
+	RB_GetScreenShotSP( buffer, w, h );
+}
+
+void RB_GetScreenShotSP(byte *buffer, int w, int h)
 {
 	byte		*source;
 	byte		*src, *dst;
@@ -759,6 +813,13 @@ qboolean RE_ProcessDissolve(void)
 //
 qboolean RE_InitDissolve(qboolean bForceCircularExtroWipe)
 {
+#ifdef VITA
+	// the melt captures and redraws the screen from the main thread; skip it in
+	// render-thread mode (ProcessDissolve self-skips when never started)
+	if ( r_renderThread && r_renderThread->integer ) {
+		return qfalse;
+	}
+#endif
 	R_IssuePendingRenderCommands();
 
 //	ri.Printf( PRINT_ALL, "RE_InitDissolve()\n");

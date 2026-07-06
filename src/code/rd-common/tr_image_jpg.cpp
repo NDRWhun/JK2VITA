@@ -151,7 +151,7 @@ void LoadJPG( const char *filename, unsigned char **pic, int *width, int *height
 
 	if(!cinfo.output_width || !cinfo.output_height
 		|| ((pixelcount * 4) / cinfo.output_width) / 4 != cinfo.output_height
-		|| pixelcount > 0x1FFFFFFF || cinfo.output_components != 3
+		|| pixelcount > 0x1FFFFFFF || (cinfo.output_components != 3 && cinfo.output_components != 1)
 		)
 	{
 		// Free the memory to make sure we don't leak memory
@@ -192,12 +192,22 @@ void LoadJPG( const char *filename, unsigned char **pic, int *width, int *height
 	sindex = pixelcount * cinfo.output_components;
 	dindex = memcount;
 
-	do {
-		buf[--dindex] = 255;
-		buf[--dindex] = buf[--sindex];
-		buf[--dindex] = buf[--sindex];
-		buf[--dindex] = buf[--sindex];
-	} while(sindex);
+	if (cinfo.output_components == 3) {
+		do {
+			buf[--dindex] = 255;
+			buf[--dindex] = buf[--sindex];
+			buf[--dindex] = buf[--sindex];
+			buf[--dindex] = buf[--sindex];
+		} while(sindex);
+	} else {	// greyscale: some repacked assets decode as 1 component
+		do {
+			const byte grey = buf[--sindex];
+			buf[--dindex] = 255;
+			buf[--dindex] = grey;
+			buf[--dindex] = grey;
+			buf[--dindex] = grey;
+		} while(sindex);
+	}
 
 	*pic = out;
 
@@ -309,7 +319,7 @@ void LoadJPGFromBuffer( byte *inputBuffer, size_t len, unsigned char **pic, int 
 
 	if(!cinfo.output_width || !cinfo.output_height
 	   || ((pixelcount * 4) / cinfo.output_width) / 4 != cinfo.output_height
-	   || pixelcount > 0x1FFFFFFF || cinfo.output_components != 3
+	   || pixelcount > 0x1FFFFFFF || (cinfo.output_components != 3 && cinfo.output_components != 1)
 	   )
 	{
 		// Free the memory to make sure we don't leak memory
@@ -349,12 +359,22 @@ void LoadJPGFromBuffer( byte *inputBuffer, size_t len, unsigned char **pic, int 
 	sindex = pixelcount * cinfo.output_components;
 	dindex = memcount;
 
-	do {
-		buf[--dindex] = 255;
-		buf[--dindex] = buf[--sindex];
-		buf[--dindex] = buf[--sindex];
-		buf[--dindex] = buf[--sindex];
-	} while(sindex);
+	if (cinfo.output_components == 3) {
+		do {
+			buf[--dindex] = 255;
+			buf[--dindex] = buf[--sindex];
+			buf[--dindex] = buf[--sindex];
+			buf[--dindex] = buf[--sindex];
+		} while(sindex);
+	} else {	// greyscale: some repacked assets decode as 1 component
+		do {
+			const byte grey = buf[--sindex];
+			buf[--dindex] = 255;
+			buf[--dindex] = grey;
+			buf[--dindex] = grey;
+			buf[--dindex] = grey;
+		} while(sindex);
+	}
 
 	*pic = out;
 

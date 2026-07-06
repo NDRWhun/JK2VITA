@@ -578,11 +578,9 @@ Upload32
 ===============
 */
 #ifdef VITA
-// DXT cache: keep the encoded mip chain on ux0 so we don't re-encode DXT every load. First
-// load encodes once, later loads upload the pre-compressed blocks (vitaGL just swizzles).
-// Own magic + dir, separate from the RGBA cache below. Gated by r_texCacheCompressed; any
-// failure falls back to the RGBA path. Load/store + hit-path live with the RGBA cache.
-#define TEXCACHE_MAGIC_DXT 0x33435456u	// "VTC3"; bump to invalidate old files (RGBA cache = 0x31435456)
+// DXT cache on ux0: encode once, later loads upload the pre-compressed mip chain.
+// Gated by r_texCacheCompressed; any failure falls back to the stock RGBA path.
+#define TEXCACHE_MAGIC_DXT 0x4A435456u	// "VTCJ"; per-game so JA-baked files never validate here. Bump to invalidate.
 #define TEXCACHE_MAX_MIPS  16
 enum { TEXCACHE_FMT_DXT1 = 1, TEXCACHE_FMT_DXT5 = 5 };
 typedef struct {					// 32-byte LE header, native Vita byte order
@@ -713,7 +711,7 @@ static void Upload32( unsigned *data,
 			    }
 			    p += 64; n -= 16;
 		    }
-		    i = c - n;	// scalar handles the tail; i == c if we broke or fully scanned
+		    i = c - n;	// tail for the scalar loop; the samples==3 guard skips it after a hit
 	    }
 	    if ( samples == 3 )
 #endif
@@ -796,9 +794,8 @@ static void Upload32( unsigned *data,
 		*pUploadHeight = height;
 
 #ifdef VITA
-	    // DXT cache write path. We picked a DXT format and the cache is on: encode the mip chain
-	    // once (mirroring the RGBA mip loop below so the cached blocks match), upload it
-	    // pre-compressed, and write it out. If the alloc fails we fall through to the stock RGBA path.
+	    // DXT cache write path: encode the mip chain (mirrors the RGBA mip loop below),
+	    // upload it pre-compressed, store it. Alloc failure falls through to stock RGBA.
 	    if ( r_texCacheCompressed && r_texCacheCompressed->integer && s_uploadDxtKey[0]
 	        && ( *pformat == GL_COMPRESSED_RGB_S3TC_DXT1_EXT || *pformat == GL_COMPRESSED_RGBA_S3TC_DXT5_EXT ) )
 	    {
@@ -1146,6 +1143,13 @@ image_t *R_CreateImage( const char *name, const byte *pic, int width, int height
 		Com_Error (ERR_DROP, "R_CreateImage: \"%s\" is too long\n", name);
 	}
 
+#ifdef VITA
+	// waits out the backend before this main-thread GL upload (no-op before tr.registered)
+	if ( r_renderThread && r_renderThread->integer ) {
+		R_IssuePendingRenderCommands();
+	}
+#endif
+
 	if(glConfig.clampToEdgeAvailable && glWrapClampMode == GL_CLAMP) {
 		glWrapClampMode = GL_CLAMP_TO_EDGE;
 	}
@@ -1191,9 +1195,7 @@ image_t *R_CreateImage( const char *name, const byte *pic, int width, int height
 	GL_Bind(image);
 
 #ifdef VITA
-	// Hand the asset name to Upload32 so its DXT cache can key the stored mip chain. Skip lightmaps
-	// ($, artifact-prone) and built-ins (*white/*default/etc., not on-disk assets); empty key turns
-	// the DXT path off for them.
+	// Key for Upload32's DXT cache. Lightmaps ($) and built-ins (*) get no key = no caching.
 	if ( name[0] != '$' && name[0] != '*' )
 		Q_strncpyz( s_uploadDxtKey, name, sizeof( s_uploadDxtKey ) );
 	else
@@ -1238,73 +1240,6 @@ Returns NULL if it fails, not a default image.
 #include <psp2/io/fcntl.h>
 #include <psp2/io/stat.h>
 
-// Optional pre-decoded texture cache on ux0 (r_texCache). Stores the full-res RGBA that
-// R_LoadImage produces, keyed by a hash of the asset name, so repeat level loads skip the
-// JPEG/PNG/TGA decode and read RGBA straight off the card. Cached before picmip downscale, so
-// it's picmip-independent. Off by default; wipe the texcache dir if you change assets.
-#define TEXCACHE_MAGIC 0x31435456u
-
-static qboolean s_texCacheDirReady = qfalse;
-
-static void R_TexCache_Path( const char *name, char *out, int outSize )
-{
-	unsigned long long h = 14695981039346656037ULL;	// FNV-1a 64-bit of the asset name
-	for ( const char *p = name; *p; ++p ) { h ^= (unsigned char)*p; h *= 1099511628211ULL; }
-	Com_sprintf( out, outSize, "ux0:data/JK2VITA/texcache/%016llx.bin", h );
-}
-
-static qboolean R_TexCacheLoad( const char *name, byte **pic, int *width, int *height )
-{
-	if ( !r_texCache || !r_texCache->integer ) return qfalse;
-	char path[256];
-	R_TexCache_Path( name, path, sizeof(path) );
-	SceUID fd = sceIoOpen( path, SCE_O_RDONLY, 0 );
-	if ( fd < 0 ) return qfalse;
-	unsigned int hdr[3];
-	qboolean ok = qfalse;
-	if ( sceIoRead( fd, hdr, sizeof(hdr) ) == (int)sizeof(hdr) && hdr[0] == TEXCACHE_MAGIC )
-	{
-		const int w = (int)hdr[1], h = (int)hdr[2];
-		if ( w > 0 && h > 0 && w <= 8192 && h <= 8192 )
-		{
-			const int bytes = w * h * 4;
-			byte *buf = (byte*)R_Malloc( bytes, TAG_TEMP_WORKSPACE, qfalse );	// same tag R_LoadImage uses
-			if ( buf && sceIoRead( fd, buf, bytes ) == bytes )
-			{
-				*pic = buf; *width = w; *height = h;
-				ok = qtrue;
-			}
-			else if ( buf )
-			{
-				R_Free( buf );
-			}
-		}
-	}
-	sceIoClose( fd );
-	return ok;
-}
-
-static void R_TexCacheStore( const char *name, byte *pic, int width, int height )
-{
-	if ( !r_texCache || !r_texCache->integer || !pic || width <= 0 || height <= 0 ) return;
-	if ( !s_texCacheDirReady )
-	{
-		sceIoMkdir( "ux0:data/JK2VITA", 0777 );
-		sceIoMkdir( "ux0:data/JK2VITA/texcache", 0777 );
-		s_texCacheDirReady = qtrue;
-	}
-	char path[256];
-	R_TexCache_Path( name, path, sizeof(path) );
-	SceUID test = sceIoOpen( path, SCE_O_RDONLY, 0 );
-	if ( test >= 0 ) { sceIoClose( test ); return; }	// already cached
-	SceUID fd = sceIoOpen( path, SCE_O_WRONLY | SCE_O_CREAT | SCE_O_TRUNC, 0666 );
-	if ( fd < 0 ) return;
-	unsigned int hdr[3] = { TEXCACHE_MAGIC, (unsigned)width, (unsigned)height };
-	sceIoWrite( fd, hdr, sizeof(hdr) );
-	sceIoWrite( fd, pic, width * height * 4 );
-	sceIoClose( fd );
-}
-
 // DXT mip-chain cache (see the block above Upload32)
 static void R_TexCacheDxt_Path( const char *name, char *out, int outSize )
 {
@@ -1319,6 +1254,13 @@ static image_t *R_CreateImageFromDxtCache( const char *name, qboolean mipmap, qb
 										   qboolean allowTC, int glWrapClampMode )
 {
 	if ( !r_texCacheCompressed || !r_texCacheCompressed->integer ) return NULL;
+#ifdef VITA
+	// Park the render thread before touching GL from the frontend (same rule as
+	// R_CreateImage); an unsynchronized upload here corrupts the vitaGL heap.
+	if ( r_renderThread && r_renderThread->integer ) {
+		R_IssuePendingRenderCommands();
+	}
+#endif
 	char path[256];
 	R_TexCacheDxt_Path( name, path, sizeof(path) );
 	SceUID fd = sceIoOpen( path, SCE_O_RDONLY, 0 );
@@ -1428,13 +1370,14 @@ static void R_TexCacheStoreDxt( const char *name, const texCacheHdrDxt_t *hdr,
 								const unsigned *mipSizes, const byte *blob )
 {
 	if ( !r_texCacheCompressed || !r_texCacheCompressed->integer || !hdr || !mipSizes || !blob ) return;
-	if ( !s_texCacheDirReady )
+	// own dir bootstrap - don't piggyback on the RGBA cache's, it mkdirs texcache/ we don't use
+	static qboolean s_dxtDirReady = qfalse;
+	if ( !s_dxtDirReady )
 	{
 		sceIoMkdir( "ux0:data/JK2VITA", 0777 );
-		sceIoMkdir( "ux0:data/JK2VITA/texcache", 0777 );
-		s_texCacheDirReady = qtrue;
+		sceIoMkdir( "ux0:data/JK2VITA/texcache_dxt", 0777 );
+		s_dxtDirReady = qtrue;
 	}
-	sceIoMkdir( "ux0:data/JK2VITA/texcache_dxt", 0777 );
 	char path[256];
 	R_TexCacheDxt_Path( name, path, sizeof(path) );
 	// Always overwrite (no exists-check) so a stale or corrupt entry just gets rewritten.
@@ -1480,21 +1423,12 @@ image_t	*R_FindImageFile( const char *name, qboolean mipmap, qboolean allowPicmi
 #endif
 
 	//
-	// load the pic from disk (or the ux0 RGBA cache)
+	// load the pic from disk
 	//
-#ifdef VITA
-	qboolean fromCache = R_TexCacheLoad( name, &pic, &width, &height );
-	if ( !fromCache )
-#endif
 	R_LoadImage( name, &pic, &width, &height );
 	if ( !pic ) {
         return NULL;
 	}
-#ifdef VITA
-	if ( !fromCache ) {
-		R_TexCacheStore( name, pic, width, height );	// save the decode for next load
-	}
-#endif
 
 	image = R_CreateImage( ( char * ) name, pic, width, height, GL_RGBA, mipmap, allowPicmip, allowTC, glWrapClampMode );
 	R_Free( pic );

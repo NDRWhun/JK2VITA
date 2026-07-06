@@ -31,7 +31,6 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "tr_stl.h"
 #include "../rd-common/tr_font.h"
 #include "tr_WorldEffects.h"
-#include "../qcommon/vita_jobpool.h"
 
 glconfig_t	glConfig;
 glstate_t	glState;
@@ -62,9 +61,8 @@ cvar_t	*r_ghoul2CrowdLodStep;
 cvar_t	*r_distanceCull;
 cvar_t	*r_forceFog;
 cvar_t	*r_forceFogColor;
-cvar_t	*r_g2Threaded;
-cvar_t	*r_texCache;
 cvar_t	*r_texCacheCompressed;
+cvar_t	*r_renderThread;
 cvar_t	*r_dxtFast;
 
 cvar_t	*r_norefresh;
@@ -261,6 +259,10 @@ PFNGLUNLOCKARRAYSEXTPROC qglUnlockArraysEXT;
 
 bool g_bTextureRectangleHack = false;
 
+#ifdef VITA
+extern "C" int sceGxmTransferFinish( void );
+#endif
+
 void RE_SetLightStyle(int style, int color);
 
 void R_Splash()
@@ -273,6 +275,32 @@ void R_Splash()
 		qglClearColor( 0.0f, 0.0f, 0.0f, 1.0f );
 		qglClear( GL_COLOR_BUFFER_BIT );
 	}
+#ifdef VITA
+	else if ( r_renderThread && r_renderThread->integer )
+	{
+		// runs on the render thread during context init; the immediate-mode path
+		// below faults here, so draw through vertex arrays and sync the async
+		// texture upload before the first-ever scene samples it
+		sceGxmTransferFinish();
+		qglFinish();
+
+		extern void	RB_SetGL2D (void);
+		RB_SetGL2D();
+		GL_Bind( pImage );
+		GL_State( GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
+		static const float splashXYZ[4][4] = { { 0, 0, 0, 1 }, { 640, 0, 0, 1 }, { 640, 480, 0, 1 }, { 0, 480, 0, 1 } };
+		static const float splashST[4][2] = { { 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 1 } };
+		static const unsigned int splashCol[4] = { 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu };
+		static const glIndex_t splashIdx[6] = { 0, 1, 2, 0, 2, 3 };
+		qglEnableClientState( GL_VERTEX_ARRAY );
+		qglEnableClientState( GL_TEXTURE_COORD_ARRAY );
+		qglEnableClientState( GL_COLOR_ARRAY );
+		qglVertexPointer( 3, GL_FLOAT, 16, splashXYZ );
+		qglTexCoordPointer( 2, GL_FLOAT, 0, splashST );
+		qglColorPointer( 4, GL_UNSIGNED_BYTE, 0, splashCol );
+		qglDrawElements( GL_TRIANGLES, 6, GL_INDEX_TYPE, splashIdx );
+	}
+#endif
 	else
 	{
 		extern void	RB_SetGL2D (void);
@@ -757,26 +785,66 @@ static void InitOpenGL( void )
 		windowDesc_t windowDesc = { GRAPHICS_API_OPENGL };
 		memset(&glConfig, 0, sizeof(glConfig));
 
-		window = ri.WIN_Init(&windowDesc, &glConfig);
+#ifdef VITA
+		if ( r_renderThread && r_renderThread->integer )
+		{
+			// bring the vitaGL/GXM context up on the render thread, which owns it
+			// from here on; see the semaphore protocol in tr_cmds.cpp
+			//
+			// 1. main: SDL video + window cvars (needs main thread so SDL `_this` exists).
+			ri.WIN_InitSDLVideo();
+			// 2. main: start the render thread; it runs WIN_LoadGL (vglInit) on itself,
+			//    then Signal(rend_init_done) and parks on Wait(rend_mutex_in).
+			R_StartRenderThread();
+			// 3. main: wait for vglInit to have run on the render thread.
+			sceKernelWaitSema( rend_init_done, 1, NULL );
+			// 4. main: create the window + GL context (SDL_CreateWindow now no-ops vglInit).
+			window = ri.WIN_CreateWindow( &windowDesc, &glConfig );
+			// 5. main: hand off to the render thread for the one-shot context init
+			//    (GL_SetDefaultState + R_Splash), then wait for it to finish. The render
+			//    thread signals rend_init_done again AND signals the frame-1 rend_mutex_out
+			//    prime before parking, so the first frame's hand-off does not block.
+			pendingCtxInit = qtrue;
+			sceKernelSignalSema( rend_mutex_in, 1 );
+			sceKernelWaitSema( rend_init_done, 1, NULL );
 
-		// get our config strings
-		glConfig.vendor_string = (const char *)qglGetString (GL_VENDOR);
-		glConfig.renderer_string = (const char *)qglGetString (GL_RENDERER);
-		glConfig.version_string = (const char *)qglGetString (GL_VERSION);
-		glConfig.extensions_string = (const char *)qglGetString (GL_EXTENSIONS);
+			// GL query calls are read-only and safe from the main thread.
+			glConfig.vendor_string = (const char *)qglGetString (GL_VENDOR);
+			glConfig.renderer_string = (const char *)qglGetString (GL_RENDERER);
+			glConfig.version_string = (const char *)qglGetString (GL_VERSION);
+			glConfig.extensions_string = (const char *)qglGetString (GL_EXTENSIONS);
 
-		// OpenGL driver constants
-		qglGetIntegerv( GL_MAX_TEXTURE_SIZE, &glConfig.maxTextureSize );
+			qglGetIntegerv( GL_MAX_TEXTURE_SIZE, &glConfig.maxTextureSize );
+			glConfig.maxTextureSize = Q_max(0, glConfig.maxTextureSize);
 
-		// stubbed or broken drivers may have reported 0...
-		glConfig.maxTextureSize = Q_max(0, glConfig.maxTextureSize);
+			GLimp_InitExtensions( );
+			// NOTE: GL_SetDefaultState() and R_Splash() intentionally NOT called here -
+			// they ran on the render thread in the one-shot context init above.
+		}
+		else
+#endif
+		{
+			window = ri.WIN_Init(&windowDesc, &glConfig);
 
-		// initialize extensions
-		GLimp_InitExtensions( );
+			// get our config strings
+			glConfig.vendor_string = (const char *)qglGetString (GL_VENDOR);
+			glConfig.renderer_string = (const char *)qglGetString (GL_RENDERER);
+			glConfig.version_string = (const char *)qglGetString (GL_VERSION);
+			glConfig.extensions_string = (const char *)qglGetString (GL_EXTENSIONS);
 
-		// set default state
-		GL_SetDefaultState();
-		R_Splash();	//get something on screen asap
+			// OpenGL driver constants
+			qglGetIntegerv( GL_MAX_TEXTURE_SIZE, &glConfig.maxTextureSize );
+
+			// stubbed or broken drivers may have reported 0...
+			glConfig.maxTextureSize = Q_max(0, glConfig.maxTextureSize);
+
+			// initialize extensions
+			GLimp_InitExtensions( );
+
+			// set default state
+			GL_SetDefaultState();
+			R_Splash();	//get something on screen asap
+		}
 	}
 	else
 	{
@@ -1569,13 +1637,13 @@ void R_Register( void )
 	r_allowExtensions = ri.Cvar_Get( "r_allowExtensions", "1", CVAR_ARCHIVE_ND | CVAR_LATCH );
 	r_ext_compressed_textures = ri.Cvar_Get( "r_ext_compress_textures", "1", CVAR_ARCHIVE_ND | CVAR_LATCH );
 #ifdef VITA
-	// r_texCacheCompressed drives DXT compression. Runtime S3TC encode (every mip of
-	// every texture, on one ARM core) is the biggest single-threaded level-load cost,
-	// so by default it's OFF and we upload uncompressed RGBA. With the cache on, the
-	// encoded mip chain is stored on ux0 (tr_image.cpp) so we pay the encode once per
-	// asset and then compression pays off (4-8x less texture VRAM) -- so turn
-	// r_ext_compress_textures back on. Both latched, read before the world loads.
-	r_texCacheCompressed = ri.Cvar_Get( "r_texCacheCompressed", "0", CVAR_ARCHIVE_ND | CVAR_LATCH );
+	// r_texCacheCompressed drives DXT compression + the ux0 mip-chain cache. ON by
+	// default now that the vendored vitaGL fixes the multi-mip compressed upload
+	// (gpu_alloc_compressed_texture grew the chain with vgl_realloc on a raw-memblock
+	// pointer -> per-mip fault; replaced with alloc+copy+deferred free, fork commit
+	// eff5f00). The encode runs once per asset, then the ux0 cache skips it on every
+	// later load, and DXT1/5 cut texture VRAM 4-8x. Both latched, read pre-world.
+	r_texCacheCompressed = ri.Cvar_Get( "r_texCacheCompressed", "1", CVAR_ARCHIVE_ND | CVAR_LATCH );
 	r_dxtFast            = ri.Cvar_Get( "r_dxtFast",            "1", CVAR_ARCHIVE_ND );
 	{
 		const int on = r_texCacheCompressed->integer ? 1 : 0;
@@ -1601,19 +1669,17 @@ void R_Register( void )
 	r_DynamicGlowWidth = ri.Cvar_Get( "r_DynamicGlowWidth", "320", CVAR_ARCHIVE_ND | CVAR_LATCH );
 	r_DynamicGlowHeight = ri.Cvar_Get( "r_DynamicGlowHeight", "240", CVAR_ARCHIVE_ND | CVAR_LATCH );
 
-	r_picmip = ri.Cvar_Get ("r_picmip", "0", CVAR_ARCHIVE | CVAR_LATCH );
 #ifdef VITA
-	// Floor picmip at 2. With runtime DXT off (above), picmip 2 drops texel area 16x,
-	// so the uncompressed RGBA8 working set lands at about the same VRAM as compressed
-	// picmip 1 -- it fits the GPU pool and the upload is a plain memcpy instead of a
-	// compress, which is the load-time win. Latched and the saved cfg pins it, so
-	// override the live value here before textures load.
-	ri.Cvar_Set( "r_picmip", "2" );
-	r_picmip->integer  = 2;
-	r_picmip->value    = 2.0f;
-	r_picmip->modified = qtrue;
-#endif
+	// Floor picmip at 1 with DXT on: 4x the texels of the old picmip-2 floor, more than
+	// paid for by DXT1's 8x compression vs the 32bpp uncompressed path - about half the
+	// old texture VRAM, one full mip sharper. A floor (not a force) so the menu can pick
+	// 1..3; picmip 0 waits on memory headroom validation.
+	r_picmip = ri.Cvar_Get ("r_picmip", "1", CVAR_ARCHIVE | CVAR_LATCH );
 	ri.Cvar_CheckRange( r_picmip, 0, 16, qtrue );
+#else
+	r_picmip = ri.Cvar_Get ("r_picmip", "0", CVAR_ARCHIVE | CVAR_LATCH );
+	ri.Cvar_CheckRange( r_picmip, 0, 16, qtrue );
+#endif
 	r_colorMipLevels = ri.Cvar_Get ("r_colorMipLevels", "0", CVAR_LATCH );
 	r_detailTextures = ri.Cvar_Get( "r_detailtextures", "1", CVAR_ARCHIVE_ND | CVAR_LATCH );
 	r_texturebits = ri.Cvar_Get( "r_texturebits", "0", CVAR_ARCHIVE_ND | CVAR_LATCH );
@@ -1674,12 +1740,6 @@ void R_Register( void )
 	// Thread ghoul2 skinning across the worker pool (cores 1/2 + main work-steal), one
 	// job per character, main barriers before the draw list. Off by default until it's
 	// validated on device; serial skinning is the fallback.
-	r_g2Threaded         = ri.Cvar_Get( "r_g2Threaded",         "0", CVAR_ARCHIVE_ND );
-
-	// Pre-decoded RGBA cache on ux0:data/JK2VITA/texcache. Build once, then later loads
-	// read RGBA off the card and skip the JPEG/PNG/TGA decode. Bigger reads for no
-	// decode -- a win on faster cards. Off by default.
-	r_texCache           = ri.Cvar_Get( "r_texCache",           "0", CVAR_ARCHIVE_ND );
 #endif
 
 	r_znear = ri.Cvar_Get( "r_znear", "4", CVAR_ARCHIVE_ND );	//if set any lower, you lose a lot of precision in the distance
@@ -1708,7 +1768,16 @@ void R_Register( void )
 	r_windPointY = ri.Cvar_Get ("r_windPointY", "0", 0);
 
 	r_primitives = ri.Cvar_Get( "r_primitives", "0", CVAR_ARCHIVE_ND );
+#ifdef VITA
+	// 1 = backend on a dedicated render thread (default), 0 = inline on main. CVAR_LATCH.
+	r_renderThread = ri.Cvar_Get( "r_renderThread", "1", CVAR_ARCHIVE | CVAR_LATCH );
+#endif
 	ri.Cvar_CheckRange( r_primitives, MIN_PRIMITIVES, MAX_PRIMITIVES, qtrue );
+#ifdef VITA
+	// Use the batched glDrawElements path (2) instead of the per-vertex glArrayElement
+	// path (1) auto-selected when compiled vertex arrays are unavailable.
+	ri.Cvar_Set( "r_primitives", "2" );
+#endif
 
 	r_ambientScale = ri.Cvar_Get( "r_ambientScale", "0.5", CVAR_CHEAT );
 	r_directedScale = ri.Cvar_Get( "r_directedScale", "1", CVAR_CHEAT );
@@ -1756,6 +1825,24 @@ void R_Register( void )
 	r_lockpvs = ri.Cvar_Get ("r_lockpvs", "0", CVAR_CHEAT);
 	r_noportals = ri.Cvar_Get ("r_noportals", "0", CVAR_CHEAT);
 	r_shadows = ri.Cvar_Get( "cg_shadows", "1", 0 );
+#ifdef VITA
+	// One-shot graphics baseline upgrade (versioned so later menu tweaks stick):
+	// the MT renderer + DXT freed the budget the old "fastest" configs assumed gone.
+	{
+		cvar_t *gfxBase = ri.Cvar_Get( "vita_gfxBaseline", "0", CVAR_ARCHIVE );
+		// v2 re-asserted cg_shadows; v3 re-enables the DXT cache over a bisect edit.
+		if ( gfxBase->integer < 3 ) {
+			ri.Cvar_Set( "vita_gfxBaseline", "3" );
+			ri.Cvar_Set( "r_texCacheCompressed", "1" );
+			ri.Cvar_Set( "r_picmip", "1" );			// sharper textures (DXT pays for it)
+			ri.Cvar_Set( "r_lodbias", "0" );		// full geometry detail
+			ri.Cvar_Set( "r_subdivisions", "4" );	// full curve tessellation
+			ri.Cvar_Set( "r_fastSky", "0" );		// real skybox
+			ri.Cvar_Set( "r_inGameVideo", "1" );	// in-world video screens
+			ri.Cvar_Set( "cg_shadows", "2" );		// stencil shadows
+		}
+	}
+#endif
 #ifdef VITA
 	// Stencil shadow volumes (cg_shadows 2) emit their silhouette via immediate-mode
 	// glBegin/glVertex3fv, which vitaGL doesn't draw, so the shadows just vanish.
@@ -1845,7 +1932,13 @@ void R_Init( void ) {
 	// clear all our internal state
 	memset( &tr, 0, sizeof( tr ) );
 	memset( &backEnd, 0, sizeof( backEnd ) );
+#ifdef VITA
+	memset( &tessArray[0], 0, sizeof( tessArray[0] ) );
+	memset( &tessArray[1], 0, sizeof( tessArray[1] ) );
+	set_tessPtr( &tessArray[0] );
+#else
 	memset( &tess, 0, sizeof( tess ) );
+#endif
 
 #ifndef FINAL_BUILD
 	if ( (intptr_t)tess.xyz & 15 ) {
@@ -1885,7 +1978,20 @@ void R_Init( void ) {
 	R_NoiseInit();
 	R_Register();
 
+#ifdef VITA
+	// Only allocate the second command buffer when the render thread is actually
+	// enabled (it doubles ~1MB of zone). When off, both slots share one buffer so
+	// the default path costs no extra memory.
+	backEndDataPtr[0] = (backEndData_t *) R_Hunk_Alloc( sizeof( backEndData_t ), qtrue );
+	if ( r_renderThread && r_renderThread->integer ) {
+		backEndDataPtr[1] = (backEndData_t *) R_Hunk_Alloc( sizeof( backEndData_t ), qtrue );
+	} else {
+		backEndDataPtr[1] = backEndDataPtr[0];
+	}
+	backEndData = backEndDataPtr[0];
+#else
 	backEndData = (backEndData_t *) R_Hunk_Alloc( sizeof( backEndData_t ), qtrue );
+#endif
 	R_InitNextFrame();
 
 	const color4ub_t color = {0xff, 0xff, 0xff, 0xff};
@@ -1901,14 +2007,6 @@ void R_Init( void ) {
 	R_ModelInit();
 	R_InitWorldEffects();
 	R_InitFonts();
-
-#ifdef VITA
-	// Start the worker pool (cores 1/2) for threaded ghoul2 skinning + async decode.
-	// Idempotent, and sits idle until r_g2Threaded / r_asyncTexLoad actually queue work.
-	JobPool_Init();
-	ri.Printf( PRINT_ALL, "JobPool: %s\n",
-		JobPool_Available() ? "UP (worker threads on cores 1/2)" : "DOWN - skinning will run serial" );
-#endif
 
 	err = qglGetError();
 	if ( err != GL_NO_ERROR )
@@ -1930,6 +2028,15 @@ extern void R_ShutdownWorldEffects(void);
 void RE_Shutdown( qboolean destroyWindow, qboolean restarting ) {
 	for ( size_t i = 0; i < numCommands; i++ )
 		ri.Cmd_RemoveCommand( commands[i].cmd );
+
+#ifdef VITA
+	// Render-thread mode: the last issued frame may still be executing on the render
+	// thread. Park it BEFORE the teardown below (glow GL deletes, world-effects free,
+	// fonts) - the later drain at the R_DeleteTextures block is too late for those.
+	if ( tr.registered && r_renderThread && r_renderThread->integer ) {
+		R_IssuePendingRenderCommands();
+	}
+#endif
 
 	if ( r_DynamicGlow && r_DynamicGlow->integer )
 	{
@@ -1971,6 +2078,15 @@ void RE_Shutdown( qboolean destroyWindow, qboolean restarting ) {
 		R_IssuePendingRenderCommands();
 		if ( destroyWindow )
 		{
+#ifdef VITA
+			// vid_restart: the render thread OWNS the GXM context and is about to have
+			// its window torn down. Stop + join it here (after the drain above parked
+			// it) so the remaining teardown GL runs single-threaded. Resets rend_thid
+			// so the next R_Init re-creates the thread. No-op unless r_renderThread.
+			if ( r_renderThread && r_renderThread->integer ) {
+				R_StopRenderThread();
+			}
+#endif
 			R_DeleteTextures();	// only do this for vid_restart now, not during things like map load
 
 			if ( restarting )
@@ -1983,6 +2099,16 @@ void RE_Shutdown( qboolean destroyWindow, qboolean restarting ) {
 	// shut down platform specific OpenGL stuff
 	if ( destroyWindow ) {
 		ri.WIN_Shutdown();
+#ifdef VITA
+		// WIN_Shutdown destroyed the window/context (and R_StopRenderThread killed the
+		// render thread + its semaphores above). Clear glConfig so the next R_Init takes
+		// InitOpenGL's full bring-up path (vidWidth == 0) and recreates all of it - the
+		// same code that runs at cold boot. With a stale vidWidth, InitOpenGL skips
+		// straight to GL_SetDefaultState with no window and no backend: every frame then
+		// hands commands to deleted semaphores, nothing presents, and the display
+		// freezes on its last frame (the vid_restart "hang").
+		memset( &glConfig, 0, sizeof( glConfig ) );
+#endif
 	}
 	tr.registered = qfalse;
 }

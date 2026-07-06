@@ -35,7 +35,11 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
   This file deals with applying shaders to surface data in the tess struct.
 */
 
+#ifdef VITA
+shaderCommands_t	tessArray[BACKEND_DATA_NUM];
+#else
 shaderCommands_t	tess;
+#endif
 static qboolean	setArraysOnce;
 
 color4ub_t	styleColors[MAX_LIGHT_STYLES];
@@ -241,7 +245,7 @@ void R_BindAnimatedImage( const textureBundle_t *bundle) {
 		return;
 	}
 
-	if ((r_fullbright->integer || tr.refdef.doLAGoggles || (tr.refdef.rdflags & RDF_doFullbright) ) && bundle->isLightmap)
+	if ((r_fullbright->integer || backEnd.refdef.doLAGoggles || (backEnd.refdef.rdflags & RDF_doFullbright) ) && bundle->isLightmap)
 	{
 		GL_Bind( tr.whiteImage );
 		return;

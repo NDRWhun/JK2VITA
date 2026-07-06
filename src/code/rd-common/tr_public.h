@@ -98,6 +98,17 @@ typedef struct {
 	void			(*WIN_Present)						( window_t *window );
 	void            (*WIN_Shutdown)                     ( void );
 
+	// render-thread bring-up (Vita): video init on main, vglInit on render
+	// thread, window on main. r_renderThread 0 uses WIN_Init above.
+	void			(*WIN_InitSDLVideo)					( void );
+	void			(*WIN_LoadGL)						( void );
+	window_t		(*WIN_CreateWindow)					( const windowDesc_t *desc, glconfig_t *glConfig );
+	// Make the SDL/GL context current ON THE RENDER THREAD. SDL_GL_SwapWindow early-outs
+	// unless the window is current on the calling thread's TLS; SDL_GL_CreateContext set
+	// that TLS on the main thread, so the render thread that presents must re-make-current
+	// itself or every swap is a silent no-op (black screen despite frames flowing).
+	void			(*WIN_MakeCurrent)					( void );
+
 	// OpenGL-specific
 	void *			(*GL_GetProcAddress)				( const char *name );
 	qboolean		(*GL_ExtensionSupported)			( const char *extension );

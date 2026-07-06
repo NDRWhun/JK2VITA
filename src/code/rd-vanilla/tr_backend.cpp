@@ -27,6 +27,9 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "tr_common.h"
 
 backEndData_t	*backEndData;
+#ifdef VITA
+backEndData_t	*backEndDataPtr[BACKEND_DATA_NUM];
+#endif
 backEndState_t	backEnd;
 
 bool tr_stencilled = false;
@@ -604,11 +607,11 @@ static inline bool R_WorldCoordToScreenCoordFloat(vec3_t worldCoord, float *x, f
 	ycenter = glConfig.vidHeight / 2;
 
 	//AngleVectors (tr.refdef.viewangles, vfwd, vright, vup);
-	VectorCopy(tr.refdef.viewaxis[0], vfwd);
-	VectorCopy(tr.refdef.viewaxis[1], vright);
-	VectorCopy(tr.refdef.viewaxis[2], vup);
+	VectorCopy(backEnd.refdef.viewaxis[0], vfwd);
+	VectorCopy(backEnd.refdef.viewaxis[1], vright);
+	VectorCopy(backEnd.refdef.viewaxis[2], vup);
 
-	VectorSubtract (worldCoord, tr.refdef.vieworg, local);
+	VectorSubtract (worldCoord, backEnd.refdef.vieworg, local);
 
 	transformed[0] = DotProduct(local,vright);
 	transformed[1] = DotProduct(local,vup);
@@ -620,8 +623,8 @@ static inline bool R_WorldCoordToScreenCoordFloat(vec3_t worldCoord, float *x, f
 		return false;
 	}
 
-	xzi = xcenter / transformed[2] * (90.0/tr.refdef.fov_x);
-	yzi = ycenter / transformed[2] * (90.0/tr.refdef.fov_y);
+	xzi = xcenter / transformed[2] * (90.0/backEnd.refdef.fov_x);
+	yzi = ycenter / transformed[2] * (90.0/backEnd.refdef.fov_y);
 
 	*x = xcenter + xzi * transformed[0];
 	*y = ycenter - yzi * transformed[1];
@@ -1522,11 +1525,9 @@ const void	*RB_DrawSurfs( const void *data ) {
 	backEnd.viewParms = cmd->viewParms;
 
 #ifdef VITA
-	// Skin all visible Ghoul2 characters on the worker pool before we walk the draw list,
-	// so both the normal and glow passes below can reuse the result in
-	// CRenderableSurface::skinOut. No-op unless r_g2Threaded is set. See RB_PrepGhoulSkinMT.
-	RB_PrepGhoulSkinMT( cmd->drawSurfs, cmd->numDrawSurfs );
-
+	// Under r_renderThread the Ghoul2 bone snapshot already ran on the FRONTEND
+	// (R_AddDrawSurfCmd) - bone Evals on this thread would race the frontend's
+	// cache setup for the next frame. Single-threaded mode skins inline below.
 	const qboolean rs_scaled = RB_RenderScaleBegin();
 #endif
 
@@ -1621,7 +1622,7 @@ const void	*RB_DrawBuffer( const void *data ) {
 	qglDrawBuffer( cmd->buffer );
 
 		// clear screen for debugging
-	if (!( backEnd.refdef.rdflags & RDF_NOWORLDMODEL ) && tr.world && tr.refdef.rdflags & RDF_doLAGoggles)
+	if (!( backEnd.refdef.rdflags & RDF_NOWORLDMODEL ) && tr.world && backEnd.refdef.rdflags & RDF_doLAGoggles)
 	{
 		const fog_t		*fog = &tr.world->fogs[tr.world->numfogs];
 
@@ -1744,7 +1745,54 @@ RB_SwapBuffers
 =============
 */
 extern void RB_RenderWorldEffects( void );
+#ifdef VITA
+// Cinematic frame (recorded by RE_StretchRaw in render-thread mode): upload the
+// staged pixels into the scratch image and draw the stretched quad.
+static const void *RB_Cinematic( const void *data ) {
+	const cinematicCommand_t *cmd = (const cinematicCommand_t *)data;
+	image_t *img = tr.scratchImage[cmd->client];
+
+	GL_Bind( img );
+	if ( cmd->cols != img->width || cmd->rows != img->height ) {
+		img->width = (word)cmd->cols;
+		img->height = (word)cmd->rows;
+		qglTexImage2D( GL_TEXTURE_2D, 0, GL_RGB8, cmd->cols, cmd->rows, 0, GL_RGBA, GL_UNSIGNED_BYTE, cmd->pixels );
+		qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+		qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+		qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, glConfig.clampToEdgeAvailable ? GL_CLAMP_TO_EDGE : GL_CLAMP );
+		qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, glConfig.clampToEdgeAvailable ? GL_CLAMP_TO_EDGE : GL_CLAMP );
+	} else if ( cmd->dirty ) {
+		qglTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, cmd->cols, cmd->rows, GL_RGBA, GL_UNSIGNED_BYTE, cmd->pixels );
+	}
+
+	if ( cmd->w ) {
+		extern void RB_SetGL2D (void);
+		if ( !backEnd.projection2D ) {
+			RB_SetGL2D();
+		}
+		const float x = (float)cmd->x, y = (float)cmd->y, w = (float)cmd->w, h = (float)cmd->h;
+		const float s0 = 0.5f / cmd->cols, s1 = ( cmd->cols - 0.5f ) / cmd->cols;
+		const float t0 = 0.5f / cmd->rows, t1 = ( cmd->rows - 0.5f ) / cmd->rows;
+		const float xyz[4][4] = { { x, y, 0, 1 }, { x+w, y, 0, 1 }, { x+w, y+h, 0, 1 }, { x, y+h, 0, 1 } };
+		const float st[4][2] = { { s0, t0 }, { s1, t0 }, { s1, t1 }, { s0, t1 } };
+		const byte l = (byte)( tr.identityLight * 255.0f );
+		const unsigned int c = 0xFF000000u | ( l << 16 ) | ( l << 8 ) | l;
+		const unsigned int col[4] = { c, c, c, c };
+		static const glIndex_t idx[6] = { 0, 1, 2, 0, 2, 3 };
+		qglEnableClientState( GL_VERTEX_ARRAY );
+		qglEnableClientState( GL_TEXTURE_COORD_ARRAY );
+		qglEnableClientState( GL_COLOR_ARRAY );
+		qglVertexPointer( 3, GL_FLOAT, 16, xyz );
+		qglTexCoordPointer( 2, GL_FLOAT, 0, st );
+		qglColorPointer( 4, GL_UNSIGNED_BYTE, 0, col );
+		qglDrawElements( GL_TRIANGLES, 6, GL_INDEX_TYPE, idx );
+	}
+	return (const void *)(cmd + 1);
+}
+#endif
+
 const void	*RB_SwapBuffers( const void *data ) {
+
 	const swapBuffersCommand_t	*cmd;
 
 	// finish any 2D drawing if needed
@@ -1821,6 +1869,34 @@ void RB_ExecuteRenderCommands( const void *data ) {
 
 	t1 = ri.Milliseconds ();
 
+#ifdef VITA
+	if ( r_renderThread && r_renderThread->integer ) {
+		// Until one FFP glDrawElements draw has gone through on the render thread, subsequent
+		// FFP draws silently produce no fragments (state/matrices/program all verify correct).
+		// One-shot off-screen (fully clipped -> invisible) prime on the first frame the
+		// built-in white texture exists; R_Splash only clears in this mode.
+		static qboolean s_ffpPrimed = qfalse;
+		if ( !s_ffpPrimed && tr.whiteImage ) {
+			s_ffpPrimed = qtrue;
+			RB_SetGL2D();
+			GL_Bind( tr.whiteImage );
+			GL_State( GLS_DEPTHTEST_DISABLE );
+			qglColor4f( 1.0f, 1.0f, 1.0f, 1.0f );
+			static const float primeXYZ[4][4] = { { -16, -16, 0, 1 }, { -8, -16, 0, 1 }, { -8, -8, 0, 1 }, { -16, -8, 0, 1 } };
+			static const float primeST[4][2] = { { 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 1 } };
+			static const unsigned int primeCol[4] = { 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu };
+			static const glIndex_t primeIdx[6] = { 0, 1, 2, 0, 2, 3 };
+			qglEnableClientState( GL_VERTEX_ARRAY );
+			qglEnableClientState( GL_TEXTURE_COORD_ARRAY );
+			qglEnableClientState( GL_COLOR_ARRAY );
+			qglVertexPointer( 3, GL_FLOAT, 16, primeXYZ );
+			qglTexCoordPointer( 2, GL_FLOAT, 0, primeST );
+			qglColorPointer( 4, GL_UNSIGNED_BYTE, 0, primeCol );
+			qglDrawElements( GL_TRIANGLES, 6, GL_INDEX_TYPE, primeIdx );
+		}
+	}
+#endif
+
 	while ( 1 ) {
 		data = PADP(data, sizeof(void *));
 
@@ -1846,6 +1922,17 @@ void RB_ExecuteRenderCommands( const void *data ) {
 		case RC_DRAW_BUFFER:
 			data = RB_DrawBuffer( data );
 			break;
+#ifdef VITA
+		case RC_CINEMATIC:
+			data = RB_Cinematic( data );
+			break;
+		case RC_SCREENSHOT_SP: {
+			const screenshotSPCommand_t *sscmd = (const screenshotSPCommand_t *)data;
+			RB_GetScreenShotSP( sscmd->buffer, sscmd->w, sscmd->h );
+			data = (const void *)(sscmd + 1);
+			break;
+		}
+#endif
 		case RC_SWAP_BUFFERS:
 			data = RB_SwapBuffers( data );
 			break;

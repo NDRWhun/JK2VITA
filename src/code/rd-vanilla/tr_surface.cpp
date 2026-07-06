@@ -837,7 +837,7 @@ static void RB_SurfaceElectricity()
 	// see if we should grow from start to end
 	if ( e->renderfx & RF_GROW )
 	{
-		perc = 1.0f - ( e->endTime - tr.refdef.time ) / e->angles[1]/*duration*/;
+		perc = 1.0f - ( e->endTime - backEnd.refdef.time ) / e->angles[1]/*duration*/;
 
 		if ( perc > 1.0f )
 		{
@@ -986,7 +986,7 @@ void RB_SurfaceTriangles( srfTriangles_t *srf ) {
 	byte		*color;
 	int			dlightBits;
 
-	dlightBits = srf->dlightBits;
+	dlightBits = srf->dlightBits[backEnd.smpFrame];
 	tess.dlightBits |= dlightBits;
 
 	RB_CHECKOVERFLOW( srf->numVerts, srf->numIndexes );
@@ -1335,7 +1335,7 @@ void RB_SurfaceFace( srfSurfaceFace_t *surf ) {
 
 	RB_CHECKOVERFLOW( surf->numPoints, surf->numIndices );
 
-	dlightBits = surf->dlightBits;
+	dlightBits = surf->dlightBits[backEnd.smpFrame];
 	tess.dlightBits |= dlightBits;
 
 	indices = ( unsigned * ) ( ( ( char  * ) surf ) + surf->ofsIndices );
@@ -1442,7 +1442,7 @@ void RB_SurfaceGrid( srfGridMesh_t *cv ) {
 	int		dlightBits;
 	int		*vDlightBits;
 
-	dlightBits = cv->dlightBits;
+	dlightBits = cv->dlightBits[backEnd.smpFrame];
 	tess.dlightBits |= dlightBits;
 
 	// determine the allowable discrepance

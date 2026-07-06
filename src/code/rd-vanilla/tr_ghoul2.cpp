@@ -48,7 +48,6 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #define	LF(x) x=LittleFloat(x)
 
 #ifdef VITA
-#include "../qcommon/vita_jobpool.h"
 #include <stdlib.h>		// malloc for the skin arena
 #endif
 
@@ -716,6 +715,23 @@ public:
 };
 
 #define MAX_RENDER_SURFACES (2048)
+#ifdef VITA
+// Two pools indexed by the frontend's double-buffer slot: with the render thread the
+// backend draws frame X's entries while the frontend allocates frame X+1's, so a single
+// ring could recycle entries the backend still reads. activeBackEnd stays 0 when
+// r_renderThread is off, which keeps the original single-pool behavior.
+static CRenderableSurface RSStorage[2][MAX_RENDER_SURFACES];
+static unsigned int NextRS[2]={0,0};
+
+CRenderableSurface *AllocRS()
+{
+	CRenderableSurface *ret=&RSStorage[activeBackEnd][NextRS[activeBackEnd]];
+	ret->Init();
+	NextRS[activeBackEnd]++;
+	NextRS[activeBackEnd]%=MAX_RENDER_SURFACES;
+	return ret;
+}
+#else
 static CRenderableSurface RSStorage[MAX_RENDER_SURFACES];
 static unsigned int NextRS=0;
 
@@ -727,6 +743,7 @@ CRenderableSurface *AllocRS()
 	NextRS%=MAX_RENDER_SURFACES;
 	return ret;
 }
+#endif
 
 /*
 
@@ -1632,7 +1649,7 @@ void G2_TransformBone (int child,CBoneCache &BC)
 			// this is crazy, we are gonna drive the animation to ID while we are doing post mults to compensate.
 			Multiply_3x4Matrix(&temp,&firstPass, &skel->BasePoseMat);
 			float	matrixScale = VectorLength((float*)&temp);
-			mdxaBone_t		toMatrix =	// was static; the shared static raced under r_g2Threaded
+			mdxaBone_t		toMatrix =	// was static; a shared static races across threads
 			{
 				{
 					{ 1.0f, 0.0f, 0.0f, 0.0f },
@@ -2830,106 +2847,19 @@ void G2_ConstructGhoulSkeleton( CGhoul2Info_v &ghoul2,const int frameNum,bool ch
 }
 
 #ifdef VITA
-// Threaded Ghoul2 vertex skinning (r_g2Threaded).
-//
-// Skinning is the combat bottleneck, so push it to the worker pool: one job per
-// character. One CBoneCache, one owner, so the lazy Eval (which mutates the cache)
-// can't race. Main thread waits before walking the draw list; RB_SurfaceGhoul then
-// just memcpys the result. texCoords aren't skinned, still copied on the main thread.
-//
-// Safe because: one owner per cache, toMatrix is now stack-local, HackadelicOnClient
-// doesn't change during the backend, and mesh/skel data is immutable. Off by default;
-// the serial path below is the fallback.
+// Render-thread Ghoul2 split, after vitaRTCW's multithreaded renderer: the frontend
+// snapshots each visible character's bone matrices - the only Ghoul2 state whose lazy
+// Eval mutates the CBoneCache and so races the frontend's next-frame setup - and the
+// backend does the heavy per-vertex skinning from that immutable snapshot on the
+// render thread, overlapped with the next frame's scene build.
 
-// Deform one surface's xyz + normal into the buffers (vec4 stride, like tess).
-// Has to match the weighted-skin loop in RB_SurfaceGhoul exactly.
-static void G2_SkinSurfaceToBuffer( CRenderableSurface *surf, float *outXyz, float *outNormal )
-{
-	mdxmSurface_t  *surface  = surf->surfaceData;
-	CBoneCache     *bones    = surf->boneCache;
-	const int       numVerts = surface->numVerts;
-	int            *piBoneReferences = (int*)((byte*)surface + surface->ofsBoneReferences);
-	mdxmVertex_t   *v = (mdxmVertex_t*)((byte*)surface + surface->ofsVerts);
-
-	for ( int j = 0; j < numVerts; j++, v++ )
-	{
-		float *oX = &outXyz[j*4];
-		float *oN = &outNormal[j*4];
-#ifdef JK2_MODE
-		const mdxaBone_t *bone = &bones->Eval( piBoneReferences[ G2_GetVertBoneIndex( v, 0 ) ] );
-#else
-		const mdxaBone_t *bone = &bones->EvalRender( piBoneReferences[ G2_GetVertBoneIndex( v, 0 ) ] );
-#endif
-		const int iNumWeights = G2_GetVertWeights( v );
-
-		oN[0] = G2_Dot3( bone->matrix[0], v->normal );
-		oN[1] = G2_Dot3( bone->matrix[1], v->normal );
-		oN[2] = G2_Dot3( bone->matrix[2], v->normal );
-
-		if ( iNumWeights == 1 )
-		{
-			oX[0] = ( G2_Dot3( bone->matrix[0], v->vertCoords ) + bone->matrix[0][3] );
-			oX[1] = ( G2_Dot3( bone->matrix[1], v->vertCoords ) + bone->matrix[1][3] );
-			oX[2] = ( G2_Dot3( bone->matrix[2], v->vertCoords ) + bone->matrix[2][3] );
-		}
-		else
-		{
-			float fBoneWeight = G2_GetVertBoneWeightNotSlow( v, 0 );
-			if ( iNumWeights == 2 )
-			{
-#ifdef JK2_MODE
-				const mdxaBone_t *bone2 = &bones->Eval( piBoneReferences[ G2_GetVertBoneIndex( v, 1 ) ] );
-#else
-				const mdxaBone_t *bone2 = &bones->EvalRender( piBoneReferences[ G2_GetVertBoneIndex( v, 1 ) ] );
-#endif
-				float t1, t2;
-				t1 = ( G2_Dot3( bone->matrix[0], v->vertCoords ) + bone->matrix[0][3] );
-				t2 = ( G2_Dot3( bone2->matrix[0], v->vertCoords ) + bone2->matrix[0][3] );
-				oX[0] = fBoneWeight * (t1-t2) + t2;
-				t1 = ( G2_Dot3( bone->matrix[1], v->vertCoords ) + bone->matrix[1][3] );
-				t2 = ( G2_Dot3( bone2->matrix[1], v->vertCoords ) + bone2->matrix[1][3] );
-				oX[1] = fBoneWeight * (t1-t2) + t2;
-				t1 = ( G2_Dot3( bone->matrix[2], v->vertCoords ) + bone->matrix[2][3] );
-				t2 = ( G2_Dot3( bone2->matrix[2], v->vertCoords ) + bone2->matrix[2][3] );
-				oX[2] = fBoneWeight * (t1-t2) + t2;
-			}
-			else
-			{
-				oX[0] = fBoneWeight * ( G2_Dot3( bone->matrix[0], v->vertCoords ) + bone->matrix[0][3] );
-				oX[1] = fBoneWeight * ( G2_Dot3( bone->matrix[1], v->vertCoords ) + bone->matrix[1][3] );
-				oX[2] = fBoneWeight * ( G2_Dot3( bone->matrix[2], v->vertCoords ) + bone->matrix[2][3] );
-
-				float fTotalWeight = fBoneWeight;
-				int k;
-				for ( k = 1; k < iNumWeights-1; k++ )
-				{
-#ifdef JK2_MODE
-					bone = &bones->Eval( piBoneReferences[ G2_GetVertBoneIndex( v, k ) ] );
-#else
-					bone = &bones->EvalRender( piBoneReferences[ G2_GetVertBoneIndex( v, k ) ] );
-#endif
-					fBoneWeight = G2_GetVertBoneWeightNotSlow( v, k );
-					fTotalWeight += fBoneWeight;
-					oX[0] += fBoneWeight * ( G2_Dot3( bone->matrix[0], v->vertCoords ) + bone->matrix[0][3] );
-					oX[1] += fBoneWeight * ( G2_Dot3( bone->matrix[1], v->vertCoords ) + bone->matrix[1][3] );
-					oX[2] += fBoneWeight * ( G2_Dot3( bone->matrix[2], v->vertCoords ) + bone->matrix[2][3] );
-				}
-#ifdef JK2_MODE
-				bone = &bones->Eval( piBoneReferences[ G2_GetVertBoneIndex( v, k ) ] );
-#else
-				bone = &bones->EvalRender( piBoneReferences[ G2_GetVertBoneIndex( v, k ) ] );
-#endif
-				fBoneWeight = 1.0f - fTotalWeight;
-				oX[0] += fBoneWeight * ( G2_Dot3( bone->matrix[0], v->vertCoords ) + bone->matrix[0][3] );
-				oX[1] += fBoneWeight * ( G2_Dot3( bone->matrix[1], v->vertCoords ) + bone->matrix[1][3] );
-				oX[2] += fBoneWeight * ( G2_Dot3( bone->matrix[2], v->vertCoords ) + bone->matrix[2][3] );
-			}
-		}
-	}
-}
-
-#define G2MT_MAX_CHARS			64
-#define G2MT_MAX_SURFS_PER_CHAR	64
+// Sized for the worst case: stencil shadows (cg_shadows 2) allocate TWO render
+// surfaces per model surface (shadow + normal) on the same bone cache, so a complex
+// player model can exceed 64 entries in one group. Under the render thread a surface
+// without a snapshot is DROPPED, so the caps must be generous.
+#define G2MT_MAX_CHARS			96
+#define G2MT_MAX_SURFS_PER_CHAR	128
+#define G2MT_MAX_BONES			512		// per-cache dedup bitmask range
 
 struct g2SkinGroup_t {
 	CBoneCache         *cache;
@@ -2937,80 +2867,204 @@ struct g2SkinGroup_t {
 	int                 n;
 };
 
+// Groups are transient (the snapshot fill finishes before the prep call returns); the
+// arenas are not: the backend skins from frame X's snapshots while the frontend fills
+// frame X+1's, so there is one arena per frontend buffer, indexed like RSStorage.
 static g2SkinGroup_t s_g2Groups[G2MT_MAX_CHARS];
 static int           s_g2NumGroups;
-static byte         *s_g2Arena     = NULL;
-static size_t        s_g2ArenaSize = 0;
-static size_t        s_g2ArenaUsed = 0;
+static byte         *s_g2Arena[2]     = { NULL, NULL };
+static size_t        s_g2ArenaSize    = 0;
+static size_t        s_g2ArenaUsed[2] = { 0, 0 };
 
-// One job = one character: skin all its surfaces in order. Single owner of the
-// boneCache, so the lazy Eval is safe.
-static void G2_SkinGroupJob( void *arg )
+// Per-frame arena reset for the render-thread mode. Called from R_InitNextFrame, which
+// runs after the hand-off flip; the hand-off waited for the backend to finish its
+// previous frame, so the buffer being reset is no longer read by anyone.
+void R_ResetGhoulSkinArena( void )
 {
-	g2SkinGroup_t *g = (g2SkinGroup_t*)arg;
-	for ( int s = 0; s < g->n; s++ )
-	{
-		CRenderableSurface *surf = g->surfs[s];
-		const int nv = surf->surfaceData->numVerts;
-		G2_SkinSurfaceToBuffer( surf, surf->skinOut, surf->skinOut + nv*4 );
+	if ( r_renderThread && r_renderThread->integer ) {
+		s_g2ArenaUsed[activeBackEnd] = 0;
 	}
+}
+
+// Render-thread mode only: called from R_AddDrawSurfCmd on the FRONTEND, once per view.
+// Mandatory - every bone Eval must happen here, before hand-off, because an Eval on
+// the render thread races the frontend's G2_TransformGhoulBones for the next frame
+// (confirmed device crash in G2_TransformBone). Snapshot slices accumulate across the
+// frame's views (reset per-frame in R_ResetGhoulSkinArena). Single-threaded mode keeps
+// the stock inline backend skinning.
+int g_g2PrepMsec = 0;	// frontend ms spent snapshotting bones; read+reset by the perf probe (RE_EndFrame)
+
+
+// Skin one surface's vertices from a bone snapshot. Frontend (render-thread mode)
+// only, called from RB_PrepGhoulSkinMT; same math as the backend loop in
+// RB_SurfaceGhoul so the two paths stay bit-identical. xyz+normal interleaved.
+static void G2_PreSkinSurface( const mdxmSurface_t *surface, const mdxaBone_t *snap, float *out )
+{
+	const int numVerts = surface->numVerts;
+	const int *piBoneReferences = (const int *)( (byte *)surface + surface->ofsBoneReferences );
+	mdxmVertex_t *v = (mdxmVertex_t *)( (byte *)surface + surface->ofsVerts );
+#define PS_BONE(kk) ( &snap[ piBoneReferences[ G2_GetVertBoneIndex( v, (kk) ) ] ] )
+	for ( int j = 0; j < numVerts; j++, v++, out += 6 )
+	{
+		const mdxaBone_t *bone = PS_BONE( 0 );
+		const int iNumWeights = G2_GetVertWeights( v );
+		out[3] = G2_Dot3( bone->matrix[0], v->normal );
+		out[4] = G2_Dot3( bone->matrix[1], v->normal );
+		out[5] = G2_Dot3( bone->matrix[2], v->normal );
+		if ( iNumWeights == 1 )
+		{
+			out[0] = G2_Dot3( bone->matrix[0], v->vertCoords ) + bone->matrix[0][3];
+			out[1] = G2_Dot3( bone->matrix[1], v->vertCoords ) + bone->matrix[1][3];
+			out[2] = G2_Dot3( bone->matrix[2], v->vertCoords ) + bone->matrix[2][3];
+		}
+		else
+		{
+			float fBoneWeight = G2_GetVertBoneWeightNotSlow( v, 0 );
+			if ( iNumWeights == 2 )
+			{
+				const mdxaBone_t *bone2 = PS_BONE( 1 );
+				float t1, t2;
+				t1 = G2_Dot3( bone->matrix[0], v->vertCoords ) + bone->matrix[0][3];
+				t2 = G2_Dot3( bone2->matrix[0], v->vertCoords ) + bone2->matrix[0][3];
+				out[0] = fBoneWeight * ( t1 - t2 ) + t2;
+				t1 = G2_Dot3( bone->matrix[1], v->vertCoords ) + bone->matrix[1][3];
+				t2 = G2_Dot3( bone2->matrix[1], v->vertCoords ) + bone2->matrix[1][3];
+				out[1] = fBoneWeight * ( t1 - t2 ) + t2;
+				t1 = G2_Dot3( bone->matrix[2], v->vertCoords ) + bone->matrix[2][3];
+				t2 = G2_Dot3( bone2->matrix[2], v->vertCoords ) + bone2->matrix[2][3];
+				out[2] = fBoneWeight * ( t1 - t2 ) + t2;
+			}
+			else
+			{
+				out[0] = fBoneWeight * ( G2_Dot3( bone->matrix[0], v->vertCoords ) + bone->matrix[0][3] );
+				out[1] = fBoneWeight * ( G2_Dot3( bone->matrix[1], v->vertCoords ) + bone->matrix[1][3] );
+				out[2] = fBoneWeight * ( G2_Dot3( bone->matrix[2], v->vertCoords ) + bone->matrix[2][3] );
+				float fTotalWeight = fBoneWeight;
+				int k;
+				for ( k = 1; k < iNumWeights - 1; k++ )
+				{
+					bone = PS_BONE( k );
+					fBoneWeight = G2_GetVertBoneWeightNotSlow( v, k );
+					fTotalWeight += fBoneWeight;
+					out[0] += fBoneWeight * ( G2_Dot3( bone->matrix[0], v->vertCoords ) + bone->matrix[0][3] );
+					out[1] += fBoneWeight * ( G2_Dot3( bone->matrix[1], v->vertCoords ) + bone->matrix[1][3] );
+					out[2] += fBoneWeight * ( G2_Dot3( bone->matrix[2], v->vertCoords ) + bone->matrix[2][3] );
+				}
+				bone = PS_BONE( k );
+				fBoneWeight = 1.0f - fTotalWeight;
+				out[0] += fBoneWeight * ( G2_Dot3( bone->matrix[0], v->vertCoords ) + bone->matrix[0][3] );
+				out[1] += fBoneWeight * ( G2_Dot3( bone->matrix[1], v->vertCoords ) + bone->matrix[1][3] );
+				out[2] += fBoneWeight * ( G2_Dot3( bone->matrix[2], v->vertCoords ) + bone->matrix[2][3] );
+			}
+		}
+	}
+#undef PS_BONE
 }
 
 void RB_PrepGhoulSkinMT( drawSurf_t *drawSurfs, int numDrawSurfs )
 {
-	if ( !r_g2Threaded || !r_g2Threaded->integer || !JobPool_Available() ) {
+	const qboolean mt = (qboolean)( r_renderThread && r_renderThread->integer );
+
+	if ( !mt ) {
 		return;
 	}
 
-	if ( !s_g2Arena ) {
-		s_g2ArenaSize = 8 * 1024 * 1024;	// xyz+normal = 8 floats/vert; plenty for a combat scene
-		s_g2Arena = (byte*)malloc( s_g2ArenaSize );
-		if ( !s_g2Arena ) { s_g2ArenaSize = 0; return; }
+	const int prepStart = ri.Milliseconds();
+	const int buf = activeBackEnd;
+
+	if ( !s_g2Arena[buf] ) {
+		// Bone snapshots (48 bytes/bone) plus pre-skinned vertices (24 bytes/vert):
+		// a full combat scene runs to ~1.5MB. Overflow degrades per-surface.
+		s_g2ArenaSize = 2 * 1024 * 1024;
+		s_g2Arena[buf] = (byte*)malloc( s_g2ArenaSize );
+		if ( !s_g2Arena[buf] ) { return; }
 	}
-	s_g2ArenaUsed = 0;
 	s_g2NumGroups = 0;
 
-	// Group SF_MDX surfaces by boneCache, give each a slice of the arena.
+	// Group SF_MDX surfaces by boneCache.
 	for ( int i = 0; i < numDrawSurfs; i++ )
 	{
 		surfaceType_t *st = drawSurfs[i].surface;
 		if ( !st || *st != SF_MDX ) continue;
 		CRenderableSurface *surf = (CRenderableSurface*)st;
-		surf->skinOut = NULL;	// default: skin inline on the main thread
+		surf->boneMats = NULL;	// stays NULL on overflow -> RB_SurfaceGhoul drops the surface
+		surf->preSkinned = NULL;
 #ifdef _G2_GORE
 		if ( surf->alternateTex ) continue;	// gore surface carries its own pre-deformed verts
 #endif
 		if ( !surf->surfaceData || !surf->boneCache ) continue;
-
-		const int nv = surf->surfaceData->numVerts;
-		const size_t need = (size_t)nv * 8 * sizeof(float);
-		if ( s_g2ArenaUsed + need > s_g2ArenaSize ) continue;	// arena full -> inline
 
 		g2SkinGroup_t *g = NULL;
 		for ( int k = 0; k < s_g2NumGroups; k++ ) {
 			if ( s_g2Groups[k].cache == surf->boneCache ) { g = &s_g2Groups[k]; break; }
 		}
 		if ( !g ) {
-			if ( s_g2NumGroups >= G2MT_MAX_CHARS ) continue;	// too many characters -> inline
+			if ( s_g2NumGroups >= G2MT_MAX_CHARS ) continue;	// too many characters
 			g = &s_g2Groups[ s_g2NumGroups++ ];
 			g->cache = surf->boneCache;
 			g->n = 0;
 		}
-		if ( g->n >= G2MT_MAX_SURFS_PER_CHAR ) continue;		// character has too many surfaces -> inline
+		if ( g->n >= G2MT_MAX_SURFS_PER_CHAR ) continue;		// character has too many surfaces
 
-		surf->skinOut = (float*)( s_g2Arena + s_g2ArenaUsed );
-		s_g2ArenaUsed += need;
 		g->surfs[ g->n++ ] = surf;
 	}
 
-	if ( !s_g2NumGroups ) return;
+	// Snapshot each cache's referenced bones once, then stamp every surface of that
+	// character with the snapshot. The backend indexes it by the same global bone
+	// numbers the vertex weights use, so only referenced entries need filling.
+	for ( int i = 0; i < s_g2NumGroups; i++ )
+	{
+		g2SkinGroup_t *g = &s_g2Groups[i];
+		CBoneCache *cache = g->cache;
+		const int numBones = cache->mNumBones;
+		const size_t need = (size_t)numBones * sizeof(mdxaBone_t);
+		if ( numBones > G2MT_MAX_BONES || s_g2ArenaUsed[buf] + need > s_g2ArenaSize ) {
+			continue;	// no snapshot -> this character's surfaces drop for one frame
+		}
+		mdxaBone_t *snap = (mdxaBone_t *)( s_g2Arena[buf] + s_g2ArenaUsed[buf] );
+		s_g2ArenaUsed[buf] += need;
 
-	JobPool_ResetGroup( JOBGROUP_SKIN );
-	for ( int i = 0; i < s_g2NumGroups; i++ ) {
-		JobPool_Enqueue( JOBGROUP_SKIN, G2_SkinGroupJob, &s_g2Groups[i] );
+		uint32_t seen[G2MT_MAX_BONES / 32] = { 0 };
+		for ( int s = 0; s < g->n; s++ )
+		{
+			mdxmSurface_t *surface = g->surfs[s]->surfaceData;
+			const int *refs = (const int *)( (byte *)surface + surface->ofsBoneReferences );
+			for ( int r = 0; r < surface->numBoneReferences; r++ )
+			{
+				const int b = refs[r];
+				if ( b < 0 || b >= numBones ) continue;
+				if ( seen[b >> 5] & ( 1u << ( b & 31 ) ) ) continue;
+				seen[b >> 5] |= 1u << ( b & 31 );
+#ifdef JK2_MODE
+				snap[b] = cache->Eval( b );
+#else
+				snap[b] = cache->EvalRender( b );
+#endif
+			}
+		}
+		for ( int s = 0; s < g->n; s++ ) {
+			g->surfs[s]->boneMats = snap;
+		}
+
+		// Pre-skin each surface from the snapshot so the backend only copies: the
+		// per-vertex math runs here, hidden under the backend's frame, and the
+		// backend never touches bone data at all. Arena overflow leaves preSkinned
+		// NULL -> that surface skins on the backend from the snapshot instead.
+		for ( int s = 0; s < g->n; s++ )
+		{
+			CRenderableSurface *rs = g->surfs[s];
+			const mdxmSurface_t *surface = rs->surfaceData;
+			const size_t vneed = (size_t)surface->numVerts * 6 * sizeof(float);
+			if ( s_g2ArenaUsed[buf] + vneed > s_g2ArenaSize ) {
+				continue;
+			}
+			float *out = (float *)( s_g2Arena[buf] + s_g2ArenaUsed[buf] );
+			s_g2ArenaUsed[buf] += vneed;
+			G2_PreSkinSurface( surface, snap, out );
+			rs->preSkinned = out;
+		}
 	}
-	JobPool_Signal( s_g2NumGroups );
-	JobPool_WaitGroup( JOBGROUP_SKIN );	// main pitches in as a worker until all chars are done
+	g_g2PrepMsec += ri.Milliseconds() - prepStart;
 }
 #endif // VITA
 
@@ -3153,6 +3207,20 @@ void RB_SurfaceGhoul( CRenderableSurface *surf )
 
 	CBoneCache *bones = surf->boneCache;
 
+#ifdef VITA
+	// Under the render thread the skin loop below must read the frontend's immutable
+	// no bone snapshot (arena/cap overflow): drop the surface for this frame - a live
+	// CBoneCache Eval here would race the frontend building the next frame.
+	if ( r_renderThread && r_renderThread->integer && !surf->boneMats )
+	{
+		static int s_dropWarn = 0;
+		if ( !( s_dropWarn++ & 255 ) ) {
+			ri.Printf( PRINT_ALL, "^3[MT] RB_SurfaceGhoul: dropped surface without bone snapshot #%d (prep cap/arena overflow)\n", s_dropWarn );
+		}
+		return;
+	}
+#endif
+
 	// first up, sanity check our numbers
 	RB_CheckOverflow( surface->numVerts, surface->numTriangles );
 
@@ -3187,6 +3255,26 @@ void RB_SurfaceGhoul( CRenderableSurface *surf )
 	baseVertex = tess.numVertexes;
 	v = (mdxmVertex_t *) ((byte *)surface + surface->ofsVerts);
 	pTexCoords = (mdxmVertexTexCoord_t *) &v[numVerts];
+
+#ifdef VITA
+	if ( surf->preSkinned )
+	{
+		// skinned on the frontend during prep (see RB_PrepGhoulSkinMT): copy only
+		const float *ps = surf->preSkinned;
+		for ( j = 0; j < numVerts; j++, baseVertex++, v++, ps += 6 )
+		{
+			tess.xyz[baseVertex][0] = ps[0];
+			tess.xyz[baseVertex][1] = ps[1];
+			tess.xyz[baseVertex][2] = ps[2];
+			tess.normal[baseVertex][0] = ps[3];
+			tess.normal[baseVertex][1] = ps[4];
+			tess.normal[baseVertex][2] = ps[5];
+			tess.texCoords[baseVertex][0][0] = pTexCoords[j].texCoords[0];
+			tess.texCoords[baseVertex][0][1] = pTexCoords[j].texCoords[1];
+		}
+	}
+	else {
+#endif
 
 //	if (r_ghoul2fastnormals&&r_ghoul2fastnormals->integer==0)
 #if 0
@@ -3241,27 +3329,25 @@ void RB_SurfaceGhoul( CRenderableSurface *surf )
 		const mdxaBone_t *bone;
 		const mdxaBone_t *bone2;
 #ifdef VITA
-		// Worker pool already deformed this surface: copy xyz+normal straight into tess,
-		// fill texCoords (not skinned) from the mesh.
-		if ( r_g2Threaded && r_g2Threaded->integer && surf->skinOut )
-		{
-			memcpy( &tess.xyz[baseVertex][0],    surf->skinOut,              sizeof(float)*4*numVerts );
-			memcpy( &tess.normal[baseVertex][0], surf->skinOut + 4*numVerts, sizeof(float)*4*numVerts );
-			for ( j = 0; j < numVerts; j++ )
-			{
-				tess.texCoords[baseVertex+j][0][0] = pTexCoords[j].texCoords[0];
-				tess.texCoords[baseVertex+j][0][1] = pTexCoords[j].texCoords[1];
-			}
-		}
-		else
-#endif
+		// Render-thread mode: skin from the frontend's immutable bone snapshot instead of
+		// the live cache, which the frontend is already mutating for the next frame.
+		// pSnapMats is NULL single-threaded -> stock lazy cache eval, unchanged.
+		const mdxaBone_t *pSnapMats = surf->boneMats;
+#ifdef JK2_MODE
+	#define G2_VERT_BONE(kk) ( pSnapMats ? &pSnapMats[ piBoneReferences[ G2_GetVertBoneIndex( v, (kk) ) ] ] : &bones->Eval( piBoneReferences[ G2_GetVertBoneIndex( v, (kk) ) ] ) )
+#else
+	#define G2_VERT_BONE(kk) ( pSnapMats ? &pSnapMats[ piBoneReferences[ G2_GetVertBoneIndex( v, (kk) ) ] ] : &bones->EvalRender( piBoneReferences[ G2_GetVertBoneIndex( v, (kk) ) ] ) )
+#endif // JK2_MODE
+#else
+#ifdef JK2_MODE
+	#define G2_VERT_BONE(kk) ( &bones->Eval( piBoneReferences[ G2_GetVertBoneIndex( v, (kk) ) ] ) )
+#else
+	#define G2_VERT_BONE(kk) ( &bones->EvalRender( piBoneReferences[ G2_GetVertBoneIndex( v, (kk) ) ] ) )
+#endif // JK2_MODE
+#endif // VITA
 		for ( j = 0; j < numVerts; j++, baseVertex++,v++ )
 		{
-#ifdef JK2_MODE
-			bone = &bones->Eval(piBoneReferences[G2_GetVertBoneIndex( v, 0 )]);
-#else
-			bone = &bones->EvalRender(piBoneReferences[G2_GetVertBoneIndex( v, 0 )]);
-#endif // JK2_MODE
+			bone = G2_VERT_BONE( 0 );
 			int iNumWeights = G2_GetVertWeights( v );
 			tess.normal[baseVertex][0] = G2_Dot3( bone->matrix[0], v->normal );
 			tess.normal[baseVertex][1] = G2_Dot3( bone->matrix[1], v->normal );
@@ -3278,11 +3364,7 @@ void RB_SurfaceGhoul( CRenderableSurface *surf )
 				fBoneWeight = G2_GetVertBoneWeightNotSlow( v, 0);
 				if (iNumWeights==2)
 				{
-#ifdef JK2_MODE
-					bone2 = &bones->Eval(piBoneReferences[G2_GetVertBoneIndex( v, 1 )]);
-#else
-					bone2 = &bones->EvalRender(piBoneReferences[G2_GetVertBoneIndex( v, 1 )]);
-#endif // JK2_MODE
+					bone2 = G2_VERT_BONE( 1 );
 					/*
 					useless transposition
 					tess.xyz[baseVertex][0] =
@@ -3311,11 +3393,7 @@ void RB_SurfaceGhoul( CRenderableSurface *surf )
 					fTotalWeight=fBoneWeight;
 					for (k=1; k < iNumWeights-1 ; k++)
 					{
-#ifdef JK2_MODE
-						bone = &bones->Eval(piBoneReferences[G2_GetVertBoneIndex( v, k )]);
-#else
-						bone = &bones->EvalRender(piBoneReferences[G2_GetVertBoneIndex( v, k )]);
-#endif // JK2_MODE
+						bone = G2_VERT_BONE( k );
 
 						fBoneWeight = G2_GetVertBoneWeightNotSlow( v, k);
 						fTotalWeight += fBoneWeight;
@@ -3325,11 +3403,7 @@ void RB_SurfaceGhoul( CRenderableSurface *surf )
 						tess.xyz[baseVertex][2] += fBoneWeight * ( G2_Dot3( bone->matrix[2], v->vertCoords ) + bone->matrix[2][3] );
 					}
 
-#ifdef JK2_MODE
-					bone = &bones->Eval(piBoneReferences[G2_GetVertBoneIndex( v, k )]);
-#else
-					bone = &bones->EvalRender(piBoneReferences[G2_GetVertBoneIndex( v, k )]);
-#endif // JK2_MODE
+					bone = G2_VERT_BONE( k );
 					fBoneWeight	= 1.0f-fTotalWeight;
 
 					tess.xyz[baseVertex][0] += fBoneWeight * ( G2_Dot3( bone->matrix[0], v->vertCoords ) + bone->matrix[0][3] );
@@ -3341,7 +3415,12 @@ void RB_SurfaceGhoul( CRenderableSurface *surf )
 			tess.texCoords[baseVertex][0][0] = pTexCoords[j].texCoords[0];
 			tess.texCoords[baseVertex][0][1] = pTexCoords[j].texCoords[1];
 		}
+#undef G2_VERT_BONE
 #if 0
+	}
+#endif
+
+#ifdef VITA
 	}
 #endif
 

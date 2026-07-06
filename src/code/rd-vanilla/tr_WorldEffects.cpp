@@ -1565,6 +1565,14 @@ ratl::vector_vs<CParticleCloud, MAX_PARTICLE_CLOUDS>	mParticleClouds;
 ////////////////////////////////////////////////////////////////////////////////////////
 void R_InitWorldEffects(void)
 {
+#ifdef VITA
+	// Render-thread mode: the backend's RB_RenderWorldEffects iterates these same
+	// containers one frame behind. Park the render thread before freeing/clearing
+	// them or it reads freed particle clouds. No-op pre-registration/single-thread.
+	if (r_renderThread && r_renderThread->integer) {
+		R_IssuePendingRenderCommands();
+	}
+#endif
 	for (int i=0; i<mParticleClouds.size(); i++)
 	{
 		mParticleClouds[i].Reset();
@@ -1593,7 +1601,7 @@ void R_ShutdownWorldEffects(void)
 void RB_RenderWorldEffects(void)
 {
 	if (!tr.world ||
-		(tr.refdef.rdflags & RDF_NOWORLDMODEL) ||
+		(backEnd.refdef.rdflags & RDF_NOWORLDMODEL) ||
 		(backEnd.refdef.rdflags & RDF_SKYBOXPORTAL) ||
 		!mParticleClouds.size() ||
 		ri.CL_IsRunningInGameCinematic())
@@ -1716,6 +1724,14 @@ void R_WorldEffectCommand(const char *command)
 	{
 		return;
 	}
+
+#ifdef VITA
+	// Every branch below mutates containers the render thread iterates one frame
+	// behind - park it first.
+	if (r_renderThread && r_renderThread->integer) {
+		R_IssuePendingRenderCommands();
+	}
+#endif
 
 	const char	*token;//, *origCommand;
 

@@ -182,7 +182,7 @@ static int R_DlightFace( srfSurfaceFace_t *face, int dlightBits ) {
 		tr.pc.c_dlightSurfacesCulled++;
 	}
 
-	face->dlightBits = dlightBits;
+	face->dlightBits[tr.smpFrame] = dlightBits;
 	return dlightBits;
 }
 
@@ -210,13 +210,13 @@ static int R_DlightGrid( srfGridMesh_t *grid, int dlightBits ) {
 		tr.pc.c_dlightSurfacesCulled++;
 	}
 
-	grid->dlightBits = dlightBits;
+	grid->dlightBits[tr.smpFrame] = dlightBits;
 	return dlightBits;
 }
 
 static int R_DlightTrisurf( srfTriangles_t *surf, int dlightBits ) {
 	// FIXME: more dlight culling to trisurfs...
-	surf->dlightBits = dlightBits;
+	surf->dlightBits[tr.smpFrame] = dlightBits;
 	return dlightBits;
 #if 0
 	int			i;
@@ -242,7 +242,7 @@ static int R_DlightTrisurf( srfTriangles_t *surf, int dlightBits ) {
 		tr.pc.c_dlightSurfacesCulled++;
 	}
 
-	grid->dlightBits = dlightBits;
+	grid->dlightBits[tr.smpFrame] = dlightBits;
 	return dlightBits;
 #endif
 }
@@ -296,15 +296,15 @@ static void R_AddWorldSurface( msurface_t *surf, int dlightBits, qboolean noView
 			// already in this view, but lets make sure all the dlight bits are set
 			if ( *surf->data == SF_FACE )
 			{
-				((srfSurfaceFace_t *)surf->data)->dlightBits |= dlightBits;
+				((srfSurfaceFace_t *)surf->data)->dlightBits[tr.smpFrame] |= dlightBits;
 			}
 			else if ( *surf->data == SF_GRID )
 			{
-				((srfGridMesh_t *)surf->data)->dlightBits |= dlightBits;
+				((srfGridMesh_t *)surf->data)->dlightBits[tr.smpFrame] |= dlightBits;
 			}
 			else if ( *surf->data == SF_TRIANGLES )
 			{
-				((srfTriangles_t *)surf->data)->dlightBits |= dlightBits;
+				((srfTriangles_t *)surf->data)->dlightBits[tr.smpFrame] |= dlightBits;
 			}
 			return;
 		}

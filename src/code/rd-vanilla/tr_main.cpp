@@ -28,6 +28,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 #include "tr_local.h"
 
+
 #if !defined(G2_H_INC)
 	#include "../ghoul2/G2.h"
 #endif
@@ -205,8 +206,6 @@ void R_LocalPointToWorld (const vec3_t local, vec3_t world) {
 	world[2] = local[0] * tr.ori.axis[0][2] + local[1] * tr.ori.axis[1][2] + local[2] * tr.ori.axis[2][2] + tr.ori.origin[2];
 }
 
-float preTransEntMatrix[16];
-
 void R_InvertMatrix(float *sourcemat, float *destmat)
 {
 	int i, j, temp=0;
@@ -237,9 +236,11 @@ R_WorldNormalToEntity
 */
 void R_WorldNormalToEntity (const vec3_t worldvec, vec3_t entvec)
 {
-	entvec[0] = -worldvec[0] * preTransEntMatrix[0] - worldvec[1] * preTransEntMatrix[4] + worldvec[2] * preTransEntMatrix[8];
-	entvec[1] = -worldvec[0] * preTransEntMatrix[1] - worldvec[1] * preTransEntMatrix[5] + worldvec[2] * preTransEntMatrix[9];
-	entvec[2] = -worldvec[0] * preTransEntMatrix[2] - worldvec[1] * preTransEntMatrix[6] + worldvec[2] * preTransEntMatrix[10];
+	// entity axes come from the backend's current-entity transform (no shared scratch)
+	const vec3_t *axis = backEnd.ori.axis;
+	entvec[0] = -worldvec[0] * axis[0][0] - worldvec[1] * axis[1][0] + worldvec[2] * axis[2][0];
+	entvec[1] = -worldvec[0] * axis[0][1] - worldvec[1] * axis[1][1] + worldvec[2] * axis[2][1];
+	entvec[2] = -worldvec[0] * axis[0][2] - worldvec[1] * axis[1][2] + worldvec[2] * axis[2][2];
 }
 
 /*
@@ -346,7 +347,7 @@ Called by both the front end and the back end
 */
 void R_RotateForEntity( const trRefEntity_t *ent, const viewParms_t *viewParms,
 					   orientationr_t *ori ) {
-//	float	glMatrix[16];
+	float	glMatrix[16];
 	vec3_t	delta;
 	float	axisLength;
 
@@ -361,27 +362,27 @@ void R_RotateForEntity( const trRefEntity_t *ent, const viewParms_t *viewParms,
 	VectorCopy( ent->e.axis[1], ori->axis[1] );
 	VectorCopy( ent->e.axis[2], ori->axis[2] );
 
-	preTransEntMatrix[0] = ori->axis[0][0];
-	preTransEntMatrix[4] = ori->axis[1][0];
-	preTransEntMatrix[8] = ori->axis[2][0];
-	preTransEntMatrix[12] = ori->origin[0];
+	glMatrix[0] = ori->axis[0][0];
+	glMatrix[4] = ori->axis[1][0];
+	glMatrix[8] = ori->axis[2][0];
+	glMatrix[12] = ori->origin[0];
 
-	preTransEntMatrix[1] = ori->axis[0][1];
-	preTransEntMatrix[5] = ori->axis[1][1];
-	preTransEntMatrix[9] = ori->axis[2][1];
-	preTransEntMatrix[13] = ori->origin[1];
+	glMatrix[1] = ori->axis[0][1];
+	glMatrix[5] = ori->axis[1][1];
+	glMatrix[9] = ori->axis[2][1];
+	glMatrix[13] = ori->origin[1];
 
-	preTransEntMatrix[2] = ori->axis[0][2];
-	preTransEntMatrix[6] = ori->axis[1][2];
-	preTransEntMatrix[10] = ori->axis[2][2];
-	preTransEntMatrix[14] = ori->origin[2];
+	glMatrix[2] = ori->axis[0][2];
+	glMatrix[6] = ori->axis[1][2];
+	glMatrix[10] = ori->axis[2][2];
+	glMatrix[14] = ori->origin[2];
 
-	preTransEntMatrix[3] = 0;
-	preTransEntMatrix[7] = 0;
-	preTransEntMatrix[11] = 0;
-	preTransEntMatrix[15] = 1;
+	glMatrix[3] = 0;
+	glMatrix[7] = 0;
+	glMatrix[11] = 0;
+	glMatrix[15] = 1;
 
-	myGlMultMatrix( preTransEntMatrix, viewParms->world.modelMatrix, ori->modelMatrix );
+	myGlMultMatrix( glMatrix, viewParms->world.modelMatrix, ori->modelMatrix );
 
 	// calculate the viewer origin in the model's space
 	// needed for fog, specular, and environment mapping
@@ -1178,6 +1179,7 @@ R_AddDrawSurf
 */
 void R_AddDrawSurf( const surfaceType_t *surface, const shader_t *shader, int fogIndex, int dlightMap )
 {
+
 	int			index;
 
 	// instead of checking for overflow, we just mask the index
