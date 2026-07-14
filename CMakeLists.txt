@@ -40,10 +40,6 @@ set(VITA_VERSION  "00.01")
 
 #----------------------------------------------------------------------------
 # Include domains.
-# codeJK2/{game,cgame,icarus} come FIRST so the JK2 game-interface headers win
-# over the shared code/ versions; code/game is kept after as a fallback for
-# engine-only headers not present under codeJK2/.
-#----------------------------------------------------------------------------
 # Game-specific include dirs FIRST so the selected game's headers win over the
 # shared code/ versions. JKA -> code/{game,cgame,icarus}; JK2 -> codeJK2/*.
 if(BUILD_JKA)

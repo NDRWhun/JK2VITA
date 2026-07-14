@@ -20,7 +20,7 @@ if [ "${1:-}" != "--skip-deps" ]; then
   # vitaGL and SDL are forks (with our patches) shipped as submodules; VitaSDK provides the rest.
   if command -v vdpm >/dev/null 2>&1; then
     echo "==> Base deps via vdpm"
-    vdpm zlib libpng libjpeg-turbo libmathneon vitaShaRK SceShaccCgExt
+    vdpm zlib libpng libjpeg-turbo libmathneon taihen vitaShaRK SceShaccCgExt
   else
     echo "!! vdpm not found on PATH. Install it (https://github.com/vitasdk/vdpm), then re-run."
     echo "   (Already have the deps installed? Re-run with --skip-deps.)"

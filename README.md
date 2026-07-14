@@ -97,6 +97,8 @@ Tune by editing `ux0:data/JK2VITA/base/openjo_sp.cfg` on the card, or from the i
 | `r_ghoul2CrowdLodStep` | `3` | How many LOD levels the crowd extras drop |
 | `cg_shadows` | `1` | Player/NPC shadows — `0` = off, `1` = blob |
 | `r_texCacheCompressed` | `1` | Cache textures as DXT (less VRAM; `0` = uncompressed) |
+| `r_dropTexturesOnLoad` | `1` | Free the old map's textures at map change (lower transition memory peak); `0` = keep until the new map's first frame |
+| `r_worldVBO` | `0` | Experimental: draw static world geometry from a resident vertex buffer (takes effect on map load) |
 | `s_khz` | `22` | Mixer rate — 22 matches the source assets *(latched)* |
 | `vita_rearTouch` | `1` | Rear-touch panel controls — `0` disables them |
 
@@ -104,7 +106,7 @@ Tune by editing `ux0:data/JK2VITA/base/openjo_sp.cfg` on the card, or from the i
 
 Needs [VitaSDK](https://vitasdk.org) and [vdpm](https://github.com/vitasdk/vdpm) on `PATH`, plus cmake,
 ninja, and GNU make. **On Windows, run from Git Bash.** vitaGL and SDL2 come in as git submodules — forks
-with the Vita patches already committed ([vitaGL](https://github.com/NDRWhun/vitaGL/tree/jk2vita),
+with the Vita patches already committed ([vitaGL](https://github.com/NDRWhun/vitaGL/tree/master),
 [SDL](https://github.com/NDRWhun/SDL/tree/jk2vita)) — which the build script builds and installs over the
 stock copies VitaSDK ships.
 
