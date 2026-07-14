@@ -46,6 +46,10 @@ void R_PerformanceCounters( void ) {
 			backEnd.pc.c_shaders, backEnd.pc.c_surfaces, tr.pc.c_leafs, backEnd.pc.c_vertexes,
 			backEnd.pc.c_indexes/3, backEnd.pc.c_totalIndexes/3,
 			texSize, backEnd.pc.c_overDraw / (float)(glConfig.vidWidth * glConfig.vidHeight) );
+		if ( r_worldVBO && r_worldVBO->integer ) {
+			ri.Printf (PRINT_ALL, "wvbo: %i srfs in %i draws\n",
+				backEnd.pc.c_wvboSurfaces, backEnd.pc.c_wvboDraws );
+		}
 	} else if (r_speeds->integer == 2) {
 		ri.Printf (PRINT_ALL, "(patch) %i sin %i sclip  %i sout %i bin %i bclip %i bout\n",
 			tr.pc.c_sphere_cull_patch_in, tr.pc.c_sphere_cull_patch_clip, tr.pc.c_sphere_cull_patch_out,
@@ -208,10 +212,12 @@ void R_IssueRenderCommands( qboolean runPerformanceCounters ) {
 
 #ifdef VITA
 	if ( r_renderThread && r_renderThread->integer ) {
-		// Hand this frame's command buffer to the render thread (after it finishes
-		// the previous frame), then flip the frontend to the other double-buffer so
-		// it can build the next frame while the backend draws this one.
+		// hand the frame to the render thread, flip the frontend to the other buffer
 		sceKernelWaitSema( rend_mutex_out, 1, NULL );
+		// backend parked between Wait(out) and Signal(in): its counters are stable here
+		if ( runPerformanceCounters ) {
+			R_PerformanceCounters();
+		}
 		rend_handedBuffer = activeBackEnd;
 		sceKernelSignalSema( rend_mutex_in, 1 );
 		activeBackEnd = !activeBackEnd;

@@ -41,6 +41,8 @@ extern SceUID rend_mutex_out;
 extern SceUID rend_init_done;	// init-only handshake (vglInit-done, ctx-init-done)
 extern volatile qboolean pendingCtxInit;	// one-shot: run ctx init on render thread's first wake
 extern cvar_t *r_renderThread;
+extern cvar_t *r_worldVBO;		// bake eligible static world surfaces into one VBO
+extern cvar_t *r_dropTexturesOnLoad;	// free old-map textures at shutdown, not first frame
 void R_StartRenderThread( void );
 void R_StopRenderThread( void );
 void R_Splash( void );			// defined in tr_init.cpp; run on the render thread during ctx init
@@ -950,6 +952,11 @@ typedef struct {
 	int		c_flareTests;
 	int		c_flareRenders;
 
+#ifdef VITA
+	int		c_wvboSurfaces;	// world surfaces drawn from the static VBO
+	int		c_wvboDraws;	// draw calls those merged into
+#endif
+
 	int		msec;			// total msec for backend run
 } backEndCounters_t;
 
@@ -1300,6 +1307,7 @@ void	GL_CheckErrors( void );
 void	GL_State( uint32_t stateVector );
 void	GL_TexEnv( int env );
 void	GL_Cull( int cullType );
+void	R_BindAnimatedImage( const textureBundle_t *bundle );
 
 #define GLS_SRCBLEND_ZERO						0x00000001
 #define GLS_SRCBLEND_ONE						0x00000002
@@ -1627,11 +1635,9 @@ public:
 #endif
  	CBoneCache 		*boneCache;		// pointer to transformed bone list for this surf
 	mdxmSurface_t	*surfaceData;	// pointer to surface data loaded into file - only used by client renderer DO NOT USE IN GAME SIDE - if there is a vid restart this will be out of wack on the game
-	const mdxaBone_t *boneMats;		// per-frame bone matrix snapshot, filled on the frontend (render-thread
-	const float *preSkinned;		// per-frame pre-skinned verts (xyz+normal interleaved), frontend prep
-									// mode). The backend skins from this instead of the live CBoneCache,
-									// which the frontend mutates for the next frame. NULL => drop under
-									// r_renderThread, inline cache eval otherwise.
+	const mdxaBone_t *boneMats;		// frontend bone snapshot (render-thread mode); backend skins from this,
+									// never the live CBoneCache. NULL -> surface drops under r_renderThread.
+	const float *preSkinned;		// optional frontend pre-skinned verts (xyz+normal); NULL -> skin from boneMats
 #ifdef _G2_GORE
 	float			*alternateTex;		// alternate texture coordinates.
 	void			*goreChain;
@@ -1693,6 +1699,11 @@ void RB_PrepGhoulSkinMT( drawSurf_t *drawSurfs, int numDrawSurfs );
 // per-frame recycle of the frontend's bone snapshot arena (render-thread mode)
 void R_ResetGhoulSkinArena( void );
 void R_FreeGhoulSkinArena( void );
+// static world VBO (tr_worldvbo.cpp)
+void R_BuildWorldVBO( world_t *world );
+void R_FreeWorldVBO( void );
+qboolean RB_TryWorldVBO( void *surface, shader_t *shader, int fogNum, int dlighted, int entityNum );
+void RB_EndWorldVBO( void );
 #endif
 /*
 Ghoul2 Insert End

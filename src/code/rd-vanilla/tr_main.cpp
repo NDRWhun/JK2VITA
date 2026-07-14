@@ -50,6 +50,16 @@ refimport_t ri;
 // point at this for their sorting surface
 surfaceType_t	entitySurface = SF_ENTITY;
 
+#ifdef VITA
+// world draw distance: tr.distanceCull capped by the r_distanceCull cvar
+static float R_VitaDistanceCull( void )
+{
+	if ( r_distanceCull && r_distanceCull->value > 0.0f && tr.distanceCull > r_distanceCull->value )
+		return r_distanceCull->value;
+	return tr.distanceCull;
+}
+#endif
+
 /*
 =================
 R_CullLocalBox
@@ -516,10 +526,7 @@ static void SetFarClip( void )
 	// ...and make sure there is a minimum zfar to prevent problems
 #ifdef VITA
 	// Vita: clamp zFar to the render-distance cap, same as the far plane in R_SetupFrustum
-	float vitaDC = tr.distanceCull;
-	if ( r_distanceCull && r_distanceCull->value > 0.0f && vitaDC > r_distanceCull->value )
-		vitaDC = r_distanceCull->value;
-	tr.viewParms.zFar = Com_Clamp(2048.0f, vitaDC * (1.732), sqrtf( farthestCornerDistance ));
+	tr.viewParms.zFar = Com_Clamp(2048.0f, R_VitaDistanceCull() * (1.732), sqrtf( farthestCornerDistance ));
 #else
 	tr.viewParms.zFar = Com_Clamp(2048.0f, tr.distanceCull * (1.732), sqrtf( farthestCornerDistance ));
 #endif
@@ -621,10 +628,7 @@ void R_SetupFrustum (void) {
 #ifdef VITA
 			// Vita: pull the far plane in to the cap so R_RecursiveWorldNode culls
 			// distant BSP subtrees on the CPU before we touch them
-			float vitaDC = tr.distanceCull;
-			if ( r_distanceCull && r_distanceCull->value > 0.0f && vitaDC > r_distanceCull->value )
-				vitaDC = r_distanceCull->value;
-			tr.viewParms.frustum[i].dist -= vitaDC*1.02f; // a little slack so we don't cull stuff
+			tr.viewParms.frustum[i].dist -= R_VitaDistanceCull()*1.02f; // a little slack so we don't cull stuff
 #else
 			tr.viewParms.frustum[i].dist -= tr.distanceCull*1.02f; // a little slack so we don't cull stuff
 #endif

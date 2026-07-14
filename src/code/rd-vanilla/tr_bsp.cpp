@@ -29,6 +29,10 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "tr_common.h"
 #include "tr_local.h"
 
+#ifdef VITA
+#include <psp2/kernel/sysmem.h>
+#endif
+
 /*
 
 Loads and prepares a map file for scene rendering.
@@ -1435,6 +1439,27 @@ void RE_LoadWorldMap_Actual( const char *name, world_t &worldData, int index ) {
 
 		// only set tr.world now that we know the entire level has loaded properly
 		tr.world = &worldData;
+
+#ifdef VITA
+		// (re)build the static world VBO from the loaded surfaces; park the render
+		// thread first since the GL upload runs here on the main thread.
+		R_IssuePendingRenderCommands();
+		R_BuildWorldVBO( &worldData );
+
+		// per-map memory watermark (world geometry + shader textures are resident here)
+		{
+			SceKernelFreeMemorySizeInfo fmi;
+			fmi.size = sizeof( fmi );
+			int fr = sceKernelGetFreeMemorySize( &fmi );
+			ri.Printf( PRINT_ALL, "MapMem %s: vgl VRAM %u/%u KiB, RAM %u/%u KiB, SLOW %u/%u KiB | kernel USER %d KiB, CDRAM %d KiB\n",
+				worldData.baseName,
+				(unsigned)( vglMemFree( VGL_MEM_VRAM ) / 1024 ), (unsigned)( vglMemTotal( VGL_MEM_VRAM ) / 1024 ),
+				(unsigned)( vglMemFree( VGL_MEM_RAM ) / 1024 ), (unsigned)( vglMemTotal( VGL_MEM_RAM ) / 1024 ),
+				(unsigned)( vglMemFree( VGL_MEM_SLOW ) / 1024 ), (unsigned)( vglMemTotal( VGL_MEM_SLOW ) / 1024 ),
+				fr == 0 ? fmi.size_user / 1024 : -1,
+				fr == 0 ? fmi.size_cdram / 1024 : -1 );
+		}
+#endif
 	}
 
 

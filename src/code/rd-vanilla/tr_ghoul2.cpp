@@ -2897,7 +2897,6 @@ void R_FreeGhoulSkinArena( void )
 
 // Frontend bone snapshot before hand-off: a render-thread Eval would race
 // G2_TransformGhoulBones (device crash). Accumulates across views, reset per-frame.
-int g_g2PrepMsec = 0;	// frontend bone-snapshot ms; read+reset by the perf probe
 
 
 // Frontend pre-skin of one surface; same math as RB_SurfaceGhoul. xyz+normal interleaved.
@@ -2972,7 +2971,6 @@ void RB_PrepGhoulSkinMT( drawSurf_t *drawSurfs, int numDrawSurfs )
 		return;
 	}
 
-	const int prepStart = ri.Milliseconds();
 	const int buf = activeBackEnd;
 
 	if ( !s_g2SnapArena[buf] ) {
@@ -3062,7 +3060,6 @@ void RB_PrepGhoulSkinMT( drawSurf_t *drawSurfs, int numDrawSurfs )
 			rs->preSkinned = out;
 		}
 	}
-	g_g2PrepMsec += ri.Milliseconds() - prepStart;
 }
 #endif // VITA
 

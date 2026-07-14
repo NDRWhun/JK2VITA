@@ -63,6 +63,8 @@ cvar_t	*r_forceFog;
 cvar_t	*r_forceFogColor;
 cvar_t	*r_texCacheCompressed;
 cvar_t	*r_renderThread;
+cvar_t	*r_worldVBO;
+cvar_t	*r_dropTexturesOnLoad;
 cvar_t	*r_dxtFast;
 
 cvar_t	*r_norefresh;
@@ -1737,9 +1739,6 @@ void R_Register( void )
 	r_forceFog           = ri.Cvar_Get( "r_forceFog",           "0", CVAR_ARCHIVE_ND );
 	r_forceFogColor      = ri.Cvar_Get( "r_forceFogColor", "0.55 0.6 0.7", CVAR_ARCHIVE_ND );
 
-	// Thread ghoul2 skinning across the worker pool (cores 1/2 + main work-steal), one
-	// job per character, main barriers before the draw list. Off by default until it's
-	// validated on device; serial skinning is the fallback.
 #endif
 
 	r_znear = ri.Cvar_Get( "r_znear", "4", CVAR_ARCHIVE_ND );	//if set any lower, you lose a lot of precision in the distance
@@ -1771,6 +1770,10 @@ void R_Register( void )
 #ifdef VITA
 	// 1 = backend on a dedicated render thread (default), 0 = inline on main. CVAR_LATCH.
 	r_renderThread = ri.Cvar_Get( "r_renderThread", "1", CVAR_ARCHIVE | CVAR_LATCH );
+	r_worldVBO = ri.Cvar_Get( "r_worldVBO", "0", CVAR_ARCHIVE );	// takes effect on next map load
+	// 1 = drop old-map textures at shutdown; stock keeps both maps resident until the
+	// new map's first frame (the transition OOM peak). Reload comes from the DXT cache.
+	r_dropTexturesOnLoad = ri.Cvar_Get( "r_dropTexturesOnLoad", "1", CVAR_ARCHIVE );
 #endif
 	ri.Cvar_CheckRange( r_primitives, MIN_PRIMITIVES, MAX_PRIMITIVES, qtrue );
 #ifdef VITA
@@ -1810,7 +1813,11 @@ void R_Register( void )
 	r_nocull = ri.Cvar_Get ("r_nocull", "0", CVAR_CHEAT);
 	r_novis = ri.Cvar_Get ("r_novis", "0", CVAR_CHEAT);
 	r_showcluster = ri.Cvar_Get ("r_showcluster", "0", CVAR_CHEAT);
+#ifdef VITA
+	r_speeds = ri.Cvar_Get ("r_speeds", "0", 0);	// perf diagnostic; cheat-locking it just hides data
+#else
 	r_speeds = ri.Cvar_Get ("r_speeds", "0", CVAR_CHEAT);
+#endif
 	r_verbose = ri.Cvar_Get( "r_verbose", "0", CVAR_CHEAT );
 	r_logFile = ri.Cvar_Get( "r_logFile", "0", CVAR_CHEAT );
 	r_debugSurface = ri.Cvar_Get ("r_debugSurface", "0", CVAR_CHEAT);
@@ -1839,7 +1846,7 @@ void R_Register( void )
 			ri.Cvar_Set( "r_subdivisions", "4" );	// full curve tessellation
 			ri.Cvar_Set( "r_fastSky", "0" );		// real skybox
 			ri.Cvar_Set( "r_inGameVideo", "1" );	// in-world video screens
-			ri.Cvar_Set( "cg_shadows", "2" );		// stencil shadows
+			ri.Cvar_Set( "cg_shadows", "1" );		// blob shadows (stencil volumes don't draw on vitaGL)
 		}
 	}
 #endif
@@ -2037,6 +2044,12 @@ void RE_Shutdown( qboolean destroyWindow, qboolean restarting ) {
 		R_IssuePendingRenderCommands();
 		R_FreeGhoulSkinArena();	// release the bone-snapshot arena during load; re-malloc'd next frame
 	}
+	// Every shutdown (map change too, not just vid_restart): the hunk that s_wvbo's
+	// surfData/shader keys point into is about to be cleared, and the old VBO would
+	// otherwise sit in the vitaGL pool through the next map's texture load.
+	if ( tr.registered ) {
+		R_FreeWorldVBO();
+	}
 #endif
 
 	if ( r_DynamicGlow && r_DynamicGlow->integer )
@@ -2077,6 +2090,14 @@ void RE_Shutdown( qboolean destroyWindow, qboolean restarting ) {
 	if ( tr.registered )
 	{
 		R_IssuePendingRenderCommands();
+#ifdef VITA
+		// map change: drop old-map textures now, not at the new map's first frame
+		// (drained above so main owns GL; builtins re-create in R_Init)
+		if ( !destroyWindow && r_dropTexturesOnLoad && r_dropTexturesOnLoad->integer )
+		{
+			R_DeleteTextures();
+		}
+#endif
 		if ( destroyWindow )
 		{
 #ifdef VITA

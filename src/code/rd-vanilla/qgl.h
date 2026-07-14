@@ -36,12 +36,8 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #	define GL_GLEXT_LEGACY
 #	include <OpenGL/gl.h>
 #elif defined( __linux__ )
-#ifndef __EMSCRIPTEN__
 #	include <GL/gl.h>
 #	include <GL/glx.h>
-#else
-#include <GL/Regal.h>
-#endif
 // bk001129 - from cvs1.17 (mkv)
 #	if defined(__FX__)
 #		include <GL/fxmesa.h>
@@ -55,9 +51,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #else
 #	include <gl.h>
 #endif
-#ifndef __EMSCRIPTEN__
 #include "glext.h"
-#endif
 #endif
 
 #define qglAccum glAccum

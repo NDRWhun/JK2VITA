@@ -597,7 +597,7 @@ typedef struct {					// 32-byte LE header, native Vita byte order
 extern "C" void stb_compress_dxt_block( unsigned char *dst, const unsigned char *src, int alpha, int mode );
 
 static void R_TexCacheStoreDxt( const char *name, const texCacheHdrDxt_t *hdr,
-								const unsigned *mipSizes, const byte *blob );	// defined with the RGBA cache below
+								const unsigned *mipSizes, const byte *blob );	// defined below, next to the cache read path
 static char s_uploadDxtKey[MAX_QPATH];	// asset name of the in-flight Upload32, set by R_CreateImage
 
 // Encode one mip as row-major, edge-clamped 4x4 DXT blocks into blob+blobOfs, upload it
@@ -652,7 +652,6 @@ static void Upload32( unsigned *data,
 	    int			samples;
 	    int			i, c;
 	    byte		*scan;
-	    float		rMax = 0, gMax = 0, bMax = 0;
 	    int			width = *pUploadWidth;
 	    int			height = *pUploadHeight;
 
@@ -692,7 +691,6 @@ static void Upload32( unsigned *data,
 	    scan = ((byte *)data);
 	    samples = 3;
 	    i = 0;
-	    (void)rMax; (void)gMax; (void)bMax;	// computed but never read
 #if defined(__ARM_NEON)
 	    // only the alpha test drives 'samples', so just scan 16 px/iter for any alpha != 255
 	    {
@@ -1370,7 +1368,7 @@ static void R_TexCacheStoreDxt( const char *name, const texCacheHdrDxt_t *hdr,
 								const unsigned *mipSizes, const byte *blob )
 {
 	if ( !r_texCacheCompressed || !r_texCacheCompressed->integer || !hdr || !mipSizes || !blob ) return;
-	// own dir bootstrap - don't piggyback on the RGBA cache's, it mkdirs texcache/ we don't use
+	// create the cache dir once
 	static qboolean s_dxtDirReady = qfalse;
 	if ( !s_dxtDirReady )
 	{
