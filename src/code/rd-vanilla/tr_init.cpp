@@ -269,6 +269,16 @@ void RE_SetLightStyle(int style, int color);
 
 void R_Splash()
 {
+#ifdef VITA
+	// rt1: clear-only first scene; a draw before any completed scene GPU-faults
+	if ( r_renderThread && r_renderThread->integer )
+	{
+		qglClearColor( 0.0f, 0.0f, 0.0f, 1.0f );
+		qglClear( GL_COLOR_BUFFER_BIT );
+		ri.WIN_Present( &window );
+		return;
+	}
+#endif
 	image_t *pImage = R_FindImageFile( "menu/splash", qfalse, qfalse, qfalse, GL_CLAMP);
 
 	if ( !pImage )
@@ -277,32 +287,6 @@ void R_Splash()
 		qglClearColor( 0.0f, 0.0f, 0.0f, 1.0f );
 		qglClear( GL_COLOR_BUFFER_BIT );
 	}
-#ifdef VITA
-	else if ( r_renderThread && r_renderThread->integer )
-	{
-		// runs on the render thread during context init; the immediate-mode path
-		// below faults here, so draw through vertex arrays and sync the async
-		// texture upload before the first-ever scene samples it
-		sceGxmTransferFinish();
-		qglFinish();
-
-		extern void	RB_SetGL2D (void);
-		RB_SetGL2D();
-		GL_Bind( pImage );
-		GL_State( GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
-		static const float splashXYZ[4][4] = { { 0, 0, 0, 1 }, { 640, 0, 0, 1 }, { 640, 480, 0, 1 }, { 0, 480, 0, 1 } };
-		static const float splashST[4][2] = { { 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 1 } };
-		static const unsigned int splashCol[4] = { 0xffffffffu, 0xffffffffu, 0xffffffffu, 0xffffffffu };
-		static const glIndex_t splashIdx[6] = { 0, 1, 2, 0, 2, 3 };
-		qglEnableClientState( GL_VERTEX_ARRAY );
-		qglEnableClientState( GL_TEXTURE_COORD_ARRAY );
-		qglEnableClientState( GL_COLOR_ARRAY );
-		qglVertexPointer( 3, GL_FLOAT, 16, splashXYZ );
-		qglTexCoordPointer( 2, GL_FLOAT, 0, splashST );
-		qglColorPointer( 4, GL_UNSIGNED_BYTE, 0, splashCol );
-		qglDrawElements( GL_TRIANGLES, 6, GL_INDEX_TYPE, splashIdx );
-	}
-#endif
 	else
 	{
 		extern void	RB_SetGL2D (void);
