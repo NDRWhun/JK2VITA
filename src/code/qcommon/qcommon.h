@@ -505,8 +505,6 @@ void	FS_FCloseFile( fileHandle_t f );
 
 long		FS_ReadFile( const char *qpath, void **buffer );
 #ifdef VITA
-void		FS_InitWorkerHandles( void );
-void		FS_ShutdownWorkerHandles( void );
 long		FS_ReadFileWorker( const char *qpath, void *buffer, long bufSize );	// thread-safe, malloc buffer
 #endif
 // returns the length of the file

@@ -2848,7 +2848,7 @@ static fsWorkerPath_t	*fs_workerPaths = NULL;
 static SceUID			fs_workerMutex = -1;
 
 // mirror fs_searchpaths with worker-owned pk3 handles; called at end of FS_Startup.
-void FS_InitWorkerHandles( void ) {
+static void FS_InitWorkerHandles( void ) {
 	if ( fs_workerMutex < 0 )
 		fs_workerMutex = sceKernelCreateMutex( "fs_worker", 0, 0, NULL );
 	sceKernelLockMutex( fs_workerMutex, 1, NULL );
@@ -2863,7 +2863,7 @@ void FS_InitWorkerHandles( void ) {
 }
 
 // free worker handles before FS frees fs_searchpaths; the mutex waits out any in-flight read.
-void FS_ShutdownWorkerHandles( void ) {
+static void FS_ShutdownWorkerHandles( void ) {
 	if ( fs_workerMutex < 0 ) return;
 	sceKernelLockMutex( fs_workerMutex, 1, NULL );
 	for ( fsWorkerPath_t *w = fs_workerPaths, *n = NULL ; w ; w = n ) {

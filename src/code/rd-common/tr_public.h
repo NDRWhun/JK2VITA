@@ -103,10 +103,8 @@ typedef struct {
 	void			(*WIN_InitSDLVideo)					( void );
 	void			(*WIN_LoadGL)						( void );
 	window_t		(*WIN_CreateWindow)					( const windowDesc_t *desc, glconfig_t *glConfig );
-	// Make the SDL/GL context current ON THE RENDER THREAD. SDL_GL_SwapWindow early-outs
-	// unless the window is current on the calling thread's TLS; SDL_GL_CreateContext set
-	// that TLS on the main thread, so the render thread that presents must re-make-current
-	// itself or every swap is a silent no-op (black screen despite frames flowing).
+	// make the GL context current on the calling (render) thread; without it
+	// SDL_GL_SwapWindow silently no-ops. See sdl_window.cpp.
 	void			(*WIN_MakeCurrent)					( void );
 
 	// OpenGL-specific

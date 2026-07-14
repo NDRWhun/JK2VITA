@@ -1363,9 +1363,8 @@ void CL_KeyEvent (int key, qboolean down, unsigned time) {
 		return;
 	}
 
-	// Combo layer (in-game only, never in menus): when the modifier is held, a face /
-	// d-pad button fires an INSTANT alt command and swallows its normal bind. The role
-	// is latched per key so releasing the modifier mid-press cannot strand a +command.
+	// combo layer (in-game only): modifier held -> fire the INSTANT alt command,
+	// swallow the bind; full rationale at the vita_altTable block above
 	if ( key >= A_JOY0 && key <= A_JOY31 && !( Key_GetCatcher() & KEYCATCH_UI ) ) {
 		unsigned idx = (unsigned)( key - A_JOY0 );
 		unsigned bit = 1u << ( idx & 31 );

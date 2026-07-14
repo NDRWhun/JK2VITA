@@ -1275,10 +1275,8 @@ static void IN_JoyMove( void )
 	stick_state.oldaxes = axes;
 
 #ifdef VITA
-	// In cursor-driven menus, drive the mouse cursor with the left analog stick.
-	// IN_JoyMove runs every frame (even with no game active / in the main menu),
-	// whereas CL_JoystickMove only runs in-game (cls.state gated) — so this is the
-	// place that lets the pad navigate menus the way the touchscreen does.
+	// menus: drive the mouse cursor with the left stick here; CL_JoystickMove
+	// only runs in-game (cls.state gated)
 	if ( Key_GetCatcher() & KEYCATCH_UI )
 	{
 		Sint16 ax = SDL_JoystickGetAxis( stick, 0 );	// left stick X

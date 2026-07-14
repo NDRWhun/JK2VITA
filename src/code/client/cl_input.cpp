@@ -484,9 +484,11 @@ void CL_JoystickMove( usercmd_t *cmd ) {
 
 #ifdef VITA
 	{
-		// PS Vita: left stick moves (strafe + forward/back), right stick looks
-		// (turn + pitch). Axis values are raw SDL Sint16. Sensitivities are
-		// first-pass and easily tuned from on-device feel.
+		// left stick moves (strafe + fwd/back), right stick looks; raw SDL Sint16 axes
+		// menus: the cursor is driven from IN_JoyMove; CL_JoystickMove is in-game only
+		if ( Key_GetCatcher() & KEYCATCH_UI )
+			return;
+
 		const float dead = 0.16f;
 		float lx = cl.joystickAxis[AXIS_SIDE]    / 32767.0f;	// left stick X
 		float ly = cl.joystickAxis[AXIS_FORWARD] / 32767.0f;	// left stick Y
@@ -498,11 +500,6 @@ void CL_JoystickMove( usercmd_t *cmd ) {
 		if ( ry > -dead && ry < dead ) ry = 0.0f;
 
 		float dt = cls.frametime * 0.001f;
-
-		// In menus the cursor is driven from IN_JoyMove (which runs every frame,
-		// even with no game active); CL_JoystickMove only runs in-game.
-		if ( Key_GetCatcher() & KEYCATCH_UI )
-			return;
 
 		if ( !(in_speed.active ^ cl_run->integer) )
 			cmd->buttons |= BUTTON_WALKING;

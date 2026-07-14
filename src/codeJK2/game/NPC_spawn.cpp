@@ -1614,10 +1614,8 @@ void SP_NPC_spawner( gentity_t *self)
 	NPC_PrecacheAnimationCFG( self->NPC_type );
 
 #ifdef VITA
-	// optionally precache this NPC's assets at level load so a triggered/scripted spawn
-	// doesn't hitch the first frame loading them. NPC_Precache() was dead code ("not anymore").
-	// off by default - skin precache burns VRAM and we're tight on Vita; watch the VRAM bar
-	// before turning g_npcPrecache on.
+	// g_npcPrecache 1: precache scripted-spawner NPC assets at load to avoid the
+	// first-spawn hitch. Default 0: the skin precache costs VRAM.
 	{
 		extern void NPC_Precache( gentity_t *spawner );
 		static cvar_t *jk2v_npcPrecache = NULL;

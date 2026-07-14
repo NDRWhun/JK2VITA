@@ -123,10 +123,8 @@ typedef enum
 // Ideally this will be replaced with an external file or more sophisticated move-picker
 // once the game gets out of prototype stage.
 
-// qcommon/qfiles.h defines LS_NONE as a light-style constant (0xff). The saber
-// move enum below also has an LS_NONE member; when both headers are in scope
-// (cgame TUs) the macro turns "LS_NONE = 0" into "0xff = 0". JKA's wp_saber.h
-// guards against this with the same #undef; codeJK2 was missing it.
+// qfiles.h's LS_NONE lightstyle macro (0xff) would mangle the enum member below
+// in cgame TUs; undef it like JKA's wp_saber.h does.
 #ifdef LS_NONE
 #undef LS_NONE
 #endif

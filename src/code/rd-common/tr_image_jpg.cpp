@@ -59,6 +59,27 @@ static void R_JPGOutputMessage(j_common_ptr cinfo)
 	Com_Printf("%s\n", buffer);
 }
 
+// expand decoded RGB (or greyscale) in place to RGBA, back to front
+static void JPG_ExpandToRGBA( byte *buf, size_t sindex, size_t dindex, int components )
+{
+	if (components == 3) {
+		do {
+			buf[--dindex] = 255;
+			buf[--dindex] = buf[--sindex];
+			buf[--dindex] = buf[--sindex];
+			buf[--dindex] = buf[--sindex];
+		} while(sindex);
+	} else {	// greyscale: some repacked assets decode as 1 component
+		do {
+			const byte grey = buf[--sindex];
+			buf[--dindex] = 255;
+			buf[--dindex] = grey;
+			buf[--dindex] = grey;
+			buf[--dindex] = grey;
+		} while(sindex);
+	}
+}
+
 void LoadJPG( const char *filename, unsigned char **pic, int *width, int *height ) {
 	/* This struct contains the JPEG decompression parameters and pointers to
 	* working space (which is allocated as needed by the JPEG library).
@@ -192,22 +213,7 @@ void LoadJPG( const char *filename, unsigned char **pic, int *width, int *height
 	sindex = pixelcount * cinfo.output_components;
 	dindex = memcount;
 
-	if (cinfo.output_components == 3) {
-		do {
-			buf[--dindex] = 255;
-			buf[--dindex] = buf[--sindex];
-			buf[--dindex] = buf[--sindex];
-			buf[--dindex] = buf[--sindex];
-		} while(sindex);
-	} else {	// greyscale: some repacked assets decode as 1 component
-		do {
-			const byte grey = buf[--sindex];
-			buf[--dindex] = 255;
-			buf[--dindex] = grey;
-			buf[--dindex] = grey;
-			buf[--dindex] = grey;
-		} while(sindex);
-	}
+	JPG_ExpandToRGBA(buf, sindex, dindex, cinfo.output_components);
 
 	*pic = out;
 
@@ -359,22 +365,7 @@ void LoadJPGFromBuffer( byte *inputBuffer, size_t len, unsigned char **pic, int 
 	sindex = pixelcount * cinfo.output_components;
 	dindex = memcount;
 
-	if (cinfo.output_components == 3) {
-		do {
-			buf[--dindex] = 255;
-			buf[--dindex] = buf[--sindex];
-			buf[--dindex] = buf[--sindex];
-			buf[--dindex] = buf[--sindex];
-		} while(sindex);
-	} else {	// greyscale: some repacked assets decode as 1 component
-		do {
-			const byte grey = buf[--sindex];
-			buf[--dindex] = 255;
-			buf[--dindex] = grey;
-			buf[--dindex] = grey;
-			buf[--dindex] = grey;
-		} while(sindex);
-	}
+	JPG_ExpandToRGBA(buf, sindex, dindex, cinfo.output_components);
 
 	*pic = out;
 

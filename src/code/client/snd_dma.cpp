@@ -591,7 +591,7 @@ static void S_AsyncLoad_Poll( void )
 			job.sfx->bDefaultSound = true;
 		job.sfx->bInMemory     = true;
 		job.sfx->bAsyncLoading = qfalse;
-		if ( s_asyncOutstanding > 0 ) s_asyncOutstanding--;
+		s_asyncOutstanding--;
 	}
 }
 #endif // VITA
@@ -1884,7 +1884,8 @@ If we are about to perform file access, clear the buffer
 so sound doesn't stutter.
 ==================
 */
-void S_ClearSoundBuffer( void ) {	int		clear;
+void S_ClearSoundBuffer( void ) {
+	int		clear;
 
 	if ( !s_soundStarted || s_soundMuted ) {
 		return;
@@ -2054,7 +2055,8 @@ Called during entity generation for a frame
 Include velocity in case I get around to doing doppler...
 ==================
 */
-void S_AddLoopingSound( int entityNum, const vec3_t origin, const vec3_t velocity, sfxHandle_t sfxHandle, soundChannel_t chan ) {	/*const*/ sfx_t *sfx;
+void S_AddLoopingSound( int entityNum, const vec3_t origin, const vec3_t velocity, sfxHandle_t sfxHandle, soundChannel_t chan ) {
+	/*const*/ sfx_t *sfx;
 
   	if ( !s_soundStarted || s_soundMuted ) {
 		return;
@@ -2879,28 +2881,6 @@ S_Update
 Called once each time through the main loop
 ============
 */
-void S_GetSoundtime(void);
-
-// Software scan + mix-ahead paint + submit; called once per S_Update.
-static void S_MixPaintFrame( void )
-{
-	unsigned	endtime;
-	int			samps;
-
-	S_GetSoundtime();
-	const int s_oldpaintedtime = s_paintedtime;
-	S_ScanChannelStarts();
-	endtime = (int)(s_soundtime + s_mixahead->value * dma.speed);
-	endtime = (endtime + dma.submission_chunk-1) & ~(dma.submission_chunk-1);
-	samps = dma.samples >> (dma.channels-1);
-	if (endtime - s_soundtime > (unsigned)samps)
-		endtime = s_soundtime + samps;
-	SNDDMA_BeginPainting();
-	S_PaintChannels(endtime);
-	SNDDMA_Submit();
-	S_DoLipSynchs(s_oldpaintedtime);
-}
-
 void S_Update( void ) {
 	int			i;
 	channel_t	*ch;
@@ -3254,7 +3234,35 @@ void S_Update_(void) {
 	else
 	{
 #endif
-		S_MixPaintFrame();
+		// Updates s_soundtime
+		S_GetSoundtime();
+
+		const int s_oldpaintedtime = s_paintedtime;
+
+		// clear any sound effects that end before the current time,
+		// and start any new sounds
+		S_ScanChannelStarts();
+
+		// mix ahead of current position
+		endtime = (int)(s_soundtime + s_mixahead->value * dma.speed);
+
+		// mix to an even submission block size
+		endtime = (endtime + dma.submission_chunk-1)
+			& ~(dma.submission_chunk-1);
+
+		// never mix more than the complete buffer
+		samps = dma.samples >> (dma.channels-1);
+		if (endtime - s_soundtime > (unsigned)samps)
+			endtime = s_soundtime + samps;
+
+
+		SNDDMA_BeginPainting ();
+
+		S_PaintChannels (endtime);
+
+		SNDDMA_Submit ();
+
+		S_DoLipSynchs( s_oldpaintedtime );
 #ifdef USE_OPENAL
 	}
 #endif
