@@ -8,7 +8,6 @@
 #include <map>
 #pragma warning (pop)
 
-
 class hstring
 {
 	int	mId;
@@ -24,7 +23,7 @@ public:
 	{
 		Init(str);
 	}
-	hstring(const std::string &str)
+	hstring(const string &str)
 	{
 		Init(str.c_str());
 	}
@@ -33,20 +32,20 @@ public:
 		mId=str.mId;
 	}
 
-	operator std::string () const
+	operator string () const
 	{
 		return str();
 	}
 
 	const char *c_str(void) const;
-    std::string str(void) const;
+	string str(void) const;
 
 	hstring& operator= (const char *str)
 	{
 		Init(str);
 		return *this;
 	}
-	hstring& operator= (const std::string &str)
+	hstring& operator= (const string &str)
 	{
 		Init(str.c_str());
 		return *this;
@@ -88,8 +87,8 @@ void TouchStringPool(void);
 class CMapBlock;
 class CMapPoolLow
 {
-    std::vector <CMapBlock *>	mMapBlocks;
-    std::vector <void *>			mFreeList;
+	vector <CMapBlock *>	mMapBlocks;
+	vector <void *>			mFreeList;
 	int						mLastBlockNum;
 
 public:
@@ -200,19 +199,19 @@ bool operator!= (const CMapPool<T1>&,
 }
 
 
-template <class K,class V,class Compare = std::less<K> >
-class hmap : public std::map<K,V,Compare,CMapPool<V> >{};
+template <class K,class V,class Compare = less<K> >
+class hmap : public map<K,V,Compare,CMapPool<V> >{};
 
-template <class K,class V,class Compare = std::less<K> >
-class hmultimap : public std::multimap<K,V,Compare,CMapPool<V> >{};
+template <class K,class V,class Compare = less<K> >
+class hmultimap : public multimap<K,V,Compare,CMapPool<V> >{};
 
-template <class K,class Compare = std::less<K> >
-class hset : public std::set<K,Compare,CMapPool<K> >{};
+template <class K,class Compare = less<K> >
+class hset : public set<K,Compare,CMapPool<K> >{};
 
-template <class K,class Compare = std::less<K> >
-class hmultiset : public std::multiset<K,Compare,CMapPool<K> >{};
+template <class K,class Compare = less<K> >
+class hmultiset : public multiset<K,Compare,CMapPool<K> >{};
 
 template <class K>
-class hlist : public std::list<K,CMapPool<K> >{};
+class hlist : public list<K,CMapPool<K> >{};
 
 #endif // hString_H

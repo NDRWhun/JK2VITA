@@ -985,6 +985,17 @@ static void ReadGEntities(qboolean qbAutosave)
 	{
 		ReadInUseBits();//really shouldn't need to read these bits in at all, just restore them from the ents...
 	}
+
+	// Autosave loads skip iICARUS->Load, leaving the restored player's sequencer NULL and
+	// every script on it silently dead (upstream #990); re-init whoever is left bare.
+	for (i=0; i<globals.num_entities; i++)
+	{
+		gentity_t *ent = &g_entities[i];
+		if ( ent->inuse && ent->sequencer == NULL && ICARUS_ValidEnt( ent ) )
+		{
+			ICARUS_InitEnt( ent );
+		}
+	}
 }
 
 
