@@ -291,6 +291,13 @@ void NORETURN QDECL Com_Error( int code, const char *fmt, ... ) {
 	}
 	com_errorEntered = qtrue;
 
+#ifdef VITA
+	// logfile is buffered; get what we have onto the card before teardown
+	if ( logfile ) {
+		FS_ForceFlush( logfile );
+	}
+#endif
+
 	// when we are running automated scripts, make sure we
 	// know if anything failed
 	if ( com_buildScript && com_buildScript->integer ) {
@@ -1131,10 +1138,9 @@ void Com_Init( char *commandLine ) {
 		com_developer = Cvar_Get ("developer", "0", CVAR_TEMP );
 		com_logfile = Cvar_Get ("logfile", "0", CVAR_TEMP );
 #ifdef VITA
-		// no console on Vita, so log to qconsole.log. 2 = flush per line so the
-		// last lines survive a crash. set logfile 0 in the cfg to disable.
-		Cvar_Set( "logfile", "2" );
-		com_logfile->integer = 2;
+		// buffered qconsole.log (flush-per-line = an SD write per print); Com_Error
+		// flushes, hard crashes leave a psp2dmp. logfile 0 in the cfg disables.
+		Cvar_Set( "logfile", "1" );
 #endif
 		com_speedslog = Cvar_Get ("speedslog", "0", CVAR_TEMP );
 

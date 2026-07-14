@@ -317,9 +317,28 @@ static bool GLimp_DetectAvailableModes(void)
 }
 
 #ifdef VITA
+#include <psp2/kernel/sysmem.h>
 // must run on the vglInit thread, before vglInit
 extern "C" void vglSetParamBufferSize( uint32_t size );
 extern "C" void vglSetCircularPoolSize( uint32_t size );
+extern "C" void vglUseExtraMem( uint8_t usage );
+
+// pre-vglInit config; heap spill off - GC-freed GXM blocks in the newlib arena
+// corrupt the allocator, and with the 144 MB heap the pools never need it
+static void WIN_SetupVglMem( const char *where )
+{
+	SceKernelFreeMemorySizeInfo fmi;
+	fmi.size = sizeof( fmi );
+	if ( sceKernelGetFreeMemorySize( &fmi ) == 0 )
+		Com_Printf( "%s: kernel free USER %d KiB, CDRAM %d KiB, PHYCONT %d KiB\n",
+			where, fmi.size_user / 1024, fmi.size_cdram / 1024, fmi.size_phycont / 1024 );
+
+	vglUseExtraMem( 0 );
+	// 16 MB: 2-3 in-flight scenes share it, smaller overflows the tiler
+	vglSetParamBufferSize( 16 * 1024 * 1024 );
+	// default 32 MB circular pool spills into slow fallback allocations
+	vglSetCircularPoolSize( 48 * 1024 * 1024 );
+}
 #endif
 
 /*
@@ -349,10 +368,9 @@ static rserr_t GLimp_SetMode(glconfig_t *glConfig, const windowDesc_t *windowDes
 	Com_Printf( "Initializing display\n");
 
 #ifdef VITA
-	// 16 MB: 2-3 in-flight scenes share it, smaller overflows the tiler. no-op after init.
+	// r_renderThread 0 fallback: vglInit fires later in SDL_CreateWindow on this thread.
 	if ( doParamBufferSize ) {
-		vglSetParamBufferSize( 16 * 1024 * 1024 );
-		vglSetCircularPoolSize( 48 * 1024 * 1024 );	// match WIN_LoadGL; see comment there
+		WIN_SetupVglMem( "vgl mem setup (main thread)" );
 	}
 #endif
 
@@ -692,6 +710,48 @@ static rserr_t GLimp_SetMode(glconfig_t *glConfig, const windowDesc_t *windowDes
 	return RSERR_OK;
 }
 
+// video commands + cvars shared by both init paths (WIN_Init full path, rt1's
+// WIN_InitSDLVideo); exactly one of the two runs per boot
+static void WIN_RegisterVideoCvars( void )
+{
+	Cmd_AddCommand("modelist", R_ModeList_f);
+	Cmd_AddCommand("minimize", GLimp_Minimize);
+
+	r_sdlDriver			= Cvar_Get( "r_sdlDriver",			"",			CVAR_ROM );
+	r_allowSoftwareGL	= Cvar_Get( "r_allowSoftwareGL",	"0",		CVAR_ARCHIVE_ND|CVAR_LATCH );
+
+	// Window cvars
+	r_fullscreen		= Cvar_Get( "r_fullscreen",			"0",		CVAR_ARCHIVE|CVAR_LATCH );
+	r_noborder			= Cvar_Get( "r_noborder",			"0",		CVAR_ARCHIVE|CVAR_LATCH );
+	r_centerWindow		= Cvar_Get( "r_centerWindow",		"0",		CVAR_ARCHIVE|CVAR_LATCH );
+	r_customwidth		= Cvar_Get( "r_customwidth",		"1600",		CVAR_ARCHIVE|CVAR_LATCH );
+	r_customheight		= Cvar_Get( "r_customheight",		"1024",		CVAR_ARCHIVE|CVAR_LATCH );
+	r_swapInterval		= Cvar_Get( "r_swapInterval",		"0",		CVAR_ARCHIVE_ND );
+	r_stereo			= Cvar_Get( "r_stereo",				"0",		CVAR_ARCHIVE_ND|CVAR_LATCH );
+	r_mode				= Cvar_Get( "r_mode",				"4",		CVAR_ARCHIVE|CVAR_LATCH );
+	r_displayRefresh	= Cvar_Get( "r_displayRefresh",		"0",		CVAR_LATCH );
+	Cvar_CheckRange( r_displayRefresh, 0, 240, qtrue );
+
+#ifdef VITA
+	// pin the resolution engine-wide, overriding whatever's in the cfg, so window,
+	// viewport and UI scaling all agree. r_mode -1 takes the custom width/height path.
+	Cvar_Set( "r_customwidth",  "960" );
+	Cvar_Set( "r_customheight", "544" );
+	Cvar_Set( "r_mode",         "-1" );
+	r_customwidth->integer  = 960;
+	r_customheight->integer = 544;
+	r_mode->integer         = -1;
+#endif
+
+	// Window render surface cvars
+	r_stencilbits		= Cvar_Get( "r_stencilbits",		"8",		CVAR_ARCHIVE_ND|CVAR_LATCH );
+	r_depthbits			= Cvar_Get( "r_depthbits",			"0",		CVAR_ARCHIVE_ND|CVAR_LATCH );
+	r_colorbits			= Cvar_Get( "r_colorbits",			"0",		CVAR_ARCHIVE_ND|CVAR_LATCH );
+	r_ignorehwgamma		= Cvar_Get( "r_ignorehwgamma",		"0",		CVAR_ARCHIVE_ND|CVAR_LATCH );
+	r_ext_multisample	= Cvar_Get( "r_ext_multisample",	"0",		CVAR_ARCHIVE_ND|CVAR_LATCH );
+	Cvar_Get( "r_availableModes", "", CVAR_ROM );
+}
+
 /*
 ===============
 GLimp_StartDriverAndSetMode
@@ -758,43 +818,7 @@ static qboolean GLimp_StartDriverAndSetMode(glconfig_t *glConfig, const windowDe
 
 window_t WIN_Init( const windowDesc_t *windowDesc, glconfig_t *glConfig )
 {
-	Cmd_AddCommand("modelist", R_ModeList_f);
-	Cmd_AddCommand("minimize", GLimp_Minimize);
-
-	r_sdlDriver			= Cvar_Get( "r_sdlDriver",			"",			CVAR_ROM );
-	r_allowSoftwareGL	= Cvar_Get( "r_allowSoftwareGL",	"0",		CVAR_ARCHIVE_ND|CVAR_LATCH );
-
-	// Window cvars
-	r_fullscreen		= Cvar_Get( "r_fullscreen",			"0",		CVAR_ARCHIVE|CVAR_LATCH );
-	r_noborder			= Cvar_Get( "r_noborder",			"0",		CVAR_ARCHIVE|CVAR_LATCH );
-	r_centerWindow		= Cvar_Get( "r_centerWindow",		"0",		CVAR_ARCHIVE|CVAR_LATCH );
-	r_customwidth		= Cvar_Get( "r_customwidth",		"1600",		CVAR_ARCHIVE|CVAR_LATCH );
-	r_customheight		= Cvar_Get( "r_customheight",		"1024",		CVAR_ARCHIVE|CVAR_LATCH );
-	r_swapInterval		= Cvar_Get( "r_swapInterval",		"0",		CVAR_ARCHIVE_ND );
-	r_stereo			= Cvar_Get( "r_stereo",				"0",		CVAR_ARCHIVE_ND|CVAR_LATCH );
-	r_mode				= Cvar_Get( "r_mode",				"4",		CVAR_ARCHIVE|CVAR_LATCH );
-	r_displayRefresh	= Cvar_Get( "r_displayRefresh",		"0",		CVAR_LATCH );
-	Cvar_CheckRange( r_displayRefresh, 0, 240, qtrue );
-
-#ifdef VITA
-	// pin the resolution engine-wide, overriding whatever's in jk2config.cfg / openjo_sp.cfg,
-	// so window, viewport and UI scaling all agree (else the menu/2D lands in a corner).
-	// r_mode -1 takes the custom width/height path in R_GetModeInfo.
-	Cvar_Set( "r_customwidth",  "960" );
-	Cvar_Set( "r_customheight", "544" );
-	Cvar_Set( "r_mode",         "-1" );
-	r_customwidth->integer  = 960;
-	r_customheight->integer = 544;
-	r_mode->integer         = -1;
-#endif
-
-	// Window render surface cvars
-	r_stencilbits		= Cvar_Get( "r_stencilbits",		"8",		CVAR_ARCHIVE_ND|CVAR_LATCH );
-	r_depthbits			= Cvar_Get( "r_depthbits",			"0",		CVAR_ARCHIVE_ND|CVAR_LATCH );
-	r_colorbits			= Cvar_Get( "r_colorbits",			"0",		CVAR_ARCHIVE_ND|CVAR_LATCH );
-	r_ignorehwgamma		= Cvar_Get( "r_ignorehwgamma",		"0",		CVAR_ARCHIVE_ND|CVAR_LATCH );
-	r_ext_multisample	= Cvar_Get( "r_ext_multisample",	"0",		CVAR_ARCHIVE_ND|CVAR_LATCH );
-	Cvar_Get( "r_availableModes", "", CVAR_ROM );
+	WIN_RegisterVideoCvars();
 
 	// Create the window and set up the context
 	if(!GLimp_StartDriverAndSetMode( glConfig, windowDesc, r_mode->integer,
@@ -853,39 +877,7 @@ main thread: WIN_Init minus window/context creation; must run before WIN_LoadGL
 */
 void WIN_InitSDLVideo( void )
 {
-	Cmd_AddCommand("modelist", R_ModeList_f);
-	Cmd_AddCommand("minimize", GLimp_Minimize);
-
-	r_sdlDriver			= Cvar_Get( "r_sdlDriver",			"",			CVAR_ROM );
-	r_allowSoftwareGL	= Cvar_Get( "r_allowSoftwareGL",	"0",		CVAR_ARCHIVE_ND|CVAR_LATCH );
-
-	// Window cvars
-	r_fullscreen		= Cvar_Get( "r_fullscreen",			"0",		CVAR_ARCHIVE|CVAR_LATCH );
-	r_noborder			= Cvar_Get( "r_noborder",			"0",		CVAR_ARCHIVE|CVAR_LATCH );
-	r_centerWindow		= Cvar_Get( "r_centerWindow",		"0",		CVAR_ARCHIVE|CVAR_LATCH );
-	r_customwidth		= Cvar_Get( "r_customwidth",		"1600",		CVAR_ARCHIVE|CVAR_LATCH );
-	r_customheight		= Cvar_Get( "r_customheight",		"1024",		CVAR_ARCHIVE|CVAR_LATCH );
-	r_swapInterval		= Cvar_Get( "r_swapInterval",		"0",		CVAR_ARCHIVE_ND );
-	r_stereo			= Cvar_Get( "r_stereo",				"0",		CVAR_ARCHIVE_ND|CVAR_LATCH );
-	r_mode				= Cvar_Get( "r_mode",				"4",		CVAR_ARCHIVE|CVAR_LATCH );
-	r_displayRefresh	= Cvar_Get( "r_displayRefresh",		"0",		CVAR_LATCH );
-	Cvar_CheckRange( r_displayRefresh, 0, 240, qtrue );
-
-	// pin the resolution engine-wide (see WIN_Init for rationale)
-	Cvar_Set( "r_customwidth",  "960" );
-	Cvar_Set( "r_customheight", "544" );
-	Cvar_Set( "r_mode",         "-1" );
-	r_customwidth->integer  = 960;
-	r_customheight->integer = 544;
-	r_mode->integer         = -1;
-
-	// Window render surface cvars
-	r_stencilbits		= Cvar_Get( "r_stencilbits",		"8",		CVAR_ARCHIVE_ND|CVAR_LATCH );
-	r_depthbits			= Cvar_Get( "r_depthbits",			"0",		CVAR_ARCHIVE_ND|CVAR_LATCH );
-	r_colorbits			= Cvar_Get( "r_colorbits",			"0",		CVAR_ARCHIVE_ND|CVAR_LATCH );
-	r_ignorehwgamma		= Cvar_Get( "r_ignorehwgamma",		"0",		CVAR_ARCHIVE_ND|CVAR_LATCH );
-	r_ext_multisample	= Cvar_Get( "r_ext_multisample",	"0",		CVAR_ARCHIVE_ND|CVAR_LATCH );
-	Cvar_Get( "r_availableModes", "", CVAR_ROM );
+	WIN_RegisterVideoCvars();
 
 	// Bring SDL video up on the MAIN thread so `_this` exists for the render thread.
 	// (GLimp_StartDriverAndSetMode's own SDL_Init is guarded by SDL_WasInit, so the
@@ -922,9 +914,7 @@ so the GXM context is owned here
 */
 void WIN_LoadGL( void )
 {
-	vglSetParamBufferSize( 16 * 1024 * 1024 );
-	// default 32 MB spills into slow fallback allocations
-	vglSetCircularPoolSize( 48 * 1024 * 1024 );
+	WIN_SetupVglMem( "vgl mem setup (render thread)" );
 	if ( SDL_GL_LoadLibrary( NULL ) < 0 )
 	{
 		Com_Error( ERR_FATAL, "WIN_LoadGL: SDL_GL_LoadLibrary failed (%s)", SDL_GetError() );

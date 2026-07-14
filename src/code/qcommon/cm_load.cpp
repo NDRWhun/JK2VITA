@@ -763,7 +763,8 @@ static void CM_LoadMap_Actual( const char *name, qboolean clientload, int *check
 
 		if ( header.version != BSP_VERSION )
 		{
-			Z_Free(	gpvCachedMapDiskImage);
+			if (gpvCachedMapDiskImage)
+				Z_Free(	gpvCachedMapDiskImage);
 					gpvCachedMapDiskImage = NULL;
 
 			Com_Error (ERR_DROP, "CM_LoadMap: %s has wrong version number (%i should be %i)"
@@ -793,9 +794,17 @@ static void CM_LoadMap_Actual( const char *name, qboolean clientload, int *check
 		// actually we DON'T now <g>, if we've got enough ram to keep it for the renderer's disk-load...
 		//
 		extern qboolean Sys_LowPhysicalMemory();
-		if (Sys_LowPhysicalMemory() //|| com_dedicated->integer	// no need to check for dedicated in single-player codebase
-			)
-		{
+#ifdef VITA
+		// Vita: reclaim the ~20MB BSP disk image now instead of holding it for the
+		// renderer (RE_LoadWorldMap re-reads the BSP from disk when it's gone). Frees
+		// contiguous heap for the asset/sound load that follows, e.g. the ~16MB MP3
+		// music decode buffer that otherwise fails on a fragmented 144MB heap.
+		const bool bFreeDiskImage = true;
+#else
+		const bool bFreeDiskImage = Sys_LowPhysicalMemory(); //|| com_dedicated->integer	// no need to check for dedicated in single-player codebase
+#endif
+		if (bFreeDiskImage && &cm == &cmg)
+		{	// main map only: sub-BSPs never own the disk image
 			Z_Free(	gpvCachedMapDiskImage );
 					gpvCachedMapDiskImage = NULL;
 		}

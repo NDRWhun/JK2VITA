@@ -34,6 +34,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 #ifdef VITA
 #include <psp2/apputil.h>
+#include <psp2/kernel/clib.h>
 #include <psp2/appmgr.h>
 #include <psp2/kernel/processmgr.h>
 #include <cstring>
@@ -138,7 +139,6 @@ char *Sys_ConsoleInput(void)
 }
 
 #ifdef VITA
-extern "C" int sceClibPrintf( const char *fmt, ... );
 #endif
 
 void Sys_Print( const char *msg ) {
