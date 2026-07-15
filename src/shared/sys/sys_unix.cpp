@@ -39,6 +39,10 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "qcommon/q_shared.h"
 #include "sys_local.h"
 
+#ifdef VITA
+#include <psp2/io/stat.h>
+#endif
+
 qboolean stdinIsATTY = qfalse;
 
 // Used to determine where to store user-specific files
@@ -255,11 +259,16 @@ void Sys_ListFilteredFiles( const char *basedir, char *subdirs, char *filter, ch
 	}
 
 	while ((d = readdir(fdir)) != NULL) {
+#ifdef VITA
+		const int entIsDir = SCE_S_ISDIR( d->d_stat.st_mode );	// stat comes with readdir
+#else
 		Com_sprintf(filename, sizeof(filename), "%s/%s", search, d->d_name);
 		if (stat(filename, &st) == -1)
 			continue;
+		const int entIsDir = ( st.st_mode & S_IFDIR ) != 0;
+#endif
 
-		if (st.st_mode & S_IFDIR) {
+		if (entIsDir) {
 			if (Q_stricmp(d->d_name, ".") && Q_stricmp(d->d_name, "..")) {
 				if (strlen(subdirs)) {
 					Com_sprintf( newsubdirs, sizeof(newsubdirs), "%s/%s", subdirs, d->d_name);
@@ -334,12 +343,20 @@ char **Sys_ListFiles( const char *directory, const char *extension, char *filter
 	}
 
 	while ((d = readdir(fdir)) != NULL) {
+#ifdef VITA
+		// readdir already carries the stat (sceIoDread); a stat() per entry stalls
+		// the main thread for seconds over big dirs (texcache, screenshots)
+		const int entIsDir = SCE_S_ISDIR( d->d_stat.st_mode );
+		if ( ( dironly && !entIsDir ) || ( !dironly && entIsDir ) )
+			continue;
+#else
 		Com_sprintf(search, sizeof(search), "%s/%s", directory, d->d_name);
 		if (stat(search, &st) == -1)
 			continue;
 		if ((dironly && !(st.st_mode & S_IFDIR)) ||
 			(!dironly && (st.st_mode & S_IFDIR)))
 			continue;
+#endif
 
 		if (*extension) {
 			if ( strlen( d->d_name ) < extLen ||
