@@ -5531,6 +5531,7 @@ int SND_FreeOldestSound(void)
 extern qboolean gbInsideLoadSound;
 qboolean SND_RegisterAudio_LevelLoadEnd(qboolean bDeleteEverythingNotUsedThisLevel /* 99% qfalse */)
 {
+	SMIX_SCOPE();
 	qboolean bAtLeastOneSoundDropped = qfalse;
 
 	Com_DPrintf( "SND_RegisterAudio_LevelLoadEnd():\n");
@@ -5563,6 +5564,16 @@ qboolean SND_RegisterAudio_LevelLoadEnd(qboolean bDeleteEverythingNotUsedThisLev
 
 				if (bDeleteThis)
 				{
+					// never free an sfx a channel still references: the mixer paints it
+					int iChannel;
+					for (iChannel = 0; iChannel < MAX_CHANNELS; iChannel++)
+					{
+						if (s_channels[iChannel].thesfx == sfx)
+							break;
+					}
+					if (iChannel != MAX_CHANNELS)
+						continue;
+
 					Com_DPrintf( "Dumping sfx_t \"%s\"\n",sfx->sSoundName);
 
 					if (SND_FreeSFXMem(sfx))
