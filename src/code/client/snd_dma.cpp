@@ -596,6 +596,56 @@ static void S_AsyncLoad_Poll( void )
 }
 #endif // VITA
 
+
+// --- mixer thread (core 1): PCM mixing + music decode off the main thread ---
+static cvar_t		*s_mixThreadCvar;
+static SceUID		 s_mixThread = -1;
+static SceUID		 s_mixMutex  = -1;	// recursive: entry points nest via the Z_Malloc freeup cascade
+static volatile int	 s_mixQuit   = 0;
+static qboolean		 s_mixerActive = qfalse;
+
+void S_MixLock( void )   { if ( s_mixMutex >= 0 ) sceKernelLockMutex( s_mixMutex, 1, NULL ); }
+void S_MixUnlock( void ) { if ( s_mixMutex >= 0 ) sceKernelUnlockMutex( s_mixMutex, 1 ); }
+
+static int S_MixerThread( SceSize argc, void *argv )
+{
+	while ( !s_mixQuit ) {
+		sceKernelDelayThread( 3000 );
+		if ( !s_soundStarted || s_soundMuted ) continue;
+		S_MixLock();
+		S_UpdateBackgroundTrack();
+		S_Update_();
+		S_MixUnlock();
+	}
+	return sceKernelExitDeleteThread( 0 );
+}
+
+static void S_Mixer_Shutdown( void )
+{
+	if ( s_mixThread >= 0 ) {
+		s_mixQuit = 1;
+		sceKernelWaitThreadEnd( s_mixThread, NULL, NULL );
+		s_mixThread = -1;
+	}
+	s_mixerActive = qfalse;
+	if ( s_mixMutex >= 0 ) { sceKernelDeleteMutex( s_mixMutex ); s_mixMutex = -1; }
+	s_mixQuit = 0;
+}
+
+static void S_Mixer_Init( void )
+{
+	if ( s_mixThread >= 0 ) return;
+	if ( !s_mixThreadCvar || !s_mixThreadCvar->integer ) return;
+	s_mixMutex  = sceKernelCreateMutex( "snd_mix_mtx", SCE_KERNEL_MUTEX_ATTR_RECURSIVE, 0, NULL );
+	s_mixThread = sceKernelCreateThread( "snd_mix", S_MixerThread, 0x10000100, 0x10000, 0, SCE_KERNEL_CPU_MASK_USER_1, NULL );
+	if ( s_mixMutex < 0 || s_mixThread < 0 ) {
+		S_Mixer_Shutdown();	// partial init -> main-thread mixing
+		return;
+	}
+	sceKernelStartThread( s_mixThread, 0, NULL );
+	s_mixerActive = qtrue;
+}
+
 /*
 ================
 S_Init
@@ -610,6 +660,7 @@ void S_Init( void ) {
 	s_debugdynamic      = Cvar_Get( "s_debugdynamic",      "0",       0 );
 #ifdef VITA
 	s_asyncLoad = Cvar_Get( "s_asyncLoad", "1", CVAR_ARCHIVE_ND );
+	s_mixThreadCvar = Cvar_Get( "s_mixThread", "1", CVAR_ARCHIVE_ND | CVAR_LATCH );
 #endif
 	s_initsound         = Cvar_Get( "s_initsound",         "1",       CVAR_ARCHIVE | CVAR_LATCH );
 #ifdef VITA
@@ -811,7 +862,10 @@ void S_Init( void ) {
 	AS_Init();
 
 #ifdef VITA
-	if ( s_soundStarted ) S_AsyncLoad_Init();
+	if ( s_soundStarted ) {
+		S_AsyncLoad_Init();
+		S_Mixer_Init();
+	}
 #endif
 }
 
@@ -845,6 +899,7 @@ void S_Shutdown( void )
 	}
 
 #ifdef VITA
+	S_Mixer_Shutdown();		// park the mixer before anything it reads is freed
 	S_AsyncLoad_Shutdown();	// stop the worker before the sfx structs are freed
 #endif
 
@@ -1618,6 +1673,7 @@ Starts an ambient, 'one-shot" sound.
 
 void S_StartAmbientSound( const vec3_t origin, int entityNum, unsigned char volume, sfxHandle_t sfxHandle )
 {
+	SMIX_SCOPE();
 	channel_t	*ch;
 	/*const*/ sfx_t *sfx;
 
@@ -1699,6 +1755,7 @@ Entchannel 0 will never override a playing sound
 */
 void S_StartSound(const vec3_t origin, int entityNum, soundChannel_t entchannel, sfxHandle_t sfxHandle )
 {
+	SMIX_SCOPE();
 	channel_t	*ch;
 	/*const*/ sfx_t *sfx;
 
@@ -1824,6 +1881,7 @@ S_StartLocalSound
 ==================
 */
 void S_StartLocalSound( sfxHandle_t sfxHandle, int channelNum ) {
+	SMIX_SCOPE();
 	if ( !s_soundStarted || s_soundMuted ) {
 		return;
 	}
@@ -1885,6 +1943,7 @@ so sound doesn't stutter.
 ==================
 */
 void S_ClearSoundBuffer( void ) {
+	SMIX_SCOPE();
 	int		clear;
 
 	if ( !s_soundStarted || s_soundMuted ) {
@@ -1966,6 +2025,7 @@ S_StopAllSounds
 */
 void S_StopSounds(void)
 {
+	SMIX_SCOPE();
 	if ( !s_soundStarted ) {
 		return;
 	}
@@ -2012,6 +2072,7 @@ S_StopAllSounds
 ==================
 */
 void S_StopAllSounds(void) {
+	SMIX_SCOPE();
 	if ( !s_soundStarted ) {
 		return;
 	}
@@ -2037,6 +2098,7 @@ S_ClearLoopingSounds
 */
 void S_ClearLoopingSounds( void )
 {
+	SMIX_SCOPE();
 #ifdef USE_OPENAL
 	if (s_UseOpenAL)
 	{
@@ -2056,6 +2118,7 @@ Include velocity in case I get around to doing doppler...
 ==================
 */
 void S_AddLoopingSound( int entityNum, const vec3_t origin, const vec3_t velocity, sfxHandle_t sfxHandle, soundChannel_t chan ) {
+	SMIX_SCOPE();
 	/*const*/ sfx_t *sfx;
 
   	if ( !s_soundStarted || s_soundMuted ) {
@@ -2255,6 +2318,7 @@ Music streaming
 */
 void S_RawSamples( int samples, int rate, int width, int channels, const byte *data, float volume, qboolean bFirstOrOnlyUpdateThisFrame )
 {
+	SMIX_SCOPE();
 	int		i;
 	int		src, dst;
 	float	scale;
@@ -2645,6 +2709,7 @@ Change the volumes of all the playing sounds for changes in their positions
 */
 void S_Respatialize( int entityNum, const vec3_t head, vec3_t axis[3], qboolean inwater )
 {
+	SMIX_SCOPE();
 #ifdef USE_OPENAL
 	EAXOCCLUSIONPROPERTIES eaxOCProp;
 	EAXACTIVEFXSLOTS eaxActiveSlots;
@@ -2916,6 +2981,11 @@ void S_Update( void ) {
 		//	Com_Printf ("----(%i)---- painted: %i, SND %.2fMB\n", total, s_paintedtime, totalMeg/1024.0f/1024.0f);
 	}
 
+#ifdef VITA
+	if ( s_mixerActive ) {
+		return;	// the mixer thread owns music + mixing
+	}
+#endif
 	// The Open AL code, handles background music in the S_UpdateRawSamples function
 #ifdef USE_OPENAL
 	if (!s_UseOpenAL)
@@ -4711,6 +4781,7 @@ void S_RestartMusic( void )
 //
 void S_StartBackgroundTrack( const char *intro, const char *loop, qboolean bCalledByCGameStart )
 {
+	SMIX_SCOPE();
 	bMusic_IsDynamic = qfalse;
 
 	if (!s_soundStarted)
@@ -4840,6 +4911,7 @@ void S_StartBackgroundTrack( const char *intro, const char *loop, qboolean bCall
 
 void S_StopBackgroundTrack( void )
 {
+	SMIX_SCOPE();
 	for (int i=0; i<eBGRNDTRACK_NUMBEROF; i++)
 	{
 		S_StopBackgroundTrack_Actual( &tMusic_Info[i] );
@@ -5396,6 +5468,7 @@ void S_FreeAllSFXMem(void)
 //
 int SND_FreeOldestSound(sfx_t *pButNotThisOne /* = NULL */)
 {
+	SMIX_SCOPE();
 	int iBytesFreed = 0;
 	sfx_t *sfx;
 

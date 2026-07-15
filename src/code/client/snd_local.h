@@ -220,6 +220,14 @@ qboolean S_LoadSound( sfx_t *sfx );
 // split load path (snd_mem.cpp): worker-safe read + main-thread decode/finalize.
 qboolean S_LoadSound_ReadFile( sfx_t *sfx, char *sLoadName, int iBufSize, byte **pData, int *piSize, qboolean bWorker );
 qboolean S_LoadSound_Finish( sfx_t *sfx, char *sLoadName, byte *data, int size, qboolean bDataIsMalloc );
+
+// mixer thread (core 1): recursive lock guarding channel/music state
+void S_MixLock( void );
+void S_MixUnlock( void );
+struct SMixScopeGuard { SMixScopeGuard() { S_MixLock(); } ~SMixScopeGuard() { S_MixUnlock(); } };
+#define SMIX_SCOPE() SMixScopeGuard smixScopeGuard_
+#else
+#define SMIX_SCOPE()
 #endif
 
 
