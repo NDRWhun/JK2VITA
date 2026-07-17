@@ -806,8 +806,8 @@ int main ( int argc, char* argv[] )
 #endif
 
 #ifdef VITA
-	// deterministic core layout: main 0, G2 skin worker + mixer 1, render backend 2
-	sceKernelChangeThreadCpuAffinityMask( sceKernelGetThreadId(), SCE_KERNEL_CPU_MASK_USER_0 );
+	// deterministic core layout: main 1, G2 skin worker + mixer 0, render backend 2
+	sceKernelChangeThreadCpuAffinityMask( sceKernelGetThreadId(), SCE_KERNEL_CPU_MASK_USER_1 );
 #endif
 	Sys_PlatformInit( argc, argv );
 	CON_Init();

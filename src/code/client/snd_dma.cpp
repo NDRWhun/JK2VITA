@@ -642,7 +642,7 @@ static void S_Mixer_Init( void )
 	if ( s_mixThread >= 0 ) return;
 	if ( !s_mixThreadCvar || !s_mixThreadCvar->integer ) return;
 	s_mixMutex  = sceKernelCreateMutex( "snd_mix_mtx", SCE_KERNEL_MUTEX_ATTR_RECURSIVE, 0, NULL );
-	s_mixThread = sceKernelCreateThread( "snd_mix", S_MixerThread, 0x10000100, 0x10000, 0, SCE_KERNEL_CPU_MASK_USER_1, NULL );
+	s_mixThread = sceKernelCreateThread( "snd_mix", S_MixerThread, 0x10000100, 0x10000, 0, SCE_KERNEL_CPU_MASK_USER_0, NULL );
 	if ( s_mixMutex < 0 || s_mixThread < 0 ) {
 		S_Mixer_Shutdown();	// partial init -> main-thread mixing
 		return;
