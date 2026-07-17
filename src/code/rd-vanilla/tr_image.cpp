@@ -602,6 +602,75 @@ static char s_uploadDxtKey[MAX_QPATH];	// asset name of the in-flight Upload32, 
 
 // Encode one mip as row-major, edge-clamped 4x4 DXT blocks into blob+blobOfs, upload it
 // pre-compressed, return the level's byte size.
+// Parallel DXT block encoding: block rows are independent, so main (core 1) plus two
+// workers (cores 0/2, idle during a load) work-steal rows via an atomic counter. Only
+// the CPU block-compress is threaded; the GL upload stays on the main thread.
+typedef struct {
+	const byte	*rgba;
+	byte		*dst0;
+	int			 w, h, bw, bh, isDxt5, mode, blockBytes;
+	volatile int nextRow;	// atomic block-row take-index
+} dxtEncJob_t;
+static dxtEncJob_t	s_dxtJob;	// serial at the texture level: only one encode in flight
+#define DXT_WORKERS			2
+#define DXT_PARALLEL_MIN_ROWS 32	// skip the sync for textures under ~128px tall
+static SceUID s_dxtGo = -1, s_dxtDone = -1;
+static SceUID s_dxtThid[DXT_WORKERS] = { -1, -1 };
+
+static void R_DxtDrainRows( void )
+{
+	dxtEncJob_t *j = &s_dxtJob;
+	for ( ;; ) {
+		const int by = __atomic_fetch_add( &j->nextRow, 1, __ATOMIC_SEQ_CST );
+		if ( by >= j->bh ) break;
+		byte *dst = j->dst0 + (size_t)by * j->bw * j->blockBytes;
+		for ( int bx = 0; bx < j->bw; ++bx, dst += j->blockBytes ) {
+			byte block[64];
+			for ( int r = 0; r < 4; ++r ) {
+				int sy = by * 4 + r; if ( sy >= j->h ) sy = j->h - 1;
+				const byte *srow = j->rgba + (size_t)sy * j->w * 4;
+				byte *brow = block + r * 16;
+				for ( int cc = 0; cc < 4; ++cc ) {
+					int sx = bx * 4 + cc; if ( sx >= j->w ) sx = j->w - 1;
+					const byte *s = srow + sx * 4;
+					brow[cc*4+0] = s[0]; brow[cc*4+1] = s[1]; brow[cc*4+2] = s[2]; brow[cc*4+3] = s[3];
+				}
+			}
+			stb_compress_dxt_block( dst, block, j->isDxt5, j->mode );
+		}
+	}
+}
+
+static int R_DxtWorker( SceSize argc, void *argv )
+{
+	for ( ;; ) {
+		sceKernelWaitSema( s_dxtGo, 1, NULL );
+		R_DxtDrainRows();
+		sceKernelSignalSema( s_dxtDone, 1 );
+	}
+	return sceKernelExitDeleteThread( 0 );
+}
+
+static qboolean R_DxtEnsurePool( void )
+{
+	static int tried = 0;
+	if ( s_dxtThid[0] >= 0 ) return qtrue;
+	if ( tried ) return qfalse;
+	tried = 1;
+	// stb_compress_dxt_block lazily fills global tables on its first call (not thread-safe);
+	// warm it once single-threaded so the workers only ever hit the read-only path
+	{ byte warmIn[64] = {0}, warmOut[16]; stb_compress_dxt_block( warmOut, warmIn, 0, 0 ); }
+	s_dxtGo   = sceKernelCreateSema( "dxt_go",   0, 0, DXT_WORKERS, NULL );
+	s_dxtDone = sceKernelCreateSema( "dxt_done", 0, 0, DXT_WORKERS, NULL );
+	const int cores[DXT_WORKERS] = { SCE_KERNEL_CPU_MASK_USER_0, SCE_KERNEL_CPU_MASK_USER_2 };
+	for ( int i = 0; i < DXT_WORKERS; i++ ) {
+		s_dxtThid[i] = sceKernelCreateThread( "dxt_enc", R_DxtWorker, 0x10000100, 0x8000, 0, cores[i], NULL );
+		if ( s_dxtGo < 0 || s_dxtDone < 0 || s_dxtThid[i] < 0 ) { s_dxtThid[0] = -1; return qfalse; }
+		sceKernelStartThread( s_dxtThid[i], 0, NULL );
+	}
+	return qtrue;
+}
+
 static int R_DxtEncodeUploadAppend( int level, GLenum glFmt, int w, int h, const byte *rgba,
 									byte *blob, int blobOfs )
 {
@@ -610,29 +679,20 @@ static int R_DxtEncodeUploadAppend( int level, GLenum glFmt, int w, int h, const
 	const int bw = (w + 3) >> 2, bh = (h + 3) >> 2;
 	const int mipSize = bw * bh * blockBytes;
 	const int mode = ( r_dxtFast && r_dxtFast->integer ) ? 0 : 2;	// STB_DXT_NORMAL vs HIGHQUAL
-	byte *dst = blob + blobOfs;
-	for ( int by = 0; by < bh; ++by )
-	{
-		for ( int bx = 0; bx < bw; ++bx )
-		{
-			byte block[64];
-			for ( int r = 0; r < 4; ++r )
-			{
-				int sy = by * 4 + r; if ( sy >= h ) sy = h - 1;
-				const byte *srow = rgba + (size_t)sy * w * 4;
-				byte *brow = block + r * 16;
-				for ( int cc = 0; cc < 4; ++cc )
-				{
-					int sx = bx * 4 + cc; if ( sx >= w ) sx = w - 1;
-					const byte *s = srow + sx * 4;
-					brow[cc*4+0] = s[0]; brow[cc*4+1] = s[1];
-					brow[cc*4+2] = s[2]; brow[cc*4+3] = s[3];
-				}
-			}
-			stb_compress_dxt_block( dst, block, isDxt5, mode );
-			dst += blockBytes;
-		}
+
+	s_dxtJob.rgba = rgba; s_dxtJob.dst0 = blob + blobOfs;
+	s_dxtJob.w = w; s_dxtJob.h = h; s_dxtJob.bw = bw; s_dxtJob.bh = bh;
+	s_dxtJob.isDxt5 = isDxt5; s_dxtJob.mode = mode; s_dxtJob.blockBytes = blockBytes;
+	s_dxtJob.nextRow = 0;
+
+	if ( bh >= DXT_PARALLEL_MIN_ROWS && R_DxtEnsurePool() ) {
+		for ( int i = 0; i < DXT_WORKERS; i++ ) sceKernelSignalSema( s_dxtGo, 1 );
+		R_DxtDrainRows();	// main participates
+		for ( int i = 0; i < DXT_WORKERS; i++ ) sceKernelWaitSema( s_dxtDone, 1, NULL );
+	} else {
+		R_DxtDrainRows();	// small texture: inline, no sync
 	}
+
 	qglCompressedTexImage2D( GL_TEXTURE_2D, level, glFmt, w, h, 0, mipSize, blob + blobOfs );
 	return mipSize;
 }
