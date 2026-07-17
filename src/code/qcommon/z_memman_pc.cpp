@@ -110,6 +110,157 @@ cvar_t	*com_validateZone;
 zone_t	TheZone = {};
 
 
+#ifdef VITA
+//============================================================================
+// Transient large-workspace arena.
+//
+// The only allocations big enough to need a multi-MB *contiguous* hole are the
+// renderer's TAG_TEMP_WORKSPACE buffers: the source-sized image decode (a 2048
+// source = 16 MB), the DXT mip-chain blob (~8 MB) and the R_MipMap2 scratch
+// (~4 MB), all live at once during one Upload32. Mid-load the newlib heap is
+// swiss-cheesed (plenty free, no 16 MB run), so even after the freeup cascade
+// dumps every cache the 16 MB request fails. Raising the heap doesn't help —
+// fragmentation, not exhaustion.
+//
+// Reserve one contiguous block at boot, while the heap is still pristine, and
+// satisfy the large temp allocations from it. They are strictly transient and
+// serial (one texture decoded/uploaded/freed before the next), so a first-fit
+// + coalesce free-list trends back to a single free block between images.
+//
+// Small allocations stay on the general heap (threshold), so the tag's normal
+// Z_TagFree sweep semantics are preserved for the handful of small, persistent
+// TAG_TEMP_WORKSPACE buffers (e.g. the navigator waypoint list).
+//============================================================================
+#define ARENA_MAGIC			0x41524E41u		// 'ARNA' — in use
+#define ARENA_FREE_MAGIC	0x46524545u		// 'FREE'
+// Sized to the real Upload32 peak with DXT OFF: 16 MB source decode + 4 MB R_MipMap2
+// scratch, held at once during one texture upload = 20 MB (the 8 MB DXT-blob path is
+// disabled while r_texCacheCompressed is 0). NO bigger -- the newlib grant on this
+// hardware is only ~120 MB (vitaGL's USER-partition pool takes the rest), so every MB
+// the arena reserves is a MB the zone/hunk can't have. An over-sized reservation is
+// footprint-NEGATIVE and OOMs lighter loads (a 32 MB arena regressed the yavin1 intro).
+#define ARENA_RESERVE		(22 * 1024 * 1024)
+#define ARENA_THRESHOLD		(256 * 1024)		// only the genuinely large transient buffers divert
+#define ARENA_ALIGN			16
+#define ARENA_ROUND(n)		(((n) + (ARENA_ALIGN-1)) & ~(size_t)(ARENA_ALIGN-1))
+
+typedef struct arenaBlk_s
+{
+	unsigned int		magic;
+	unsigned int		size;		// rounded payload capacity, bytes
+	struct arenaBlk_s	*next;		// address-ordered list
+	struct arenaBlk_s	*prev;
+} arenaBlk_t;						// 16 bytes on ILP32
+
+static byte			*s_arenaBase = NULL;
+static byte			*s_arenaEnd  = NULL;
+// Spinlock guarding the free-list. Uncontended (and effectively free) while the
+// renderer is single-threaded; engaged so it stays correct once r_renderThread
+// runs the backend (the stencil readback in tr_backend is TAG_TEMP_WORKSPACE and
+// would race a main-thread image decode). Arena_Owns needs no lock — base/end are
+// write-once at init.
+static volatile unsigned char s_arenaLock = 0;
+
+static inline void Arena_Lock(void)   { while (__atomic_test_and_set(&s_arenaLock, __ATOMIC_ACQUIRE)) {} }
+static inline void Arena_Unlock(void) { __atomic_clear(&s_arenaLock, __ATOMIC_RELEASE); }
+
+static void Arena_Init(void)
+{
+	byte *raw = (byte *) malloc( ARENA_RESERVE + ARENA_ALIGN );	// heap pristine at boot -> contiguous
+	if (!raw)
+	{
+		s_arenaBase = s_arenaEnd = NULL;	// graceful: every Arena_Owns()==false, engine behaves as before
+		return;
+	}
+	s_arenaBase = (byte *)(((size_t)raw + (ARENA_ALIGN-1)) & ~(size_t)(ARENA_ALIGN-1));
+	s_arenaEnd  = s_arenaBase + ARENA_RESERVE;
+
+	arenaBlk_t *head = (arenaBlk_t *) s_arenaBase;
+	head->magic = ARENA_FREE_MAGIC;
+	head->size  = ARENA_RESERVE - sizeof(arenaBlk_t);
+	head->next  = head->prev = NULL;
+}
+
+static inline qboolean Arena_Owns(const void *p)
+{
+	return (qboolean)( s_arenaBase && (const byte *)p >= s_arenaBase && (const byte *)p < s_arenaEnd );
+}
+
+// The transient image-workspace family (tags.h: "image workspace that's only
+// temporary"). All share the decode -> Upload32 -> free lifecycle, so all route
+// through the arena. TGA/JPG currently reuse TAG_TEMP_WORKSPACE, but list their
+// tags too so a future split stays covered.
+static inline qboolean Arena_TempTag(memtag_t t)
+{
+	return (qboolean)( t == TAG_TEMP_WORKSPACE || t == TAG_TEMP_TGA || t == TAG_TEMP_JPG || t == TAG_TEMP_PNG );
+}
+
+static void *Arena_Alloc(int iSize)
+{
+	if (!s_arenaBase) return NULL;
+	size_t need = ARENA_ROUND((size_t)iSize);
+
+	Arena_Lock();
+	for (arenaBlk_t *b = (arenaBlk_t *) s_arenaBase; b; b = b->next)
+	{
+		if (b->magic == ARENA_FREE_MAGIC && b->size >= need)
+		{
+			size_t leftover = b->size - need;
+			if (leftover >= sizeof(arenaBlk_t) + ARENA_ALIGN)	// split off a trailing free block
+			{
+				arenaBlk_t *n = (arenaBlk_t *)((byte *)b + sizeof(arenaBlk_t) + need);
+				n->magic = ARENA_FREE_MAGIC;
+				n->size  = (unsigned int)(leftover - sizeof(arenaBlk_t));
+				n->next  = b->next;
+				n->prev  = b;
+				if (b->next) b->next->prev = n;
+				b->next  = n;
+				b->size  = (unsigned int)need;
+			}
+			b->magic = ARENA_MAGIC;
+			Arena_Unlock();
+			return (void *)(b + 1);
+		}
+	}
+	Arena_Unlock();
+	return NULL;		// no fit -> caller falls through to the general heap
+}
+
+static int Arena_Free(void *p)
+{
+	arenaBlk_t *b = (arenaBlk_t *)p - 1;
+
+	Arena_Lock();
+	if (b->magic != ARENA_MAGIC)
+	{
+		Arena_Unlock();
+		Com_Error(ERR_FATAL, "Arena_Free(): bad or double-freed arena block");
+		return -1;
+	}
+	int sz = (int)b->size;
+	b->magic = ARENA_FREE_MAGIC;
+
+	if (b->next && b->next->magic == ARENA_FREE_MAGIC)		// coalesce forward
+	{
+		arenaBlk_t *n = b->next;
+		b->size += (unsigned int)(sizeof(arenaBlk_t) + n->size);
+		b->next  = n->next;
+		if (n->next) n->next->prev = b;
+	}
+	if (b->prev && b->prev->magic == ARENA_FREE_MAGIC)		// coalesce backward
+	{
+		arenaBlk_t *pb = b->prev;
+		pb->size += (unsigned int)(sizeof(arenaBlk_t) + b->size);
+		pb->next  = b->next;
+		if (b->next) b->next->prev = pb;
+	}
+	Arena_Unlock();
+	return sz;
+}
+
+static inline int Arena_BlockSize(void *p) { return (int)(((arenaBlk_t *)p - 1)->size); }
+#endif	// VITA
+
 
 
 // Scans through the linked list of mallocs and makes sure no data has been overwritten
@@ -259,6 +410,24 @@ void *Z_Malloc(int iSize, memtag_t eTag, qboolean bZeroit, int /*unusedAlign*/)
 		zoneHeader_t *pMemory = (zoneHeader_t *) &gZeroMalloc;
 		return &pMemory[1];
 	}
+
+#ifdef VITA
+	// Large transient renderer workspaces are the only allocations that need a
+	// contiguous multi-MB hole, and the one thing the fragmented load-time heap
+	// can't give. Serve them from the boot-reserved arena; fall through unchanged
+	// if it's full or the request is oversized.
+	if (Arena_TempTag(eTag) && iSize >= ARENA_THRESHOLD)
+	{
+		void *pvArena = Arena_Alloc(iSize);
+		if (pvArena)
+		{
+			if (bZeroit) {
+				memset(pvArena, 0, iSize);	// preserve the calloc contract
+			}
+			return pvArena;
+		}
+	}
+#endif
 
 	// Add in tracking info and round to a longword...  (ignore longword aligning now we're not using contiguous blocks)
 	//
@@ -428,6 +597,13 @@ int openjk_minizip_free(void *to_free)
 //
 void Z_MorphMallocTag( void *pvAddress, memtag_t eDesiredTag )
 {
+#ifdef VITA
+	if (Arena_Owns(pvAddress))
+	{
+		return;		// arena blocks carry no tag and aren't in the tag stats
+	}
+#endif
+
 	zoneHeader_t *pMemory = ((zoneHeader_t *)pvAddress) - 1;
 
 	if (pMemory->iMagic != ZONE_MAGIC)
@@ -504,6 +680,13 @@ static int Zone_FreeBlock(zoneHeader_t *pMemory)
 // returns block size if so
 qboolean Z_IsFromZone(const void *pvAddress, memtag_t eTag)
 {
+#ifdef VITA
+	if (Arena_Owns(pvAddress))
+	{
+		return qfalse;		// not a zone block
+	}
+#endif
+
 	const zoneHeader_t *pMemory = ((const zoneHeader_t *)pvAddress) - 1;
 #if 1	//debugging double free
 	if (pMemory->iMagic == INT_ID('F','R','E','E'))
@@ -531,6 +714,13 @@ qboolean Z_IsFromZone(const void *pvAddress, memtag_t eTag)
 //
 int Z_Size(void *pvAddress)
 {
+#ifdef VITA
+	if (Arena_Owns(pvAddress))
+	{
+		return Arena_BlockSize(pvAddress);
+	}
+#endif
+
 	zoneHeader_t *pMemory = ((zoneHeader_t *)pvAddress) - 1;
 
 	if (pMemory->eTag == TAG_STATIC)
@@ -551,6 +741,13 @@ int Z_Size(void *pvAddress)
 #ifdef DEBUG_ZONE_ALLOCS
 void Z_Label(const void *pvAddress, const char *psLabel)
 {
+#ifdef VITA
+	if (Arena_Owns(pvAddress))
+	{
+		return;
+	}
+#endif
+
 	zoneHeader_t *pMemory = ((zoneHeader_t *)pvAddress) - 1;
 
 	if (pMemory->eTag == TAG_STATIC)
@@ -573,6 +770,13 @@ void Z_Label(const void *pvAddress, const char *psLabel)
 //
 int Z_Free(void *pvAddress)
 {
+#ifdef VITA
+	if (Arena_Owns(pvAddress))
+	{
+		return Arena_Free(pvAddress);	// before the iCount guard: arena frees must work at teardown too
+	}
+#endif
+
 	if (!TheZone.Stats.iCount)
 	{
 		//Com_Error(ERR_FATAL, "Z_Free(): Zone has been cleard already!");
@@ -932,6 +1136,10 @@ void Com_InitZoneMemory( void )
 
 	memset(&TheZone, 0, sizeof(TheZone));
 	TheZone.Header.iMagic = ZONE_MAGIC;
+
+#ifdef VITA
+	Arena_Init();	// grab the transient workspace block now, while the heap is pristine and contiguous
+#endif
 }
 
 void Com_InitZoneMemoryVars( void)
