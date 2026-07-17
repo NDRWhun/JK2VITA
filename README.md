@@ -88,6 +88,7 @@ Tune by editing `ux0:data/JK2VITA/base/openjo_sp.cfg` on the card, or from the i
 |------|---------|--------------|
 | `r_renderThread` | `1` | Dedicated backend render thread; `0` = single-threaded *(latched)* |
 | `s_asyncLoad` | `1` | Read sound files on a worker thread; `0` = synchronous |
+| `s_mixThread` | `1` | Mix sound + decode music on core 1; `0` = on the main thread *(latched)* |
 | `r_picmip` | `1` | Texture detail — higher = lower-res, less VRAM, faster *(latched)* |
 | `r_subdivisions` | `4` | Curve tessellation — higher = coarser curves, fewer verts *(latched)* |
 | `r_lodbias` | `0` | Model LOD bias — higher drops to low-detail models sooner |

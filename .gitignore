@@ -21,3 +21,4 @@ eboot.bin
 Thumbs.db
 .DS_Store
 *.psp2dmp
+tools/env.local.sh

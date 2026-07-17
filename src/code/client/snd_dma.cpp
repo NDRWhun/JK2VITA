@@ -129,6 +129,10 @@ static void S_SetDynamicMusicState( MusicState_e musicState );
 
 static MusicInfo_t	tMusic_Info[eBGRNDTRACK_NUMBEROF]	= {};
 static qboolean		bMusic_IsDynamic					= qfalse;
+#ifdef VITA
+static char			sMusic_StateCache[64]				= {0};	// main-thread snapshot for the mixer
+static volatile qboolean bMusic_RestartPending			= qfalse;	// mixer defers FS/alloc restarts to main
+#endif
 static MusicState_e	eMusic_StateActual					= eBGRNDTRACK_EXPLORE;	// actual state, can be any enum
 static MusicState_e	eMusic_StateRequest					= eBGRNDTRACK_EXPLORE;	// requested state, can only be explore, action, boss, or silence
 static char			sMusic_BackgroundLoop[MAX_QPATH]	= {0};	// only valid for non-dynamic music
@@ -574,6 +578,7 @@ static qboolean S_AsyncLoad_Enqueue( sfx_t *sfx )
 // main thread: finalize a few completed reads per frame (spreads residual decode).
 static void S_AsyncLoad_Poll( void )
 {
+	SMIX_SCOPE();	// S_LoadSound_Finish decodes MP3 via the process-global stream pointer
 	if ( s_asyncMutex < 0 ) return;
 	int budget = 2;
 	while ( budget-- > 0 ) {
@@ -1286,6 +1291,8 @@ sfxHandle_t	S_RegisterSound( const char *name)
 
 void S_memoryLoad(sfx_t	*sfx)
 {
+	SMIX_SCOPE();	// the MP3 decoder works through a process-global stream pointer
+
 	// load the sound file...
 	//
 	if ( !S_LoadSound( sfx ) )
@@ -1985,6 +1992,7 @@ void S_ClearSoundBuffer( void ) {
 //
 void S_CIN_StopSound(sfxHandle_t sfxHandle)
 {
+	SMIX_SCOPE();
 	if ( sfxHandle < 0 || sfxHandle >= s_numSfx ) {
 		Com_Error( ERR_DROP, "S_CIN_StopSound: handle %i out of range", sfxHandle );
 	}
@@ -2982,6 +2990,16 @@ void S_Update( void ) {
 	}
 
 #ifdef VITA
+	{
+		const int ofs = cl.gameState.stringOffsets[CS_DYNAMIC_MUSIC_STATE];
+		S_MixLock();
+		Q_strncpyz( sMusic_StateCache, ofs ? cl.gameState.stringData + ofs : "", sizeof(sMusic_StateCache) );
+		S_MixUnlock();
+	}
+	if ( bMusic_RestartPending ) {
+		bMusic_RestartPending = qfalse;
+		S_StartBackgroundTrack( sMusic_BackgroundLoop, sMusic_BackgroundLoop, qfalse );
+	}
 	if ( s_mixerActive ) {
 		return;	// the mixer thread owns music + mixing
 	}
@@ -5075,6 +5093,12 @@ static qboolean S_UpdateBackgroundTrack_Actual( MusicInfo_t *pMusicInfo, qboolea
 				Q_strncpyz( sTestName, sMusic_BackgroundLoop, sizeof(sTestName));
 				COM_DefaultExtension(sTestName, sizeof(sTestName), ".mp3");
 
+#ifdef VITA
+				if ( s_mixerActive )
+				{
+					return qtrue;	// restart needs FS/alloc: defer to main via the caller
+				}
+#endif
 				if (S_FileExists( sTestName ))
 				{
 					S_StartBackgroundTrack_Actual( pMusicInfo, qfalse, sMusic_BackgroundLoop, sMusic_BackgroundLoop );
@@ -5105,6 +5129,10 @@ static qboolean S_UpdateBackgroundTrack_Actual( MusicInfo_t *pMusicInfo, qboolea
 //
 static const char *S_Music_GetRequestedState(void)
 {
+#ifdef VITA
+	// snapshot taken in S_Update; cl.gameState is rebuilt on main and must not be read here
+	return sMusic_StateCache[0] ? sMusic_StateCache : NULL;
+#else
 	int iStringOffset = cl.gameState.stringOffsets[CS_DYNAMIC_MUSIC_STATE];
 	if (iStringOffset)
 	{
@@ -5114,6 +5142,7 @@ static const char *S_Music_GetRequestedState(void)
 	}
 
 	return NULL;
+#endif
 }
 
 
@@ -5294,6 +5323,13 @@ static void S_UpdateBackgroundTrack( void )
 
 		if (bNewTrackDesired)
 		{
+#ifdef VITA
+			if ( s_mixerActive )
+			{
+				bMusic_RestartPending = qtrue;	// track load does FS + zone work: main only
+				return;
+			}
+#endif
 			S_StartBackgroundTrack( sMusic_BackgroundLoop, sMusic_BackgroundLoop, qfalse );
 		}
 	}
