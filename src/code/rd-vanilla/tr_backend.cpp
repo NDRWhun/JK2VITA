@@ -549,6 +549,25 @@ static void RB_BeginDrawingView (void) {
 		clearBits &= ~GL_DEPTH_BUFFER_BIT;
 	}
 
+#ifdef VITA
+	// Distance culling leaves far pixels undrawn; without a colour clear they show stale
+	// tile memory. Clear to the fog colour so culled holes read as the fogged horizon.
+	if ( ( ( r_distanceCull && r_distanceCull->value > 0.0f ) || ( r_forceFog && r_forceFog->value > 0.0f ) )
+		&& !( backEnd.refdef.rdflags & RDF_NOWORLDMODEL ) && !g_bRenderGlowingObjects )
+	{
+		float fogClr[3] = { 0.55f, 0.6f, 0.7f };
+		if ( r_forceFogColor && r_forceFogColor->string[0] )
+			sscanf( r_forceFogColor->string, "%f %f %f", &fogClr[0], &fogClr[1], &fogClr[2] );
+		else if ( tr.world && tr.world->globalFog != -1 )
+		{
+			const fog_t *fog = &tr.world->fogs[tr.world->globalFog];
+			fogClr[0] = fog->parms.color[0]; fogClr[1] = fog->parms.color[1]; fogClr[2] = fog->parms.color[2];
+		}
+		qglClearColor( fogClr[0], fogClr[1], fogClr[2], 1.0f );
+		clearBits |= GL_COLOR_BUFFER_BIT;
+	}
+#endif
+
 	if (clearBits)
 	{
 		qglClear( clearBits );
