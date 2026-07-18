@@ -259,6 +259,9 @@ qboolean RE_RegisterModels_LevelLoadEnd(qboolean bDeleteEverythingNotUsedThisLev
 {
 	qboolean bAtLeastoneModelFreed = qfalse;
 
+	// md3 surfaces may be freed below; drop the surface-keyed vertex cache.
+	R_MD3VertCacheClear();
+
 	if (gbInsideRegisterModel)
 	{
 		Com_DPrintf( "(Inside RE_RegisterModel (z_malloc recovery?), exiting...\n");
@@ -346,6 +349,9 @@ static void RE_RegisterModels_DeleteAll(void)
 	if(!CachedModels) {
 		return;	//argh!
 	}
+
+	// Frees every model's md3 surfaces; drop the surface-keyed vertex cache.
+	R_MD3VertCacheClear();
 
 	for (CachedModels_t::iterator itModel = CachedModels->begin(); itModel != CachedModels->end(); )
 	{

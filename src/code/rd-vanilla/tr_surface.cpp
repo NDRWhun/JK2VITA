@@ -1171,6 +1171,79 @@ static void RB_SurfaceSaberGlow()
 	DoSprite( e->origin, 5.5f + Q_flrand(0.0f, 1.0f) * 0.25f, 0.0f );//Q_flrand(0.0f, 1.0f) * 360.0f );
 }
 
+// Static MD3 vertex cache: numFrames==1 surfaces decode to identical model-space
+// xyz/normal every frame, so decode once and memcpy after. find/store are
+// render-thread-only (no lock); raw malloc, not the render-thread-unsafe zone
+// allocator. Keyed on the surface pointer; cleared on model free (R_MD3VertCacheClear).
+typedef struct md3VertCache_s {
+	md3Surface_t	*surf;			// key; NULL == empty slot
+	float			*xyz;			// numVerts * vec4_t
+	float			*normal;		// numVerts * vec4_t
+} md3VertCache_t;
+
+#define MD3VC_SLOTS		8192					// power of two; kept <=3/4 full for probing
+#define MD3VC_MASK		(MD3VC_SLOTS - 1)
+#define MD3VC_MAXBYTES	(2 * 1024 * 1024)		// hard cap so the cache can't exhaust Vita memory
+
+static md3VertCache_t	md3vc_slots[MD3VC_SLOTS];
+static int				md3vc_count = 0;
+static int				md3vc_bytes = 0;
+
+static unsigned R_MD3VertCacheHash( const md3Surface_t *surf ) {
+	return (unsigned)( ( (uintptr_t)surf ) >> 5 ) & MD3VC_MASK;
+}
+
+static const md3VertCache_t *R_MD3VertCacheFind( md3Surface_t *surf ) {
+	unsigned h = R_MD3VertCacheHash( surf );
+	for ( int i = 0; i < MD3VC_SLOTS; i++ ) {
+		md3VertCache_t *e = &md3vc_slots[( h + i ) & MD3VC_MASK];
+		if ( e->surf == surf )	return e;
+		if ( e->surf == NULL )	return NULL;	// empty slot ends the probe -> not present
+	}
+	return NULL;
+}
+
+static void R_MD3VertCacheStore( md3Surface_t *surf, const float *xyz, const float *normal ) {
+	int bytes = surf->numVerts * (int)sizeof( vec4_t ) * 2;
+	if ( md3vc_count >= ( MD3VC_SLOTS * 3 ) / 4 )	return;	// keep table sparse
+	if ( md3vc_bytes + bytes > MD3VC_MAXBYTES )		return;	// OOM guard: just recompute next frame
+	unsigned h = R_MD3VertCacheHash( surf );
+	for ( int i = 0; i < MD3VC_SLOTS; i++ ) {
+		md3VertCache_t *e = &md3vc_slots[( h + i ) & MD3VC_MASK];
+		if ( e->surf == surf )	return;			// already cached
+		if ( e->surf == NULL ) {
+			e->xyz    = (float *)malloc( surf->numVerts * sizeof( vec4_t ) );
+			e->normal = (float *)malloc( surf->numVerts * sizeof( vec4_t ) );
+			if ( !e->xyz || !e->normal ) {		// alloc failed: abandon, recompute next frame
+				if ( e->xyz )    free( e->xyz );
+				if ( e->normal ) free( e->normal );
+				e->xyz = e->normal = NULL;
+				return;
+			}
+			memcpy( e->xyz,    xyz,    surf->numVerts * sizeof( vec4_t ) );
+			memcpy( e->normal, normal, surf->numVerts * sizeof( vec4_t ) );
+			e->surf = surf;
+			md3vc_count++;
+			md3vc_bytes += bytes;
+			return;
+		}
+	}
+}
+
+void R_MD3VertCacheClear( void ) {
+	for ( int i = 0; i < MD3VC_SLOTS; i++ ) {
+		if ( md3vc_slots[i].surf ) {
+			if ( md3vc_slots[i].xyz )    free( md3vc_slots[i].xyz );
+			if ( md3vc_slots[i].normal ) free( md3vc_slots[i].normal );
+			md3vc_slots[i].surf   = NULL;
+			md3vc_slots[i].xyz    = NULL;
+			md3vc_slots[i].normal = NULL;
+		}
+	}
+	md3vc_count = 0;
+	md3vc_bytes = 0;
+}
+
 /*
 ** LerpMeshVertexes
 */
@@ -1186,6 +1259,17 @@ static void LerpMeshVertexes (md3Surface_t *surf, float backlerp)
 
 	outXyz = tess.xyz[tess.numVertexes];
 	outNormal = tess.normal[tess.numVertexes];
+
+	// Static single-frame surface: reuse the cached model-space transform if present.
+	qboolean ssStatic = (qboolean)( backlerp == 0 && surf->numFrames == 1 );
+	if ( ssStatic ) {
+		const md3VertCache_t *c = R_MD3VertCacheFind( surf );
+		if ( c ) {
+			memcpy( outXyz,    c->xyz,    surf->numVerts * sizeof( vec4_t ) );
+			memcpy( outNormal, c->normal, surf->numVerts * sizeof( vec4_t ) );
+			return;
+		}
+	}
 
 	newXyz = (short *)((byte *)surf + surf->ofsXyzNormals)
 		+ (backEnd.currentEntity->e.frame * surf->numVerts * 4);
@@ -1267,6 +1351,11 @@ static void LerpMeshVertexes (md3Surface_t *surf, float backlerp)
 
 			VectorNormalize (outNormal);
 		}
+	}
+
+	// First transform of a static surface: remember the decoded result for later frames.
+	if ( ssStatic ) {
+		R_MD3VertCacheStore( surf, tess.xyz[tess.numVertexes], tess.normal[tess.numVertexes] );
 	}
 }
 

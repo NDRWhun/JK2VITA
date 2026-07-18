@@ -1704,6 +1704,8 @@ void R_BuildWorldVBO( world_t *world );
 void R_FreeWorldVBO( void );
 qboolean RB_TryWorldVBO( void *surface, shader_t *shader, int fogNum, int dlighted, int entityNum );
 void RB_EndWorldVBO( void );
+// static MD3 vertex cache (tr_surface.cpp)
+void R_MD3VertCacheClear( void );
 #endif
 /*
 Ghoul2 Insert End
