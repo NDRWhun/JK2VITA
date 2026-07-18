@@ -1317,34 +1317,20 @@ static void IN_VitaRearTouch( void )
 	if ( !vita_rearTouch || !vita_rearTouch->integer )
 		return;
 
-	static cvar_t *vita_rearDebug = NULL;
-	if ( !vita_rearDebug ) vita_rearDebug = Cvar_Get( "vita_rearDebug", "0", CVAR_ARCHIVE_ND );
-
 	static qboolean			inited = qfalse;
 	static SceTouchPanelInfo	panel;
 	if ( !inited ) {
-		int ss = sceTouchSetSamplingState( SCE_TOUCH_PORT_BACK, SCE_TOUCH_SAMPLING_STATE_START );
-		int pi = sceTouchGetPanelInfo( SCE_TOUCH_PORT_BACK, &panel );
-		if ( pi < 0 ) {
+		sceTouchSetSamplingState( SCE_TOUCH_PORT_BACK, SCE_TOUCH_SAMPLING_STATE_START );
+		if ( sceTouchGetPanelInfo( SCE_TOUCH_PORT_BACK, &panel ) < 0 ) {
 			panel.minAaX = 0;   panel.maxAaX = 1919;	// sane fallback for the rear panel
 			panel.minAaY = 108; panel.maxAaY = 889;
 		}
-		Com_Printf( "^3[rearTouch] setSampling=%d panelInfo=%d aa=[%d..%d,%d..%d]\n",
-			ss, pi, panel.minAaX, panel.maxAaX, panel.minAaY, panel.maxAaY );
 		inited = qtrue;
 	}
 
 	SceTouchData td;
-	int peek = sceTouchPeek( SCE_TOUCH_PORT_BACK, &td, 1 );
-	if ( peek < 0 )
+	if ( sceTouchPeek( SCE_TOUCH_PORT_BACK, &td, 1 ) < 0 )
 		return;
-
-	if ( vita_rearDebug->integer && td.reportNum > 0 ) {
-		static int s_throttle = 0;
-		if ( ( s_throttle++ & 7 ) == 0 )
-			Com_Printf( "^3[rearTouch] peek=%d n=%u first=[%d,%d]\n",
-				peek, td.reportNum, td.report[0].x, td.report[0].y );
-	}
 
 	int spanX = panel.maxAaX - panel.minAaX; if ( spanX <= 0 ) spanX = 1;
 	int spanY = panel.maxAaY - panel.minAaY; if ( spanY <= 0 ) spanY = 1;
@@ -1373,12 +1359,8 @@ static void IN_VitaRearTouch( void )
 		unsigned bit = 1u << z;
 		if ( ( mask & bit ) && !( prevMask & bit ) ) {
 			Sys_QueEvent( 0, SE_KEY, A_AUX1 + z, qtrue, 0, NULL );
-			if ( vita_rearDebug->integer )
-				Com_Printf( "^2[rearTouch] zone %d DOWN -> AUX%d\n", z, z + 1 );
 		} else if ( !( mask & bit ) && ( prevMask & bit ) ) {
 			Sys_QueEvent( 0, SE_KEY, A_AUX1 + z, qfalse, 0, NULL );
-			if ( vita_rearDebug->integer )
-				Com_Printf( "^2[rearTouch] zone %d UP\n", z );
 		}
 	}
 	prevMask = mask;
