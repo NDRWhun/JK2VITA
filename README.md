@@ -97,7 +97,7 @@ Tune by editing `ux0:data/JK2VITA/base/openjo_sp.cfg` on the card, or from the i
 | `r_ghoul2CrowdLod` | `4` | Above this many on-screen characters, extras drop LOD |
 | `r_ghoul2CrowdLodStep` | `3` | How many LOD levels the crowd extras drop |
 | `cg_shadows` | `1` | Player/NPC shadows — `0` = off, `1` = blob |
-| `r_texCacheCompressed` | `1` | Cache textures as DXT (less VRAM; `0` = uncompressed) |
+| `r_texCacheCompressed` | `1` | Cache textures as DXT (less VRAM; `0` = uncompressed) *(latched)* |
 | `r_dropTexturesOnLoad` | `1` | Free the old map's textures at map change (lower transition memory peak); `0` = keep until the new map's first frame |
 | `r_worldVBO` | `1` | Draw static world geometry from a resident vertex buffer — faster on static-heavy maps; `0` = classic path (takes effect on map load) |
 | `s_khz` | `22` | Mixer rate — 22 matches the source assets *(latched)* |
