@@ -1754,7 +1754,7 @@ void R_Register( void )
 #ifdef VITA
 	// 1 = backend on a dedicated render thread (default), 0 = inline on main. CVAR_LATCH.
 	r_renderThread = ri.Cvar_Get( "r_renderThread", "1", CVAR_ARCHIVE | CVAR_LATCH );
-	r_worldVBO = ri.Cvar_Get( "r_worldVBO", "0", CVAR_ARCHIVE );	// takes effect on next map load
+	r_worldVBO = ri.Cvar_Get( "r_worldVBO", "1", CVAR_ARCHIVE );	// takes effect on next map load
 	// 1 = drop old-map textures at shutdown; stock keeps both maps resident until the
 	// new map's first frame (the transition OOM peak). Reload comes from the DXT cache.
 	r_dropTexturesOnLoad = ri.Cvar_Get( "r_dropTexturesOnLoad", "1", CVAR_ARCHIVE );
@@ -1821,9 +1821,10 @@ void R_Register( void )
 	// the MT renderer + DXT freed the budget the old "fastest" configs assumed gone.
 	{
 		cvar_t *gfxBase = ri.Cvar_Get( "vita_gfxBaseline", "0", CVAR_ARCHIVE );
-		// v2 re-asserted cg_shadows; v3 re-enables the DXT cache over a bisect edit.
-		if ( gfxBase->integer < 3 ) {
-			ri.Cvar_Set( "vita_gfxBaseline", "3" );
+		// v2 re-asserted cg_shadows; v3 re-enables the DXT cache over a bisect edit;
+		// v4 turns on the static world VBO.
+		if ( gfxBase->integer < 4 ) {
+			ri.Cvar_Set( "vita_gfxBaseline", "4" );
 			ri.Cvar_Set( "r_texCacheCompressed", "1" );
 			ri.Cvar_Set( "r_picmip", "1" );			// sharper textures (DXT pays for it)
 			ri.Cvar_Set( "r_lodbias", "0" );		// full geometry detail
@@ -1831,6 +1832,7 @@ void R_Register( void )
 			ri.Cvar_Set( "r_fastSky", "0" );		// real skybox
 			ri.Cvar_Set( "r_inGameVideo", "1" );	// in-world video screens
 			ri.Cvar_Set( "cg_shadows", "1" );		// blob shadows (stencil volumes don't draw on vitaGL)
+			ri.Cvar_Set( "r_worldVBO", "1" );		// static world geometry from a resident VBO
 		}
 	}
 #endif
