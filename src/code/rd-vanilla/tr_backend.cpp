@@ -724,9 +724,6 @@ void RB_RenderDrawSurfList( drawSurf_t *drawSurfs, int numDrawSurfs ) {
 	for (i = 0, drawSurf = drawSurfs ; i < numDrawSurfs ; i++, drawSurf++) {
 		if ( drawSurf->sort == oldSort ) {
 			// fast path, same as previous sort
-#ifdef VITA
-			if ( !RB_TryWorldVBO( drawSurf->surface, oldShader, oldFogNum, oldDlighted, oldEntityNum ) )
-#endif
 			rb_surfaceTable[ *drawSurf->surface ]( drawSurf->surface );
 			continue;
 		}
@@ -801,9 +798,6 @@ void RB_RenderDrawSurfList( drawSurf_t *drawSurfs, int numDrawSurfs ) {
 			|| ( entityNum != oldEntityNum && !shader->entityMergable ) )
 		{
 			if (oldShader != NULL) {
-#ifdef VITA
-				RB_EndWorldVBO();
-#endif
 				RB_EndSurface();
 
 				if (!didShadowPass && shader && shader->sort > SS_BANNER)
@@ -851,9 +845,6 @@ void RB_RenderDrawSurfList( drawSurf_t *drawSurfs, int numDrawSurfs ) {
 				R_TransformDlights( backEnd.refdef.num_dlights, backEnd.refdef.dlights, &backEnd.ori );
 			}
 
-#ifdef VITA
-			RB_EndWorldVBO();	// leaving world surfaces -> flush VBO batch before entity/world matrix swap
-#endif
 			qglLoadMatrixf( backEnd.ori.modelMatrix );
 
 			//
@@ -882,17 +873,11 @@ void RB_RenderDrawSurfList( drawSurf_t *drawSurfs, int numDrawSurfs ) {
 		}
 
 		// add the triangles for this surface
-#ifdef VITA
-		if ( !RB_TryWorldVBO( drawSurf->surface, shader, fogNum, dlighted, entityNum ) )
-#endif
 		rb_surfaceTable[ *drawSurf->surface ]( drawSurf->surface );
 	}
 
 	// draw the contents of the last shader batch
 	if (oldShader != NULL) {
-#ifdef VITA
-		RB_EndWorldVBO();
-#endif
 		RB_EndSurface();
 	}
 

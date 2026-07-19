@@ -41,7 +41,6 @@ extern SceUID rend_mutex_out;
 extern SceUID rend_init_done;	// init-only handshake (vglInit-done, ctx-init-done)
 extern volatile qboolean pendingCtxInit;	// one-shot: run ctx init on render thread's first wake
 extern cvar_t *r_renderThread;
-extern cvar_t *r_worldVBO;		// bake eligible static world surfaces into one VBO
 extern cvar_t *r_dropTexturesOnLoad;	// free old-map textures at shutdown, not first frame
 void R_StartRenderThread( void );
 void R_StopRenderThread( void );
@@ -952,11 +951,6 @@ typedef struct {
 	int		c_flareTests;
 	int		c_flareRenders;
 
-#ifdef VITA
-	int		c_wvboSurfaces;	// world surfaces drawn from the static VBO
-	int		c_wvboDraws;	// draw calls those merged into
-#endif
-
 	int		msec;			// total msec for backend run
 } backEndCounters_t;
 
@@ -1699,11 +1693,6 @@ void RB_PrepGhoulSkinMT( drawSurf_t *drawSurfs, int numDrawSurfs );
 // per-frame recycle of the frontend's bone snapshot arena (render-thread mode)
 void R_ResetGhoulSkinArena( void );
 void R_FreeGhoulSkinArena( void );
-// static world VBO (tr_worldvbo.cpp)
-void R_BuildWorldVBO( world_t *world );
-void R_FreeWorldVBO( void );
-qboolean RB_TryWorldVBO( void *surface, shader_t *shader, int fogNum, int dlighted, int entityNum );
-void RB_EndWorldVBO( void );
 // static MD3 vertex cache (tr_surface.cpp)
 void R_MD3VertCacheClear( void );
 #endif

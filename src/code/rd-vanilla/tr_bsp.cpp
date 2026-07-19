@@ -1441,11 +1441,6 @@ void RE_LoadWorldMap_Actual( const char *name, world_t &worldData, int index ) {
 		tr.world = &worldData;
 
 #ifdef VITA
-		// (re)build the static world VBO from the loaded surfaces; park the render
-		// thread first since the GL upload runs here on the main thread.
-		R_IssuePendingRenderCommands();
-		R_BuildWorldVBO( &worldData );
-
 		// per-map memory watermark (world geometry + shader textures are resident here)
 		{
 			SceKernelFreeMemorySizeInfo fmi;

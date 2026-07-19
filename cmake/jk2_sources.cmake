@@ -110,7 +110,6 @@ set(JK_ENGINE_SOURCES
     src/code/rd-vanilla/tr_surface.cpp
     src/code/rd-vanilla/tr_surfacesprites.cpp
     src/code/rd-vanilla/tr_world.cpp
-    src/code/rd-vanilla/tr_worldvbo.cpp
     src/code/server/exe_headers.cpp
     src/code/server/sv_ccmds.cpp
     src/code/server/sv_client.cpp

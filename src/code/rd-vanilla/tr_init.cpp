@@ -63,7 +63,6 @@ cvar_t	*r_forceFog;
 cvar_t	*r_forceFogColor;
 cvar_t	*r_texCacheCompressed;
 cvar_t	*r_renderThread;
-cvar_t	*r_worldVBO;
 cvar_t	*r_dropTexturesOnLoad;
 cvar_t	*r_dxtFast;
 
@@ -1754,7 +1753,6 @@ void R_Register( void )
 #ifdef VITA
 	// 1 = backend on a dedicated render thread (default), 0 = inline on main. CVAR_LATCH.
 	r_renderThread = ri.Cvar_Get( "r_renderThread", "1", CVAR_ARCHIVE | CVAR_LATCH );
-	r_worldVBO = ri.Cvar_Get( "r_worldVBO", "1", CVAR_ARCHIVE );	// takes effect on next map load
 	// 1 = drop old-map textures at shutdown; stock keeps both maps resident until the
 	// new map's first frame (the transition OOM peak). Reload comes from the DXT cache.
 	r_dropTexturesOnLoad = ri.Cvar_Get( "r_dropTexturesOnLoad", "1", CVAR_ARCHIVE );
@@ -1822,7 +1820,7 @@ void R_Register( void )
 	{
 		cvar_t *gfxBase = ri.Cvar_Get( "vita_gfxBaseline", "0", CVAR_ARCHIVE );
 		// v2 re-asserted cg_shadows; v3 re-enables the DXT cache over a bisect edit;
-		// v4 turns on the static world VBO.
+		// v4 raises the quality baseline (sharper textures, full LOD/tessellation, real sky).
 		if ( gfxBase->integer < 4 ) {
 			ri.Cvar_Set( "vita_gfxBaseline", "4" );
 			ri.Cvar_Set( "r_texCacheCompressed", "1" );
@@ -1832,7 +1830,6 @@ void R_Register( void )
 			ri.Cvar_Set( "r_fastSky", "0" );		// real skybox
 			ri.Cvar_Set( "r_inGameVideo", "1" );	// in-world video screens
 			ri.Cvar_Set( "cg_shadows", "1" );		// blob shadows (stencil volumes don't draw on vitaGL)
-			ri.Cvar_Set( "r_worldVBO", "1" );		// static world geometry from a resident VBO
 		}
 	}
 #endif
@@ -2029,12 +2026,6 @@ void RE_Shutdown( qboolean destroyWindow, qboolean restarting ) {
 	if ( tr.registered && r_renderThread && r_renderThread->integer ) {
 		R_IssuePendingRenderCommands();
 		R_FreeGhoulSkinArena();	// release the bone-snapshot arena during load; re-malloc'd next frame
-	}
-	// Every shutdown (map change too, not just vid_restart): the hunk that s_wvbo's
-	// surfData/shader keys point into is about to be cleared, and the old VBO would
-	// otherwise sit in the vitaGL pool through the next map's texture load.
-	if ( tr.registered ) {
-		R_FreeWorldVBO();
 	}
 #endif
 
