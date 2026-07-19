@@ -173,6 +173,14 @@ cvar_t	*g_saberRealisticCombat;
 cvar_t	*g_saberMoveSpeed;
 cvar_t	*g_saberAnimSpeed;
 cvar_t	*g_saberAutoAim;
+#ifdef VITA
+cvar_t	*g_aimAssist;
+cvar_t	*g_aimAssistRange;
+cvar_t	*g_aimAssistCone;
+cvar_t	*g_aimAssistBend;
+cvar_t	*g_aimAssistSlow;
+cvar_t	*g_aimAssistPull;
+#endif
 
 qboolean	stop_icarus = qfalse;
 
@@ -592,6 +600,14 @@ void G_InitCvars( void ) {
 	g_saberMoveSpeed = gi.cvar( "g_saberMoveSpeed", "1", CVAR_ARCHIVE|CVAR_CHEAT );//how fast you run while attacking with a saber
 	g_saberAnimSpeed = gi.cvar( "g_saberAnimSpeed", "1", CVAR_ARCHIVE|CVAR_CHEAT );//how fast saber animations run
 	g_saberAutoAim = gi.cvar( "g_saberAutoAim", "1", CVAR_ARCHIVE|CVAR_CHEAT );//auto-aims at enemies when not moving or when just running forward
+#ifdef VITA
+	g_aimAssist      = gi.cvar( "g_aimAssist",      "0",    CVAR_ARCHIVE );	// 0 off, 1 bullet magnetism, 2 + look assist
+	g_aimAssistRange = gi.cvar( "g_aimAssistRange", "4096", CVAR_ARCHIVE );	// max target distance (units)
+	g_aimAssistCone  = gi.cvar( "g_aimAssistCone",  "9",    CVAR_ARCHIVE );	// half-angle (deg) to search for a target
+	g_aimAssistBend  = gi.cvar( "g_aimAssistBend",  "6",    CVAR_ARCHIVE );	// max deg to bend a shot toward the target
+	g_aimAssistSlow  = gi.cvar( "g_aimAssistSlow",  "0.5",  CVAR_ARCHIVE );	// look-speed scale near a target (mode 2)
+	g_aimAssistPull  = gi.cvar( "g_aimAssistPull",  "3",    CVAR_ARCHIVE );	// look-pull strength toward target (mode 2)
+#endif
 
 	g_AIsurrender = gi.cvar( "g_AIsurrender", "0", CVAR_CHEAT );
 	g_numEntities = gi.cvar( "g_numEntities", "0", CVAR_CHEAT );

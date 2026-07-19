@@ -297,6 +297,15 @@ extern	cvar_t	*g_gravity;
 extern	cvar_t	*g_speed;
 extern	cvar_t	*g_cheats;
 extern	cvar_t	*g_developer;
+#ifdef VITA
+extern	cvar_t	*g_aimAssist;
+extern	cvar_t	*g_aimAssistRange;
+extern	cvar_t	*g_aimAssistCone;
+extern	cvar_t	*g_aimAssistBend;
+extern	cvar_t	*g_aimAssistSlow;
+extern	cvar_t	*g_aimAssistPull;
+float G_VitaAimAssistLook( float *outPullYaw, float *outPullPitch );
+#endif
 extern	cvar_t	*g_knockback;
 extern	cvar_t	*g_inactivity;
 extern	cvar_t	*g_debugMove;

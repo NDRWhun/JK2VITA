@@ -508,9 +508,15 @@ void CL_JoystickMove( usercmd_t *cmd ) {
 		cmd->rightmove   = ClampChar( cmd->rightmove   + (int)( lx * 127.0f ) );
 		cmd->forwardmove = ClampChar( cmd->forwardmove - (int)( ly * 127.0f ) );
 
-		// Look from the right stick (frame-rate independent, deg/sec).
-		cl.viewangles[YAW]   -= rx * 220.0f * dt;
-		cl.viewangles[PITCH] += ry * 155.0f * dt;
+		// Look from the right stick (frame-rate independent, deg/sec); aim assist slows the
+		// look near a target and adds a gentle pull toward it (g_aimAssist 2).
+		extern float G_VitaAimAssistLook( float *outPullYaw, float *outPullPitch );
+		float pullYaw = 0.0f, pullPitch = 0.0f;
+		const float aimScale = G_VitaAimAssistLook( &pullYaw, &pullPitch );
+		cl.viewangles[YAW]   -= rx * 220.0f * dt * aimScale;
+		cl.viewangles[PITCH] += ry * 155.0f * dt * aimScale;
+		cl.viewangles[YAW]   += pullYaw   * dt;
+		cl.viewangles[PITCH] += pullPitch * dt;
 		return;
 	}
 #endif
