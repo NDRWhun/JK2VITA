@@ -539,7 +539,7 @@ float G_VitaAimAssistLook( float *outPullYaw, float *outPullPitch )
 	vectoangles( dir, tgtAng );
 	*outPullYaw   = WP_AngleDelta( tgtAng[YAW],   player->client->ps.viewangles[YAW] )   * g_aimAssistPull->value;
 	*outPullPitch = WP_AngleDelta( tgtAng[PITCH], player->client->ps.viewangles[PITCH] ) * g_aimAssistPull->value;
-	return g_aimAssistSlow->value;
+	return g_aimAssistSpeed->value;
 }
 #endif
 
