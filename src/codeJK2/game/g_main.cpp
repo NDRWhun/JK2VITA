@@ -197,6 +197,7 @@ extern void AI_UpdateGroups( void );
 
 void ClearPlayerAlertEvents( void );
 extern void NPC_ShowDebugInfo (void);
+extern void Q3_InitVariables( void );
 extern int killPlayerTimer;
 extern	cvar_t		*d_altRoutes;
 
@@ -702,6 +703,9 @@ void InitGame(  const char *mapname, const char *spawntarget, int checkSum, cons
 
 	// stays qtrue across a death-reload on the single-ELF build, freezing every script
 	stop_icarus = qfalse;
+
+	// script vars leak across maps the same way, silently refusing declare() past MAX_VARIABLES
+	Q3_InitVariables();
 
 	gi.Printf ("-----------------------------------\n");
 
