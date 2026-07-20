@@ -64,6 +64,9 @@ cvar_t	*r_forceFogColor;
 cvar_t	*r_texCacheCompressed;
 cvar_t	*r_renderThread;
 cvar_t	*r_effectCombine;
+#ifdef VITA
+cvar_t	*r_chunkInstancing;
+#endif
 cvar_t	*r_dropTexturesOnLoad;
 cvar_t	*r_dxtFast;
 
@@ -1756,6 +1759,9 @@ void R_Register( void )
 	r_renderThread = ri.Cvar_Get( "r_renderThread", "1", CVAR_ARCHIVE | CVAR_LATCH );
 	// fold all-additive multi-stage effects into one programmable draw; 2 = transposed MVP (debug)
 	r_effectCombine = ri.Cvar_Get( "r_effectCombine", "0", CVAR_ARCHIVE );
+#ifdef VITA
+	r_chunkInstancing = ri.Cvar_Get( "r_chunkInstancing", "0", CVAR_ARCHIVE );
+#endif
 	// 1 = drop old-map textures at shutdown; stock keeps both maps resident until the
 	// new map's first frame (the transition OOM peak). Reload comes from the DXT cache.
 	r_dropTexturesOnLoad = ri.Cvar_Get( "r_dropTexturesOnLoad", "1", CVAR_ARCHIVE );

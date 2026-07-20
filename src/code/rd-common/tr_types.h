@@ -76,6 +76,8 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 #define RF_FORCE_ENT_ALPHA	0x800000 // override shader alpha settings
 
+#define RF_CHUNK		   0x1000000 // debris fragment; eligible for instanced batching on Vita (r_chunkInstancing)
+
 // refdef flags
 #define RDF_NOWORLDMODEL	1		// used for player configuration screen
 #define RDF_HYPERSPACE		4		// teleportation effect

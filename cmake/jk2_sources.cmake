@@ -86,6 +86,7 @@ set(JK_ENGINE_SOURCES
     src/code/rd-vanilla/tr_arb.cpp
     src/code/rd-vanilla/tr_backend.cpp
     src/code/rd-vanilla/tr_bsp.cpp
+    src/code/rd-vanilla/tr_chunkinst.cpp
     src/code/rd-vanilla/tr_cmds.cpp
     src/code/rd-vanilla/tr_curve.cpp
     src/code/rd-vanilla/tr_draw.cpp

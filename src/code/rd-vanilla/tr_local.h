@@ -42,6 +42,9 @@ extern SceUID rend_init_done;	// init-only handshake (vglInit-done, ctx-init-don
 extern volatile qboolean pendingCtxInit;	// one-shot: run ctx init on render thread's first wake
 extern cvar_t *r_renderThread;
 extern cvar_t *r_effectCombine;	// fold all-additive multi-stage effects into one programmable draw
+#ifdef VITA
+extern cvar_t *r_chunkInstancing;	// collapse debris chunk fragments into instanced draws
+#endif
 extern cvar_t *r_dropTexturesOnLoad;	// free old-map textures at shutdown, not first frame
 void R_StartRenderThread( void );
 void R_StopRenderThread( void );
@@ -1307,6 +1310,13 @@ void	GL_State( uint32_t stateVector );
 void	GL_TexEnv( int env );
 void	GL_Cull( int cullType );
 void	R_BindAnimatedImage( const textureBundle_t *bundle );
+
+#ifdef VITA
+qboolean R_ChunkInst_Enabled( void );
+qboolean R_ChunkInst_Collect( md3Surface_t *surf, shader_t *shader, trRefEntity_t *ent );
+void	R_ChunkInst_Flush( void );
+void	R_ChunkInst_Clear( void );
+#endif
 
 #define GLS_SRCBLEND_ZERO						0x00000001
 #define GLS_SRCBLEND_ONE						0x00000002

@@ -536,6 +536,9 @@ void CG_Chunks( int owner, vec3_t origin, const vec3_t normal, const vec3_t mins
 			re->hModel = chunkModel;
 			le->leType = LE_FRAGMENT;
 			le->endTime = cg.time + 1300 + Q_flrand(0.0f, 1.0f) * 900;
+#ifdef VITA
+			re->renderfx |= RF_CHUNK;	// eligible for instanced batching (r_chunkInstancing)
+#endif
 
 			// spawn chunk roughly in the bbox of the thing...bias towards center in case thing blowing up doesn't complete fill its bbox.
 			for( j = 0; j < 3; j++ )

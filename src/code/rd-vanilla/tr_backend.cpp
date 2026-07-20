@@ -721,7 +721,29 @@ void RB_RenderDrawSurfList( drawSurf_t *drawSurfs, int numDrawSurfs ) {
 
 	backEnd.pc.c_surfaces += numDrawSurfs;
 
+#ifdef VITA
+	qboolean	ciFlushed = qfalse;
+	if ( R_ChunkInst_Enabled() ) {
+		R_ChunkInst_Clear();
+	}
+#endif
 	for (i = 0, drawSurf = drawSurfs ; i < numDrawSurfs ; i++, drawSurf++) {
+#ifdef VITA
+		// opaque, unfogged debris chunks collapse into one instanced draw per model+shader
+		if ( R_ChunkInst_Enabled() && *drawSurf->surface == SF_MD3 ) {
+			int			ciEnt, ciFog, ciDl;
+			shader_t	*ciSh;
+			R_DecomposeSort( drawSurf->sort, &ciEnt, &ciSh, &ciFog, &ciDl );
+			if ( ciEnt != REFENTITYNUM_WORLD && ciFog == 0 && ciSh->sort <= SS_OPAQUE ) {
+				trRefEntity_t *ciE = &backEnd.refdef.entities[ciEnt];
+				if ( ( ciE->e.renderfx & RF_CHUNK ) && !( ciE->e.renderfx & RF_ALPHA_FADE )
+					&& R_ChunkInst_Collect( (md3Surface_t *)drawSurf->surface, ciSh, ciE ) ) {
+					oldSort = (unsigned int)-1;	// skipped a sort; force the next surf to re-evaluate
+					continue;
+				}
+			}
+		}
+#endif
 		if ( drawSurf->sort == oldSort ) {
 			// fast path, same as previous sort
 			rb_surfaceTable[ *drawSurf->surface ]( drawSurf->surface );
@@ -799,7 +821,14 @@ void RB_RenderDrawSurfList( drawSurf_t *drawSurfs, int numDrawSurfs ) {
 		{
 			if (oldShader != NULL) {
 				RB_EndSurface();
-
+#ifdef VITA
+				// flush chunks once, at the opaque->translucent boundary, so they
+				// are in the depth buffer before translucent surfaces test against them
+				if ( !ciFlushed && shader && shader->sort > SS_OPAQUE ) {
+					R_ChunkInst_Flush();
+					ciFlushed = qtrue;
+				}
+#endif
 				if (!didShadowPass && shader && shader->sort > SS_BANNER)
 				{
 					RB_ShadowFinish();
@@ -880,6 +909,12 @@ void RB_RenderDrawSurfList( drawSurf_t *drawSurfs, int numDrawSurfs ) {
 	if (oldShader != NULL) {
 		RB_EndSurface();
 	}
+#ifdef VITA
+	// all-opaque view (no translucent boundary hit): flush any pending chunks now
+	if ( !ciFlushed ) {
+		R_ChunkInst_Flush();
+	}
+#endif
 
 	if (tr_stencilled && tr_distortionPrePost)
 	{ //ok, cap it now
