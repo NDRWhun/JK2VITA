@@ -1758,7 +1758,7 @@ void R_Register( void )
 	// 1 = backend on a dedicated render thread (default), 0 = inline on main. CVAR_LATCH.
 	r_renderThread = ri.Cvar_Get( "r_renderThread", "1", CVAR_ARCHIVE | CVAR_LATCH );
 	// fold all-additive multi-stage effects into one programmable draw; 2 = transposed MVP (debug)
-	r_effectCombine = ri.Cvar_Get( "r_effectCombine", "0", CVAR_ARCHIVE );
+	r_effectCombine = ri.Cvar_Get( "r_effectCombine", "1", CVAR_ARCHIVE );
 #ifdef VITA
 	r_chunkInstancing = ri.Cvar_Get( "r_chunkInstancing", "0", CVAR_ARCHIVE );
 #endif
