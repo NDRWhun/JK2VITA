@@ -74,7 +74,7 @@ include_directories(
 )
 
 # Generate qcommon/q_version.h (normally produced by OpenJK's build).
-set(GIT_TAG "JK2VITA-0.9.8")
+set(GIT_TAG "JK2VITA-0.9.81")
 set(SOURCE_DATE "${CMAKE_BUILD_TYPE}")
 configure_file(
   ${CMAKE_SOURCE_DIR}/src/shared/qcommon/q_version.h.in

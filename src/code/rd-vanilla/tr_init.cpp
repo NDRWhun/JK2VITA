@@ -1829,9 +1829,10 @@ void R_Register( void )
 	{
 		cvar_t *gfxBase = ri.Cvar_Get( "vita_gfxBaseline", "0", CVAR_ARCHIVE );
 		// v2 re-asserted cg_shadows; v3 re-enables the DXT cache over a bisect edit;
-		// v4 raises the quality baseline (sharper textures, full LOD/tessellation, real sky).
-		if ( gfxBase->integer < 4 ) {
-			ri.Cvar_Set( "vita_gfxBaseline", "4" );
+		// v4 raises the quality baseline (sharper textures, full LOD/tessellation, real sky);
+		// v5 folds additive effect stages (r_effectCombine).
+		if ( gfxBase->integer < 5 ) {
+			ri.Cvar_Set( "vita_gfxBaseline", "5" );
 			ri.Cvar_Set( "r_texCacheCompressed", "1" );
 			ri.Cvar_Set( "r_picmip", "1" );			// sharper textures (DXT pays for it)
 			ri.Cvar_Set( "r_lodbias", "0" );		// full geometry detail
@@ -1839,6 +1840,7 @@ void R_Register( void )
 			ri.Cvar_Set( "r_fastSky", "0" );		// real skybox
 			ri.Cvar_Set( "r_inGameVideo", "1" );	// in-world video screens
 			ri.Cvar_Set( "cg_shadows", "1" );		// blob shadows (stencil volumes don't draw on vitaGL)
+			ri.Cvar_Set( "r_effectCombine", "1" );	// fold additive effect stages into one draw
 		}
 	}
 #endif
