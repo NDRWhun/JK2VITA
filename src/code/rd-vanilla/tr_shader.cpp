@@ -3248,6 +3248,35 @@ static shader_t *FinishShader( void ) {
 	//
 	// look for multitexture potential
 	//
+#ifdef VITA
+	// all-additive stacks with surface-uniform color fold into one combine draw (r_effectCombine)
+	if ( stage > 1 && stage <= 4 && r_effectCombine && r_effectCombine->integer ) {
+		int ec;
+		for ( ec = 0; ec < stage; ec++ ) {
+			const shaderStage_t *st = &stages[ec];
+			if ( !st->active || st->bundle[1].image || st->ss )
+				break;
+			if ( ( st->stateBits & ( GLS_SRCBLEND_BITS | GLS_DSTBLEND_BITS ) ) != ( GLS_SRCBLEND_ONE | GLS_DSTBLEND_ONE ) )
+				break;
+			if ( st->stateBits & ( GLS_DEPTHMASK_TRUE | GLS_ATEST_BITS ) )
+				break;
+			if ( ( st->stateBits ^ stages[0].stateBits ) & ( GLS_DEPTHTEST_DISABLE | GLS_DEPTHFUNC_EQUAL ) )
+				break;
+			if ( st->bundle[0].tcGen != TCGEN_TEXTURE && st->bundle[0].tcGen != TCGEN_ENVIRONMENT_MAPPED )
+				break;
+			if ( st->rgbGen != CGEN_IDENTITY && st->rgbGen != CGEN_IDENTITY_LIGHTING
+				&& st->rgbGen != CGEN_CONST && st->rgbGen != CGEN_WAVEFORM )
+				break;
+			if ( st->glow != stages[0].glow )
+				break;
+		}
+		if ( ec == stage ) {
+			shader.vitaEffectCombine = true;
+			shader.ecNumStages = (byte)stage;
+		}
+	}
+	if ( !shader.vitaEffectCombine )
+#endif
 	if ( stage > 1 && CollapseMultitexture() ) {
 		stage--;
 	}

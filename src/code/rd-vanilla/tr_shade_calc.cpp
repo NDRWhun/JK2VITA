@@ -91,6 +91,13 @@ static float EvalWaveFormClamped( const waveForm_t *wf )
 	return glow;
 }
 
+#ifdef VITA
+float R_EvalWaveForm( const waveForm_t *wf )
+{
+	return EvalWaveForm( wf );
+}
+#endif
+
 /*
 ** RB_CalcStretchTexCoords
 */

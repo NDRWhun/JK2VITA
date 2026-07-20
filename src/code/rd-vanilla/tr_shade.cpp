@@ -1663,123 +1663,130 @@ static void ComputeColors( shaderStage_t *pStage, alphaGen_t forceAlphaGen, colo
 
 /*
 ===============
+ComputeBundleTexCoords
+===============
+*/
+static void ComputeBundleTexCoords( const textureBundle_t *bundle, vec2_t *dst ) {
+	int		i;
+	int tm;
+
+	//
+	// generate the texture coordinates
+	//
+	switch ( bundle->tcGen )
+	{
+	case TCGEN_IDENTITY:
+		memset( dst, 0, sizeof( float ) * 2 * tess.numVertexes );
+		break;
+	case TCGEN_TEXTURE:
+		for ( i = 0 ; i < tess.numVertexes ; i++ ) {
+			dst[i][0] = tess.texCoords[i][0][0];
+			dst[i][1] = tess.texCoords[i][0][1];
+		}
+		break;
+	case TCGEN_LIGHTMAP:
+		for ( i = 0 ; i < tess.numVertexes ; i++ ) {
+			dst[i][0] = tess.texCoords[i][1][0];
+			dst[i][1] = tess.texCoords[i][1][1];
+		}
+		break;
+	case TCGEN_LIGHTMAP1:
+		for ( i = 0 ; i < tess.numVertexes ; i++ ) {
+			dst[i][0] = tess.texCoords[i][2][0];
+			dst[i][1] = tess.texCoords[i][2][1];
+		}
+		break;
+	case TCGEN_LIGHTMAP2:
+		for ( i = 0 ; i < tess.numVertexes ; i++ ) {
+			dst[i][0] = tess.texCoords[i][3][0];
+			dst[i][1] = tess.texCoords[i][3][1];
+		}
+		break;
+	case TCGEN_LIGHTMAP3:
+		for ( i = 0 ; i < tess.numVertexes ; i++ ) {
+			dst[i][0] = tess.texCoords[i][4][0];
+			dst[i][1] = tess.texCoords[i][4][1];
+		}
+		break;
+	case TCGEN_VECTOR:
+		for ( i = 0 ; i < tess.numVertexes ; i++ ) {
+			dst[i][0] = DotProduct( tess.xyz[i], bundle->tcGenVectors[0] );
+			dst[i][1] = DotProduct( tess.xyz[i], bundle->tcGenVectors[1] );
+		}
+		break;
+	case TCGEN_FOG:
+		RB_CalcFogTexCoords( ( float * ) dst );
+		break;
+	case TCGEN_ENVIRONMENT_MAPPED:
+		if ( r_environmentMapping->integer )
+			RB_CalcEnvironmentTexCoords( (float *)dst );
+		else
+			memset( dst, 0, sizeof( float ) * 2 * tess.numVertexes );
+		break;
+	case TCGEN_BAD:
+		return;
+	}
+
+	//
+	// alter texture coordinates
+	//
+	for ( tm = 0; tm < bundle->numTexMods ; tm++ ) {
+		switch ( bundle->texMods[tm].type )
+		{
+		case TMOD_NONE:
+			tm = TR_MAX_TEXMODS;		// break out of for loop
+			break;
+
+		case TMOD_TURBULENT:
+			RB_CalcTurbulentTexCoords( &bundle->texMods[tm].wave,
+					                 ( float * ) dst );
+			break;
+
+		case TMOD_ENTITY_TRANSLATE:
+			RB_CalcScrollTexCoords( backEnd.currentEntity->e.shaderTexCoord,
+								 ( float * ) dst );
+			break;
+
+		case TMOD_SCROLL:
+			RB_CalcScrollTexCoords( bundle->texMods[tm].translate,	//union scroll into translate
+									 ( float * ) dst );
+			break;
+
+		case TMOD_SCALE:
+			RB_CalcScaleTexCoords( bundle->texMods[tm].translate,		//union scroll into translate
+								 ( float * ) dst );
+			break;
+
+		case TMOD_STRETCH:
+			RB_CalcStretchTexCoords( &bundle->texMods[tm].wave,
+					               ( float * ) dst );
+			break;
+
+		case TMOD_TRANSFORM:
+			RB_CalcTransformTexCoords( &bundle->texMods[tm],
+					                 ( float * ) dst );
+			break;
+
+		case TMOD_ROTATE:
+			RB_CalcRotateTexCoords( bundle->texMods[tm].translate[0], //union rotateSpeed into translate[0]
+									( float * ) dst );
+			break;
+
+		default:
+			Com_Error( ERR_DROP, "ERROR: unknown texmod '%d' in shader '%s'\n", bundle->texMods[tm].type, tess.shader->name );
+			break;
+		}
+	}
+}
+
+/*
+===============
 ComputeTexCoords
 ===============
 */
 static void ComputeTexCoords( shaderStage_t *pStage ) {
-	int		i;
-	int b;
-
-	for ( b = 0; b < NUM_TEXTURE_BUNDLES; b++ ) {
-		int tm;
-
-		//
-		// generate the texture coordinates
-		//
-		switch ( pStage->bundle[b].tcGen )
-		{
-		case TCGEN_IDENTITY:
-			memset( tess.svars.texcoords[b], 0, sizeof( float ) * 2 * tess.numVertexes );
-			break;
-		case TCGEN_TEXTURE:
-			for ( i = 0 ; i < tess.numVertexes ; i++ ) {
-				tess.svars.texcoords[b][i][0] = tess.texCoords[i][0][0];
-				tess.svars.texcoords[b][i][1] = tess.texCoords[i][0][1];
-			}
-			break;
-		case TCGEN_LIGHTMAP:
-			for ( i = 0 ; i < tess.numVertexes ; i++ ) {
-				tess.svars.texcoords[b][i][0] = tess.texCoords[i][1][0];
-				tess.svars.texcoords[b][i][1] = tess.texCoords[i][1][1];
-			}
-			break;
-		case TCGEN_LIGHTMAP1:
-			for ( i = 0 ; i < tess.numVertexes ; i++ ) {
-				tess.svars.texcoords[b][i][0] = tess.texCoords[i][2][0];
-				tess.svars.texcoords[b][i][1] = tess.texCoords[i][2][1];
-			}
-			break;
-		case TCGEN_LIGHTMAP2:
-			for ( i = 0 ; i < tess.numVertexes ; i++ ) {
-				tess.svars.texcoords[b][i][0] = tess.texCoords[i][3][0];
-				tess.svars.texcoords[b][i][1] = tess.texCoords[i][3][1];
-			}
-			break;
-		case TCGEN_LIGHTMAP3:
-			for ( i = 0 ; i < tess.numVertexes ; i++ ) {
-				tess.svars.texcoords[b][i][0] = tess.texCoords[i][4][0];
-				tess.svars.texcoords[b][i][1] = tess.texCoords[i][4][1];
-			}
-			break;
-		case TCGEN_VECTOR:
-			for ( i = 0 ; i < tess.numVertexes ; i++ ) {
-				tess.svars.texcoords[b][i][0] = DotProduct( tess.xyz[i], pStage->bundle[b].tcGenVectors[0] );
-				tess.svars.texcoords[b][i][1] = DotProduct( tess.xyz[i], pStage->bundle[b].tcGenVectors[1] );
-			}
-			break;
-		case TCGEN_FOG:
-			RB_CalcFogTexCoords( ( float * ) tess.svars.texcoords[b] );
-			break;
-		case TCGEN_ENVIRONMENT_MAPPED:
-			if ( r_environmentMapping->integer )
-				RB_CalcEnvironmentTexCoords( (float *)tess.svars.texcoords[b] );
-			else
-				memset( tess.svars.texcoords[b], 0, sizeof( float ) * 2 * tess.numVertexes );
-			break;
-		case TCGEN_BAD:
-			return;
-		}
-
-		//
-		// alter texture coordinates
-		//
-		for ( tm = 0; tm < pStage->bundle[b].numTexMods ; tm++ ) {
-			switch ( pStage->bundle[b].texMods[tm].type )
-			{
-			case TMOD_NONE:
-				tm = TR_MAX_TEXMODS;		// break out of for loop
-				break;
-
-			case TMOD_TURBULENT:
-				RB_CalcTurbulentTexCoords( &pStage->bundle[b].texMods[tm].wave,
-						                 ( float * ) tess.svars.texcoords[b] );
-				break;
-
-			case TMOD_ENTITY_TRANSLATE:
-				RB_CalcScrollTexCoords( backEnd.currentEntity->e.shaderTexCoord,
-									 ( float * ) tess.svars.texcoords[b] );
-				break;
-
-			case TMOD_SCROLL:
-				RB_CalcScrollTexCoords( pStage->bundle[b].texMods[tm].translate,	//union scroll into translate
-										 ( float * ) tess.svars.texcoords[b] );
-				break;
-
-			case TMOD_SCALE:
-				RB_CalcScaleTexCoords( pStage->bundle[b].texMods[tm].translate,		//union scroll into translate
-									 ( float * ) tess.svars.texcoords[b] );
-				break;
-
-			case TMOD_STRETCH:
-				RB_CalcStretchTexCoords( &pStage->bundle[b].texMods[tm].wave,
-						               ( float * ) tess.svars.texcoords[b] );
-				break;
-
-			case TMOD_TRANSFORM:
-				RB_CalcTransformTexCoords( &pStage->bundle[b].texMods[tm],
-						                 ( float * ) tess.svars.texcoords[b] );
-				break;
-
-			case TMOD_ROTATE:
-				RB_CalcRotateTexCoords( pStage->bundle[b].texMods[tm].translate[0], //union rotateSpeed into translate[0]
-										( float * ) tess.svars.texcoords[b] );
-				break;
-
-			default:
-				Com_Error( ERR_DROP, "ERROR: unknown texmod '%d' in shader '%s'\n", pStage->bundle[b].texMods[tm].type, tess.shader->name );
-				break;
-			}
-		}
+	for ( int b = 0; b < NUM_TEXTURE_BUNDLES; b++ ) {
+		ComputeBundleTexCoords( &pStage->bundle[b], tess.svars.texcoords[b] );
 	}
 }
 
@@ -1808,6 +1815,190 @@ static vec4_t	GLFogOverrideColors[GLFOGOVERRIDE_MAX] =
 
 static const float logtestExp2 = (sqrt( -log( 1.0 / 255.0 ) ));
 #endif
+#ifdef VITA
+// r_effectCombine: draw an all-additive multi-stage effect as one programmable pass
+// (fragColor = sum w_i(t) * tex_i(uv_i)) instead of numUnfoggedPasses blended fills.
+#define EC_MAX_STAGES 4
+
+extern void myGlMultMatrix( const float *a, const float *b, float *out );
+
+static GLuint	ec_prog[EC_MAX_STAGES + 1];
+static qboolean	ec_failed[EC_MAX_STAGES + 1];
+static GLint	ec_uMVP[EC_MAX_STAGES + 1];
+static GLint	ec_uTex[EC_MAX_STAGES + 1][EC_MAX_STAGES];
+static GLint	ec_uWeight[EC_MAX_STAGES + 1][EC_MAX_STAGES];
+static vec2_t	ec_uv[EC_MAX_STAGES][SHADER_MAX_VERTEXES];
+
+static GLuint EC_Compile( GLenum type, const char *src )
+{
+	GLuint	sh = glCreateShader( type );
+	GLint	ok = 0;
+
+	glShaderSource( sh, 1, &src, NULL );
+	glCompileShader( sh );
+	glGetShaderiv( sh, GL_COMPILE_STATUS, &ok );
+	if ( !ok ) {
+		glDeleteShader( sh );
+		return 0;
+	}
+	return sh;
+}
+
+static qboolean EC_BuildProgram( int n )
+{
+	char	vs[1024], fs[1024], line[96], name[16];
+	GLuint	vsh, fsh, prog;
+	GLint	ok = 0;
+	int		i;
+
+	Q_strncpyz( vs, "uniform mat4 uMVP;\nattribute vec3 aPos;\n", sizeof( vs ) );
+	for ( i = 0; i < n; i++ ) {
+		Com_sprintf( line, sizeof( line ), "attribute vec2 aUv%d;\nvarying vec2 vUv%d;\n", i, i );
+		Q_strcat( vs, sizeof( vs ), line );
+	}
+	Q_strcat( vs, sizeof( vs ), "void main() {\n" );
+	for ( i = 0; i < n; i++ ) {
+		Com_sprintf( line, sizeof( line ), "vUv%d = aUv%d;\n", i, i );
+		Q_strcat( vs, sizeof( vs ), line );
+	}
+	Q_strcat( vs, sizeof( vs ), "gl_Position = uMVP * vec4(aPos, 1.0);\n}\n" );
+
+	fs[0] = '\0';
+	for ( i = 0; i < n; i++ ) {
+		Com_sprintf( line, sizeof( line ), "uniform sampler2D uTex%d;\nuniform vec4 uWeight%d;\nvarying vec2 vUv%d;\n", i, i, i );
+		Q_strcat( fs, sizeof( fs ), line );
+	}
+	Q_strcat( fs, sizeof( fs ), "void main() {\nvec4 c = uWeight0 * texture2D(uTex0, vUv0);\n" );
+	for ( i = 1; i < n; i++ ) {
+		Com_sprintf( line, sizeof( line ), "c += uWeight%d * texture2D(uTex%d, vUv%d);\n", i, i, i );
+		Q_strcat( fs, sizeof( fs ), line );
+	}
+	Q_strcat( fs, sizeof( fs ), "gl_FragColor = c;\n}\n" );
+
+	vsh = EC_Compile( GL_VERTEX_SHADER, vs );
+	fsh = vsh ? EC_Compile( GL_FRAGMENT_SHADER, fs ) : 0;
+	if ( !vsh || !fsh ) {
+		if ( vsh ) {
+			glDeleteShader( vsh );
+		}
+		ec_failed[n] = qtrue;
+		ri.Printf( PRINT_WARNING, "r_effectCombine: %d-stage shader compile failed, using fixed-function\n", n );
+		return qfalse;
+	}
+	prog = glCreateProgram();
+	glAttachShader( prog, vsh );
+	glAttachShader( prog, fsh );
+	glBindAttribLocation( prog, 0, "aPos" );
+	for ( i = 0; i < n; i++ ) {
+		Com_sprintf( name, sizeof( name ), "aUv%d", i );
+		glBindAttribLocation( prog, 1 + i, name );
+	}
+	glLinkProgram( prog );
+	glGetProgramiv( prog, GL_LINK_STATUS, &ok );
+	glDeleteShader( vsh );
+	glDeleteShader( fsh );
+	if ( !ok ) {
+		glDeleteProgram( prog );
+		ec_failed[n] = qtrue;
+		ri.Printf( PRINT_WARNING, "r_effectCombine: %d-stage program link failed, using fixed-function\n", n );
+		return qfalse;
+	}
+	ec_prog[n] = prog;
+	ec_uMVP[n] = glGetUniformLocation( prog, "uMVP" );
+	for ( i = 0; i < n; i++ ) {
+		Com_sprintf( name, sizeof( name ), "uTex%d", i );
+		ec_uTex[n][i] = glGetUniformLocation( prog, name );
+		Com_sprintf( name, sizeof( name ), "uWeight%d", i );
+		ec_uWeight[n][i] = glGetUniformLocation( prog, name );
+	}
+	return qtrue;
+}
+
+static void EC_StageWeight( const shaderStage_t *st, vec4_t w )
+{
+	float f;
+
+	switch ( st->rgbGen ) {
+	case CGEN_WAVEFORM:
+		f = R_EvalWaveForm( &st->rgbWave ) * tr.identityLight;
+		if ( f < 0.0f ) {
+			f = 0.0f;
+		} else if ( f > 1.0f ) {
+			f = 1.0f;
+		}
+		w[0] = w[1] = w[2] = f;
+		break;
+	case CGEN_IDENTITY_LIGHTING:
+		w[0] = w[1] = w[2] = tr.identityLight;
+		break;
+	case CGEN_CONST:
+		w[0] = st->constantColor[0] / 255.0f;
+		w[1] = st->constantColor[1] / 255.0f;
+		w[2] = st->constantColor[2] / 255.0f;
+		break;
+	default:	// CGEN_IDENTITY
+		w[0] = w[1] = w[2] = 1.0f;
+		break;
+	}
+	w[3] = 1.0f;
+}
+
+static qboolean RB_DrawCombinedAdditive( shaderCommands_t *input )
+{
+	const int	n = input->shader->ecNumStages;
+	float		mvp[16];
+	vec4_t		w;
+	int			i;
+
+	if ( n < 2 || n > EC_MAX_STAGES ) {
+		return qfalse;
+	}
+	if ( !ec_prog[n] && ( ec_failed[n] || !EC_BuildProgram( n ) ) ) {
+		return qfalse;
+	}
+
+	for ( i = 0; i < n; i++ ) {
+		ComputeBundleTexCoords( &input->xstages[i].bundle[0], ec_uv[i] );
+	}
+
+	// row-vector clip = v * (model * projection), as R_TransformModelToClip; cvar 2 = transposed (debug)
+	myGlMultMatrix( backEnd.ori.modelMatrix, backEnd.viewParms.projectionMatrix, mvp );
+
+	GL_State( input->xstages[0].stateBits & ( GLS_SRCBLEND_BITS | GLS_DSTBLEND_BITS | GLS_DEPTHTEST_DISABLE | GLS_DEPTHFUNC_EQUAL ) );
+	GL_Cull( input->shader->cullType );
+
+	for ( i = 0; i < n; i++ ) {
+		GL_SelectTexture( i );
+		R_BindAnimatedImage( &input->xstages[i].bundle[0] );
+	}
+
+	glUseProgram( ec_prog[n] );
+	glUniformMatrix4fv( ec_uMVP[n], 1, ( r_effectCombine->integer == 2 ) ? GL_TRUE : GL_FALSE, mvp );
+	for ( i = 0; i < n; i++ ) {
+		glUniform1i( ec_uTex[n][i], i );
+		EC_StageWeight( &input->xstages[i], w );
+		glUniform4fv( ec_uWeight[n][i], 1, w );
+	}
+
+	glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, sizeof( vec4_t ), input->xyz );
+	glEnableVertexAttribArray( 0 );
+	for ( i = 0; i < n; i++ ) {
+		glVertexAttribPointer( 1 + i, 2, GL_FLOAT, GL_FALSE, 0, ec_uv[i] );
+		glEnableVertexAttribArray( 1 + i );
+	}
+
+	qglDrawElements( GL_TRIANGLES, input->numIndexes, GL_INDEX_TYPE, input->indexes );
+
+	glUseProgram( 0 );
+	glDisableVertexAttribArray( 0 );
+	for ( i = 0; i < n; i++ ) {
+		glDisableVertexAttribArray( 1 + i );
+	}
+	GL_SelectTexture( 0 );
+	return qtrue;
+}
+#endif
+
 extern bool tr_stencilled; //tr_backend.cpp
 static void RB_IterateStagesGeneric( shaderCommands_t *input )
 {
@@ -1873,6 +2064,16 @@ static void RB_IterateStagesGeneric( shaderCommands_t *input )
 
 		qglEnable(GL_FOG);
 		UseGLFog = true;
+	}
+#endif
+
+#ifdef VITA
+	// fogged surfaces stay fixed-function: the combine skips per-vertex fog color adjust
+	if ( r_effectCombine->integer && input->shader->vitaEffectCombine && !input->fogNum
+		&& !g_bRenderGlowingObjects && !r_lightmap->integer ) {
+		if ( RB_DrawCombinedAdditive( input ) ) {
+			return;
+		}
 	}
 #endif
 

@@ -63,6 +63,7 @@ cvar_t	*r_forceFog;
 cvar_t	*r_forceFogColor;
 cvar_t	*r_texCacheCompressed;
 cvar_t	*r_renderThread;
+cvar_t	*r_effectCombine;
 cvar_t	*r_dropTexturesOnLoad;
 cvar_t	*r_dxtFast;
 
@@ -1753,6 +1754,8 @@ void R_Register( void )
 #ifdef VITA
 	// 1 = backend on a dedicated render thread (default), 0 = inline on main. CVAR_LATCH.
 	r_renderThread = ri.Cvar_Get( "r_renderThread", "1", CVAR_ARCHIVE | CVAR_LATCH );
+	// fold all-additive multi-stage effects into one programmable draw; 2 = transposed MVP (debug)
+	r_effectCombine = ri.Cvar_Get( "r_effectCombine", "0", CVAR_ARCHIVE );
 	// 1 = drop old-map textures at shutdown; stock keeps both maps resident until the
 	// new map's first frame (the transition OOM peak). Reload comes from the DXT cache.
 	r_dropTexturesOnLoad = ri.Cvar_Get( "r_dropTexturesOnLoad", "1", CVAR_ARCHIVE );
