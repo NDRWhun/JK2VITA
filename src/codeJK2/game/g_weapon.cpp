@@ -458,30 +458,13 @@ void CalcMuzzlePoint( gentity_t *const ent, vec3_t wpFwd, vec3_t right, vec3_t w
 }
 
 #ifdef VITA
-// Vita aim assist -- offsets analog-stick imprecision by bending a ranged shot toward a nearby enemy.
+// Vita look assist -- eases analog-stick imprecision by gently pulling the view toward a nearby enemy.
 static float WP_AngleDelta( float a, float b )
 {
 	float d = a - b;
 	while ( d > 180.0f )  d -= 360.0f;
 	while ( d < -180.0f ) d += 360.0f;
 	return d;
-}
-
-static qboolean WP_AimAssistWeapon( int weapon )
-{	// ranged only; skip saber/melee/scope(disruptor)/throwables
-	switch ( weapon )
-	{
-	case WP_BRYAR_PISTOL:
-	case WP_BLASTER:
-	case WP_BOWCASTER:
-	case WP_REPEATER:
-	case WP_DEMP2:
-	case WP_FLECHETTE:
-	case WP_ROCKET_LAUNCHER:
-		return qtrue;
-	default:
-		return qfalse;
-	}
 }
 
 static qboolean WP_AimAssistValid( gentity_t *self, gentity_t *enemy, float rangeSq )
@@ -532,31 +515,7 @@ static gentity_t *WP_AimAssistTarget( gentity_t *self, const vec3_t eye, const v
 	return best;
 }
 
-// bullet magnetism: bend the player's shot `forward` toward the picked target, capped at g_aimAssistBend degrees
-static void WP_AimAssistBendForward( gentity_t *self, vec3_t forward )
-{
-	vec3_t		spot, dir, curAng, tgtAng;
-	const float	minDot = (float)cos( g_aimAssistCone->value * 0.01745329f );
-	gentity_t	*target = WP_AimAssistTarget( self, self->client->renderInfo.eyePoint, forward, g_aimAssistRange->value, minDot );
-	const float	maxBend = g_aimAssistBend->value;
-
-	if ( !target )
-		return;
-	CalcEntitySpot( target, SPOT_HEAD, spot );
-	VectorSubtract( spot, self->client->renderInfo.eyePoint, dir );
-	vectoangles( dir, tgtAng );
-	vectoangles( forward, curAng );
-	for ( int i = 0; i < 2; i++ )	// PITCH, YAW
-	{
-		float d = WP_AngleDelta( tgtAng[i], curAng[i] );
-		if ( d > maxBend )  d = maxBend;
-		if ( d < -maxBend ) d = -maxBend;
-		curAng[i] += d;
-	}
-	AngleVectors( curAng, forward, NULL, NULL );
-}
-
-// per-frame look assist (g_aimAssist 2): returns the look-speed scale + a gentle pull (deg/sec) toward a target
+// per-frame look assist: returns the look-speed scale + a gentle pull (deg/sec) toward a target
 float G_VitaAimAssistLook( float *outPullYaw, float *outPullPitch )
 {
 	gentity_t	*player = &g_entities[0];
@@ -564,14 +523,14 @@ float G_VitaAimAssistLook( float *outPullYaw, float *outPullPitch )
 	vec3_t		forward, spot, dir, tgtAng;
 
 	*outPullYaw = *outPullPitch = 0.0f;
-	if ( !g_aimAssist || g_aimAssist->integer < 2 )
+	if ( !g_aimAssist || !g_aimAssist->integer )
 		return 1.0f;
 	if ( !player->inuse || !player->client || player->health <= 0 )
 		return 1.0f;
 
 	AngleVectors( player->client->ps.viewangles, forward, NULL, NULL );
-	target = WP_AimAssistTarget( player, player->client->renderInfo.eyePoint, forward, g_aimAssistRange->value,
-		(float)cos( g_aimAssistCone->value * 0.01745329f ) );
+	target = WP_AimAssistTarget( player, player->client->renderInfo.eyePoint, forward, 4096.0f,
+		(float)cos( 10.0f * 0.01745329f ) );
 	if ( !target )
 		return 1.0f;
 
@@ -691,10 +650,6 @@ void FireWeapon( gentity_t *ent, qboolean alt_fire )
 	else
 	{
 		AngleVectors( ent->client->ps.viewangles, wpFwd, wpVright, wpUp );
-#ifdef VITA
-		if ( !ent->s.number && g_aimAssist && g_aimAssist->integer && WP_AimAssistWeapon( ent->s.weapon ) )
-			WP_AimAssistBendForward( ent, wpFwd );	// bend the shot toward a nearby enemy before the muzzle is calc'd
-#endif
 	}
 
 	ent->alt_fire = alt_fire;

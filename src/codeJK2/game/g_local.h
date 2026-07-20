@@ -299,9 +299,6 @@ extern	cvar_t	*g_cheats;
 extern	cvar_t	*g_developer;
 #ifdef VITA
 extern	cvar_t	*g_aimAssist;
-extern	cvar_t	*g_aimAssistRange;
-extern	cvar_t	*g_aimAssistCone;
-extern	cvar_t	*g_aimAssistBend;
 extern	cvar_t	*g_aimAssistSlow;
 extern	cvar_t	*g_aimAssistPull;
 float G_VitaAimAssistLook( float *outPullYaw, float *outPullPitch );
