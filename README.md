@@ -82,7 +82,7 @@ Open with **Start + Select** — the on-screen keyboard pops up. Type a command,
 
 ### Aim assist (optional)
 
-Off by default. Eases stick aiming by gently pulling the view toward the nearest enemy near your crosshair — set `g_aimAssist 1` to enable.
+Off by default. When an enemy is near your crosshair it gently steers your view toward them and slows your look speed so you overshoot less — set `g_aimAssist 1` to enable.
 
 | Cvar | Default | What it does |
 |------|---------|--------------|
