@@ -80,6 +80,16 @@ The combo layer only fires instant commands. The modifier role is latched per bu
 
 Open with **Start + Select** — the on-screen keyboard pops up. Type a command, press **Enter** to run it. Close with **Circle** or **Start + Select** again.
 
+### Aim assist (optional)
+
+Off by default. Eases stick aiming by gently pulling the view toward the nearest enemy near your crosshair — set `g_aimAssist 1` to enable.
+
+| Cvar | Default | What it does |
+|------|---------|--------------|
+| `g_aimAssist` | `0` | `1` = on (look assist) |
+| `g_aimAssistPull` | `3` | Pull strength toward the target — higher = snappier |
+| `g_aimAssistSpeed` | `0.5` | Look-speed scale near a target — lower = more slowdown |
+
 ## Performance & tuning
 
 Tune by editing `ux0:data/JK2VITA/base/openjo_sp.cfg` on the card, or from the in-game console (**Start + Select**). *(latched)* cvars need a `vid_restart` or relaunch.
@@ -99,6 +109,7 @@ Tune by editing `ux0:data/JK2VITA/base/openjo_sp.cfg` on the card, or from the i
 | `r_ghoul2CrowdLod` | `4` | Above this many on-screen characters, extras drop LOD |
 | `r_ghoul2CrowdLodStep` | `3` | How many LOD levels the crowd extras drop |
 | `cg_shadows` | `1` | Player/NPC shadows — `0` = off, `1` = blob |
+| `r_effectCombine` | `1` | Fold additive effect shaders (shields, energy fields) into one draw; `0` = per-stage |
 | `r_texCacheCompressed` | `1` | Cache textures as DXT (less VRAM; `0` = uncompressed) *(latched)* |
 | `r_dropTexturesOnLoad` | `1` | Free the old map's textures at map change (lower transition memory peak); `0` = keep until the new map's first frame |
 | `s_khz` | `22` | Mixer rate — 22 matches the source assets *(latched)* |
