@@ -1137,6 +1137,7 @@ void CL_InitRef( void ) {
 	RIT(CM_ClusterPVS);
 	RIT(CM_CullWorldBox);
 	RIT(CM_DeleteCachedMap);
+	RIT(CM_FreeCachedMapDiskImage);
 	RIT(CM_DrawDebugSurface);
 	RIT(CM_PointContents);
 	RIT(Cvar_Get);

@@ -1460,14 +1460,12 @@ void RE_LoadWorldMap_Actual( const char *name, world_t &worldData, int index ) {
 
 	if (ri.gpvCachedMapDiskImage() && !loadedSubBSP)
 	{
-		// For the moment, I'm going to keep this disk image around in case we need it to respawn.
-		//  No problem for memory, since it'll only be a NZ ptr if we're not low on physical memory
-		//	( ie we've got > 96MB).
-		//
-		//  So don't do this...
-		//
-		//		R_Free( gpvCachedMapDiskImage );
-		//				gpvCachedMapDiskImage = NULL;
+#ifdef VITA
+		// done with the disk image, reclaim it now
+		ri.CM_FreeCachedMapDiskImage();
+#else
+		// keep it cached for fast respawn
+#endif
 	}
 	else
 	{

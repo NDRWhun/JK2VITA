@@ -639,6 +639,17 @@ qboolean CM_DeleteCachedMap(qboolean bGuaranteedOkToDelete)
 	return bActuallyFreedSomething;
 }
 
+// free the cached BSP disk image, keep parsed collision data
+void CM_FreeCachedMapDiskImage( void )
+{
+	if (gpvCachedMapDiskImage)
+	{
+		Z_Free( gpvCachedMapDiskImage );
+		gpvCachedMapDiskImage = NULL;
+	}
+	gsCachedMapDiskImage[0] = '\0';
+}
+
 static void CM_LoadMap_Actual( const char *name, qboolean clientload, int *checksum, clipMap_t &cm ) {
 	const int		*buf;
 	size_t			i;
@@ -795,11 +806,8 @@ static void CM_LoadMap_Actual( const char *name, qboolean clientload, int *check
 		//
 		extern qboolean Sys_LowPhysicalMemory();
 #ifdef VITA
-		// Vita: reclaim the ~20MB BSP disk image now instead of holding it for the
-		// renderer (RE_LoadWorldMap re-reads the BSP from disk when it's gone). Frees
-		// contiguous heap for the asset/sound load that follows, e.g. the ~16MB MP3
-		// music decode buffer that otherwise fails on a fragmented 144MB heap.
-		const bool bFreeDiskImage = true;
+		// keep the disk image so the renderer reuses it (no BSP re-read)
+		const bool bFreeDiskImage = false;
 #else
 		const bool bFreeDiskImage = Sys_LowPhysicalMemory(); //|| com_dedicated->integer	// no need to check for dedicated in single-player codebase
 #endif

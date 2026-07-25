@@ -127,6 +127,7 @@ typedef struct {
 	int					(*SV_PointContents)					( const vec3_t p, clipHandle_t model );
 
 	qboolean			(*CM_DeleteCachedMap)				( qboolean bGuaranteedOkToDelete );	// NOT IN MP
+	void				(*CM_FreeCachedMapDiskImage)		( void );	// NOT IN MP
 
 	qboolean			(*CL_IsRunningInGameCinematic)		( void );
 
