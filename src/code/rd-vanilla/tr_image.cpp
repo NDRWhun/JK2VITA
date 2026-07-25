@@ -663,11 +663,21 @@ static qboolean R_DxtEnsurePool( void )
 	s_dxtGo   = sceKernelCreateSema( "dxt_go",   0, 0, DXT_WORKERS, NULL );
 	s_dxtDone = sceKernelCreateSema( "dxt_done", 0, 0, DXT_WORKERS, NULL );
 	const int cores[DXT_WORKERS] = { SCE_KERNEL_CPU_MASK_USER_0, SCE_KERNEL_CPU_MASK_USER_2 };
-	for ( int i = 0; i < DXT_WORKERS; i++ ) {
-		s_dxtThid[i] = sceKernelCreateThread( "dxt_enc", R_DxtWorker, 0x10000100, 0x8000, 0, cores[i], NULL );
-		if ( s_dxtGo < 0 || s_dxtDone < 0 || s_dxtThid[i] < 0 ) { s_dxtThid[0] = -1; return qfalse; }
-		sceKernelStartThread( s_dxtThid[i], 0, NULL );
+	int created = 0;
+	if ( s_dxtGo >= 0 && s_dxtDone >= 0 ) {
+		for ( ; created < DXT_WORKERS; created++ ) {
+			s_dxtThid[created] = sceKernelCreateThread( "dxt_enc", R_DxtWorker, 0x10000100, 0x8000, 0, cores[created], NULL );
+			if ( s_dxtThid[created] < 0 ) break;
+		}
 	}
+	if ( created < DXT_WORKERS ) {	// partial init: roll back, stay disabled
+		for ( int i = 0; i < created; i++ ) { sceKernelDeleteThread( s_dxtThid[i] ); s_dxtThid[i] = -1; }
+		if ( s_dxtGo   >= 0 ) { sceKernelDeleteSema( s_dxtGo );   s_dxtGo   = -1; }
+		if ( s_dxtDone >= 0 ) { sceKernelDeleteSema( s_dxtDone ); s_dxtDone = -1; }
+		s_dxtThid[0] = -1;
+		return qfalse;
+	}
+	for ( int i = 0; i < DXT_WORKERS; i++ ) sceKernelStartThread( s_dxtThid[i], 0, NULL );
 	return qtrue;
 }
 

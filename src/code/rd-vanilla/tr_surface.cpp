@@ -957,11 +957,13 @@ inline static uint32_t ComputeFinalVertexColor( const byte *colors ) {
 	r = g = b = 0;
 	for( k=0; k<MAXLIGHTMAPS; k++ ) {
 		if ( tess.shader->styles[k] < LS_UNUSED ) {
-			byte *styleColor = styleColors[tess.shader->styles[k]];
+			// word-read so a concurrent RE_SetLightStyle store is stale, not torn
+			uint32_t scWord;
+			memcpy( &scWord, styleColors[tess.shader->styles[k]], sizeof(scWord) );
 
-			r += (uint32_t)(*colors++) * (uint32_t)(*styleColor++);
-			g += (uint32_t)(*colors++) * (uint32_t)(*styleColor++);
-			b += (uint32_t)(*colors++) * (uint32_t)(*styleColor);
+			r += (uint32_t)(*colors++) * ( scWord        & 0xff);
+			g += (uint32_t)(*colors++) * ((scWord >>  8) & 0xff);
+			b += (uint32_t)(*colors++) * ((scWord >> 16) & 0xff);
 			colors++;
 		}
 		else

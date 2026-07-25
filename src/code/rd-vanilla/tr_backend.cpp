@@ -1880,6 +1880,11 @@ const void	*RB_WorldEffects( const void *data )
 RB_ExecuteRenderCommands
 ====================
 */
+#ifdef VITA
+// re-armed on GXM context rebuild; see the prime in RB_ExecuteRenderCommands
+static qboolean s_ffpPrimed = qfalse;
+void RB_ReprimeFFP( void ) { s_ffpPrimed = qfalse; }
+#endif
 void RB_ExecuteRenderCommands( const void *data ) {
 	int		t1, t2;
 
@@ -1891,7 +1896,6 @@ void RB_ExecuteRenderCommands( const void *data ) {
 		// FFP draws silently produce no fragments (state/matrices/program all verify correct).
 		// One-shot off-screen (fully clipped -> invisible) prime on the first frame the
 		// built-in white texture exists; R_Splash only clears in this mode.
-		static qboolean s_ffpPrimed = qfalse;
 		if ( !s_ffpPrimed && tr.whiteImage ) {
 			s_ffpPrimed = qtrue;
 			RB_SetGL2D();

@@ -1275,6 +1275,13 @@ sfxHandle_t	S_RegisterSound( const char *name)
 		}
 	}
 
+#ifdef VITA
+	if ( sfx->bAsyncLoading )
+	{	// a sync load while the worker read is in flight orphans a buffer
+		return sfx - s_knownSfx;
+	}
+#endif
+
 	sfx->bInMemory = false;
 
 	S_memoryLoad(sfx);
@@ -2973,6 +2980,9 @@ void S_Update( void ) {
 		//int total = 0;
 		//int totalMeg =0;
 		ch = s_channels;
+#ifdef VITA
+		S_MixLock();	// the mixer thread NULLs ch->thesfx concurrently
+#endif
 		for (i=0 ; i<MAX_CHANNELS; i++, ch++) {
 			if ( ch->thesfx && (ch->leftvol || ch->rightvol) ) {
 				Com_Printf ("(%i) %3i %3i %s\n", ch->entnum, ch->leftvol, ch->rightvol, ch->thesfx->sSoundName);
@@ -2984,6 +2994,9 @@ void S_Update( void ) {
 				//}
 			}
 		}
+#ifdef VITA
+		S_MixUnlock();
+#endif
 
 		//if (total)
 		//	Com_Printf ("----(%i)---- painted: %i, SND %.2fMB\n", total, s_paintedtime, totalMeg/1024.0f/1024.0f);

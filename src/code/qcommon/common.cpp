@@ -280,6 +280,9 @@ void SG_Shutdown();
 #ifdef JK2_MODE
 extern void SCR_UnprecacheScreenshot();
 #endif
+#ifdef VITA
+extern "C" qboolean Sys_InRenderThread( void );	// tr_cmds.cpp
+#endif
 void NORETURN QDECL Com_Error( int code, const char *fmt, ... ) {
 	va_list		argptr;
 	static int	lastErrorTime;
@@ -306,14 +309,20 @@ void NORETURN QDECL Com_Error( int code, const char *fmt, ... ) {
 
 	// if we are getting a solid stream of ERR_DROP, do an ERR_FATAL
 	currentTime = Sys_Milliseconds();
-	if ( currentTime - lastErrorTime < 100 ) {
-		if ( ++errorCount > 3 ) {
-			code = ERR_FATAL;
+#ifdef VITA
+	// backend errors are swallowed per-frame; keep them out of the shared escalation counter
+	if ( !Sys_InRenderThread() )
+#endif
+	{
+		if ( currentTime - lastErrorTime < 100 ) {
+			if ( ++errorCount > 3 ) {
+				code = ERR_FATAL;
+			}
+		} else {
+			errorCount = 0;
 		}
-	} else {
-		errorCount = 0;
+		lastErrorTime = currentTime;
 	}
-	lastErrorTime = currentTime;
 
 #ifdef JK2_MODE
 	SCR_UnprecacheScreenshot();
@@ -329,7 +338,13 @@ void NORETURN QDECL Com_Error( int code, const char *fmt, ... ) {
 	}
 
 	SG_Shutdown();	// close any file pointers
-	if ( code == ERR_DISCONNECT || code == ERR_DROP ) {
+	qboolean bThrow = (qboolean)( code == ERR_DISCONNECT || code == ERR_DROP );
+#ifdef VITA
+	// the backend thread can't shut itself down; throw so main handles it. Its catch never
+	// runs Com_CatchError, so clear the guard here or the next Com_Error hits "recursive error".
+	if ( Sys_InRenderThread() ) { bThrow = qtrue; com_errorEntered = qfalse; }
+#endif
+	if ( bThrow ) {
 		throw code;
 	} else {
 		SV_Shutdown (va("Server fatal crashed: %s\n", com_errorMessage));

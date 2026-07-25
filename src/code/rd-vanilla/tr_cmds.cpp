@@ -97,6 +97,7 @@ volatile qboolean pendingCtxInit = qfalse;
 static SceUID rend_thid = -1;
 static volatile qboolean rend_should_exit = qfalse;
 static volatile int rend_handedBuffer = 0;	// index of the frame being handed off; written before Signal(in), read after Wait(in)
+static volatile int rend_error = 0;
 
 /*
 Render-thread semaphore protocol (all created at 0; R = render thread, M = main):
@@ -138,6 +139,8 @@ static int renderThread( SceSize argc, void *argv ) {
 			// this, every present from the render thread does nothing -> black screen.
 			ri.WIN_MakeCurrent();
 			GL_SetDefaultState();
+			extern void RB_ReprimeFFP( void );
+			RB_ReprimeFFP();		// fresh context: re-run the FFP prime
 			R_Splash();				// get something on screen asap
 			// wait out the splash before releasing main: registration GL must not
 			// overlap the first scene
@@ -151,10 +154,20 @@ static int renderThread( SceSize argc, void *argv ) {
 		rendBackEnd = rend_handedBuffer;	// adopt the handed index; mispairing is structurally impossible
 		backEnd.smpFrame = rendBackEnd;
 		set_tessPtr( &tessArray[rendBackEnd] );
-		RB_ExecuteRenderCommands( backEndDataPtr[rendBackEnd]->commands.cmds );
+		try {
+			RB_ExecuteRenderCommands( backEndDataPtr[rendBackEnd]->commands.cmds );
+		} catch ( int code ) {
+			// else a backend Com_Error would std::terminate the process
+			rend_error = code;
+		}
 		sceKernelSignalSema( rend_mutex_out, 1 );
 	}
 	return sceKernelExitDeleteThread( 0 );
+}
+
+// so Com_Error can throw to main instead of shutting down from the backend
+extern "C" qboolean Sys_InRenderThread( void ) {
+	return (qboolean)( rend_thid >= 0 && sceKernelGetThreadId() == rend_thid );
 }
 
 void R_StartRenderThread( void ) {
@@ -163,12 +176,17 @@ void R_StartRenderThread( void ) {
 	}
 	rend_should_exit = qfalse;
 	pendingCtxInit   = qfalse;
+	rend_error       = 0;
 	rend_init_done = sceKernelCreateSema( "rend_init", 0, 0, 2, NULL );
 	rend_mutex_in  = sceKernelCreateSema( "rend_in",   0, 0, 1, NULL );
 	rend_mutex_out = sceKernelCreateSema( "rend_out",  0, 0, 1, NULL );
 	// Core budget (3 usable cores; core 3 is system-reserved): main/frontend on core 1,
 	// backend owns core 2. Default priority (160), same as main.
 	rend_thid = sceKernelCreateThread( "Renderer Thread", renderThread, 0x10000100, 0x40000, 0, SCE_KERNEL_CPU_MASK_USER_2, NULL );
+	if ( rend_thid < 0 || rend_init_done < 0 || rend_mutex_in < 0 || rend_mutex_out < 0 ) {
+		// else main blocks forever on the init handshake
+		ri.Error( ERR_FATAL, "R_StartRenderThread: kernel object creation failed (thid %d)", (int)rend_thid );
+	}
 	sceKernelStartThread( rend_thid, 0, NULL );
 }
 
@@ -210,6 +228,10 @@ void R_IssueRenderCommands( qboolean runPerformanceCounters ) {
 	if ( r_renderThread && r_renderThread->integer ) {
 		// hand the frame to the render thread, flip the frontend to the other buffer
 		sceKernelWaitSema( rend_mutex_out, 1, NULL );
+		if ( rend_error ) {	// console isn't backend-safe, so log it here on main
+			ri.Printf( PRINT_WARNING, "render backend dropped a frame (err %d): %s\n", rend_error, ri.Cvar_VariableString( "com_errorMessage" ) );
+			rend_error = 0;
+		}
 		// backend parked between Wait(out) and Signal(in): its counters are stable here
 		if ( runPerformanceCounters ) {
 			R_PerformanceCounters();
