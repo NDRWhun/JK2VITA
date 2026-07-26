@@ -988,65 +988,55 @@ void RB_SurfaceTriangles( srfTriangles_t *srf ) {
 	byte		*color;
 	int			dlightBits;
 
-	dlightBits = srf->dlightBits[backEnd.smpFrame];
-	tess.dlightBits |= dlightBits;
-
 	RB_CHECKOVERFLOW( srf->numVerts, srf->numIndexes );
 
-	for ( i = 0 ; i < srf->numIndexes ; i += 3 ) {
-		tess.indexes[ tess.numIndexes + i + 0 ] = tess.numVertexes + srf->indexes[ i + 0 ];
-		tess.indexes[ tess.numIndexes + i + 1 ] = tess.numVertexes + srf->indexes[ i + 1 ];
-		tess.indexes[ tess.numIndexes + i + 2 ] = tess.numVertexes + srf->indexes[ i + 2 ];
+	// must follow the overflow check; a flush there restarts tess and clears the bits
+	dlightBits = srf->dlightBits[backEnd.smpFrame];
+
+	shaderCommands_t * const t = tessPtr;
+	const int numVerts = srf->numVerts, numIndexes = srf->numIndexes;
+	const int baseVertex = t->numVertexes;
+
+	t->dlightBits |= dlightBits;
+
+	glIndex_t * const tessIndexes = t->indexes + t->numIndexes;
+	const int *srcIndexes = srf->indexes;
+	for ( i = 0 ; i < numIndexes ; i++ ) {
+		tessIndexes[i] = baseVertex + srcIndexes[i];
 	}
-	tess.numIndexes += srf->numIndexes;
+	t->numIndexes += numIndexes;
 
 	dv = srf->verts;
-	xyz = tess.xyz[ tess.numVertexes ];
-	normal = tess.normal[ tess.numVertexes ];
-	texCoords = tess.texCoords[ tess.numVertexes ][0];
-	color = tess.vertexColors[ tess.numVertexes ];
+	xyz = t->xyz[ baseVertex ];
+	normal = t->normal[ baseVertex ];
+	texCoords = t->texCoords[ baseVertex ][0];
+	color = t->vertexColors[ baseVertex ];
+	byte *dlBits = (byte *)&t->vertexDlightBits[ baseVertex ];
 
-	for ( i = 0 ; i < srf->numVerts ; i++, dv++)
+	for ( i = 0 ; i < numVerts ; i++, dv++)
 	{
 		xyz[0] = dv->xyz[0];
 		xyz[1] = dv->xyz[1];
 		xyz[2] = dv->xyz[2];
 		xyz += 4;
 
-		//if ( needsNormal )
-		{
-			normal[0] = dv->normal[0];
-			normal[1] = dv->normal[1];
-			normal[2] = dv->normal[2];
-		}
+		normal[0] = dv->normal[0];
+		normal[1] = dv->normal[1];
+		normal[2] = dv->normal[2];
 		normal += 4;
 
-		texCoords[0] = dv->st[0];
-		texCoords[1] = dv->st[1];
-
-		for(k=0;k<MAXLIGHTMAPS;k++)
-		{
-			if (tess.shader->lightmapIndex[k] >= 0)
-			{
-				texCoords[2+(k*2)] = dv->lightmap[k][0];
-				texCoords[2+(k*2)+1] = dv->lightmap[k][1];
-			}
-			else
-			{	// can't have an empty slot in the middle, so we are done
-				break;
-			}
-		}
+		// st and all lightmap pairs are contiguous in both layouts
+		memcpy( texCoords, dv->st, NUM_TEX_COORDS*2*sizeof(float) );
 		texCoords += NUM_TEX_COORDS*2;
 
 		*(unsigned *)color = ComputeFinalVertexColor((byte *)dv->color);
 		color += 4;
+
+		*(int *)dlBits = dlightBits;
+		dlBits += sizeof(int);
 	}
 
-	for ( i = 0 ; i < srf->numVerts ; i++ ) {
-		tess.vertexDlightBits[ tess.numVertexes + i] = dlightBits;
-	}
-
-	tess.numVertexes += srf->numVerts;
+	t->numVertexes += numVerts;
 }
 
 
@@ -1413,7 +1403,7 @@ RB_SurfaceFace
 ==============
 */
 void RB_SurfaceFace( srfSurfaceFace_t *surf ) {
-	int			i, j, k;
+	int			i, k;
 	unsigned int *indices;
 	glIndex_t	*tessIndexes;
 	float		*v;
@@ -1422,7 +1412,6 @@ void RB_SurfaceFace( srfSurfaceFace_t *surf ) {
 	int			Bob;
 	int			numPoints;
 	int			dlightBits;
-	byteAlias_t	ba;
 
 	RB_CHECKOVERFLOW( surf->numPoints, surf->numIndices );
 
@@ -1439,43 +1428,27 @@ void RB_SurfaceFace( srfSurfaceFace_t *surf ) {
 
 	tess.numIndexes += surf->numIndices;
 
-	v = surf->points[0];
-
-	ndx = tess.numVertexes;
-
 	numPoints = surf->numPoints;
 
-	//if ( tess.shader->needsNormal )
-	{
-		normal = surf->plane.normal;
-		for ( i = 0, ndx = tess.numVertexes; i < numPoints; i++, ndx++ ) {
-			VectorCopy( normal, tess.normal[ndx] );
-		}
+	// a local copy; writes through tess would otherwise force a reload of the TLS pointer
+	shaderCommands_t * const t = tessPtr;
+
+	// the lighting branch is fixed for the surface, so resolve it before the loop
+	const qboolean vertexLit = (qboolean)(t->shader->lightmapIndex[0] == LIGHTMAP_BY_VERTEX);
+
+	normal = surf->plane.normal;
+	for ( i = 0, v = surf->points[0], ndx = t->numVertexes; i < numPoints; i++, v += VERTEXSIZE, ndx++ ) {
+		VectorCopy( normal, t->normal[ndx] );
+		VectorCopy( v, t->xyz[ndx] );
+		// st and all lightmap pairs are contiguous in both layouts
+		memcpy( t->texCoords[ndx][0], &v[3], NUM_TEX_COORDS*2*sizeof(float) );
+		*(unsigned int *)t->vertexColors[ndx] = vertexLit
+			? ComputeFinalVertexColor( (byte *)&v[VERTEX_COLOR] )
+			: *(const unsigned int *)&v[VERTEX_COLOR];
+		t->vertexDlightBits[ndx] = dlightBits;
 	}
 
-	for ( i = 0, v = surf->points[0], ndx = tess.numVertexes; i < numPoints; i++, v += VERTEXSIZE, ndx++ ) {
-		VectorCopy( v, tess.xyz[ndx]);
-		tess.texCoords[ndx][0][0] = v[3];
-		tess.texCoords[ndx][0][1] = v[4];
-		for(k=0;k<MAXLIGHTMAPS;k++)
-		{
-			if (tess.shader->lightmapIndex[k] >= 0)
-			{
-				tess.texCoords[ndx][k+1][0] = v[VERTEX_LM+(k*2)];
-				tess.texCoords[ndx][k+1][1] = v[VERTEX_LM+(k*2)+1];
-			}
-			else
-			{
-				break;
-			}
-		}
-		ba.ui = ComputeFinalVertexColor( (byte *)&v[VERTEX_COLOR] );
-		for ( j=0; j<4; j++ )
-			tess.vertexColors[ndx][j] = ba.b[j];
-		tess.vertexDlightBits[ndx] = dlightBits;
-	}
-
-	tess.numVertexes += surf->numPoints;
+	t->numVertexes += numPoints;
 }
 
 
