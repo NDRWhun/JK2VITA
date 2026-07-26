@@ -26,6 +26,8 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 #include "tr_local.h"
 
+extern "C" unsigned int sceKernelGetProcessTimeLow( void );	// r_speeds 8 frame split
+
 
 /*
 =====================
@@ -141,6 +143,7 @@ static int renderThread( SceSize argc, void *argv ) {
 			GL_SetDefaultState();
 			extern void RB_ReprimeFFP( void );
 			RB_ReprimeFFP();		// fresh context: re-run the FFP prime
+			R_WorldVBO_ContextReset();
 			R_Splash();				// get something on screen asap
 			// wait out the splash before releasing main: registration GL must not
 			// overlap the first scene
@@ -227,7 +230,20 @@ void R_IssueRenderCommands( qboolean runPerformanceCounters ) {
 #ifdef VITA
 	if ( r_renderThread && r_renderThread->integer ) {
 		// hand the frame to the render thread, flip the frontend to the other buffer
+		// r_speeds 8: the stall is the backend overrun, so near zero means the frontend leads
+		static unsigned int fe_handoff = 0;
+		const unsigned int fe_t0 = sceKernelGetProcessTimeLow();
+
 		sceKernelWaitSema( rend_mutex_out, 1, NULL );
+
+		if ( r_speeds->integer == 8 ) {
+			const unsigned int now = sceKernelGetProcessTimeLow();
+			ri.Printf( PRINT_ALL, "frame %.1fms = frontend %.1f + stall %.1f | backend %ims\n",
+				fe_handoff ? (now - fe_handoff) / 1000.0f : 0.0f,
+				fe_handoff ? (fe_t0 - fe_handoff) / 1000.0f : 0.0f,
+				(now - fe_t0) / 1000.0f, backEnd.pc.msec );
+			fe_handoff = now;
+		}
 		if ( rend_error ) {	// console isn't backend-safe, so log it here on main
 			ri.Printf( PRINT_WARNING, "render backend dropped a frame (err %d): %s\n", rend_error, ri.Cvar_VariableString( "com_errorMessage" ) );
 			rend_error = 0;
