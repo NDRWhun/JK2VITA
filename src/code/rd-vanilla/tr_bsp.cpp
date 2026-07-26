@@ -223,8 +223,9 @@ static void R_RemapLightmapUV( int slot, float *st )
 {
 	int	n = slot & (LMATLAS_SLOTS - 1);
 
-	st[0] = ( (n % LMATLAS_COLS) + st[0] ) * (1.0f / LMATLAS_COLS);
-	st[1] = ( (n / LMATLAS_COLS) + st[1] ) * (1.0f / LMATLAS_COLS);
+	// clamping stands in for the GL_CLAMP an un-merged lightmap got; a few map verts sit just past 1
+	st[0] = ( (n % LMATLAS_COLS) + Com_Clamp( 0.0f, 1.0f, st[0] ) ) * (1.0f / LMATLAS_COLS);
+	st[1] = ( (n / LMATLAS_COLS) + Com_Clamp( 0.0f, 1.0f, st[1] ) ) * (1.0f / LMATLAS_COLS);
 }
 
 static	void R_LoadLightmaps( lump_t *l, const char *psMapName, world_t &worldData )
@@ -241,6 +242,8 @@ static	void R_LoadLightmaps( lump_t *l, const char *psMapName, world_t &worldDat
 		lm_numSlots = 0;
 	}
 
+	worldData.lightmapsMerged = qfalse;
+
     len = l->filelen;
 	if ( !len ) {
 		return;
@@ -254,6 +257,7 @@ static	void R_LoadLightmaps( lump_t *l, const char *psMapName, world_t &worldDat
 	count = len / (LIGHTMAP_SIZE * LIGHTMAP_SIZE * 3);
 	if ( r_mergeLightmaps->integer )
 	{	// start each world on a page so a page never spans two of them
+		worldData.lightmapsMerged = qtrue;
 		lm_numSlots = ( lm_numSlots + LMATLAS_SLOTS - 1 ) & ~( LMATLAS_SLOTS - 1 );
 		worldData.startLightMapIndex = lm_numSlots;
 		lm_numSlots += count;
@@ -445,7 +449,7 @@ static void ParseFace( dsurface_t *ds, mapVert_t *verts, msurface_t *surf, int *
 		if (lightmapNum[i] >= 0)
 		{
 			lightmapNum[i] += worldData.startLightMapIndex;
-			if ( r_mergeLightmaps->integer )
+			if ( worldData.lightmapsMerged )
 			{	// index the page, so surfaces sharing a texture reach the same shader
 				lmSlot[i] = lightmapNum[i];
 				lightmapNum[i] /= LMATLAS_SLOTS;
@@ -546,7 +550,7 @@ static void ParseMesh ( dsurface_t *ds, mapVert_t *verts, msurface_t *surf, worl
 		if (lightmapNum[i] >= 0)
 		{
 			lightmapNum[i] += worldData.startLightMapIndex;
-			if ( r_mergeLightmaps->integer )
+			if ( worldData.lightmapsMerged )
 			{	// index the page, so surfaces sharing a texture reach the same shader
 				lmSlot[i] = lightmapNum[i];
 				lightmapNum[i] /= LMATLAS_SLOTS;

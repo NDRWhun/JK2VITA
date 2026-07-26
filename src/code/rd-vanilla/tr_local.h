@@ -810,6 +810,7 @@ typedef struct {
 	int			globalFog;
 
 	int			startLightMapIndex;
+	qboolean	lightmapsMerged;	// false when the lump was empty, so the surfaces must not be remapped
 
 	vec3_t		lightGridOrigin;
 	vec3_t		lightGridSize;
