@@ -175,19 +175,70 @@ R_LoadLightmaps
 ===============
 */
 #define	LIGHTMAP_SIZE	128
+#define	LMATLAS_SIZE	512									// merged page dimension
+#define	LMATLAS_COLS	(LMATLAS_SIZE/LIGHTMAP_SIZE)
+#define	LMATLAS_SLOTS	(LMATLAS_COLS*LMATLAS_COLS)			// must stay a power of two
+
+static int	lm_numSlots;					// lightmaps packed so far across every loaded world
+
+// Expand one 24-bit on-disk lightmap to 32 bit at dst, dstStride texels per row.
+static void R_UnpackLightmap( const byte *src, byte *dst, int dstStride, float &maxIntensity, double &sumIntensity )
+{
+	for ( int y = 0; y < LIGHTMAP_SIZE; y++ )
+	{
+		byte *out = dst + y * dstStride * 4;
+
+		for ( int x = 0; x < LIGHTMAP_SIZE; x++, src += 3, out += 4 )
+		{
+			if ( r_lightmap->integer == 2 )
+			{	// color code by intensity as development tool	(FIXME: check range)
+				float intensity = 0.33f * src[0] + 0.685f * src[1] + 0.063f * src[2];
+				float rgb[3] = {0.0f, 0.0f, 0.0f};
+
+				if ( intensity > 255 )
+					intensity = 1.0f;
+				else
+					intensity /= 255.0f;
+
+				if ( intensity > maxIntensity )
+					maxIntensity = intensity;
+
+				HSVtoRGB( intensity, 1.00, 0.50, rgb );
+
+				out[0] = rgb[0] * 255;
+				out[1] = rgb[1] * 255;
+				out[2] = rgb[2] * 255;
+
+				sumIntensity += intensity;
+			} else {
+				R_ColorShiftLightingBytes( src, out );
+			}
+			out[3] = 255;
+		}
+	}
+}
+
+// Rescale a lightmap st into the page slot the lightmap was packed at.
+static void R_RemapLightmapUV( int slot, float *st )
+{
+	int	n = slot & (LMATLAS_SLOTS - 1);
+
+	st[0] = ( (n % LMATLAS_COLS) + st[0] ) * (1.0f / LMATLAS_COLS);
+	st[1] = ( (n / LMATLAS_COLS) + st[1] ) * (1.0f / LMATLAS_COLS);
+}
+
 static	void R_LoadLightmaps( lump_t *l, const char *psMapName, world_t &worldData )
 {
-	byte				*buf, *buf_p;
+	byte				*buf;
 	int					len;
-	byte		image[LIGHTMAP_SIZE*LIGHTMAP_SIZE*4];
-	int					i, j;
 	float				maxIntensity = 0;
 	double				sumIntensity = 0;
-	int					count;
+	int					i, count;
 
 	if (&worldData == &s_worldData)
 	{
 		tr.numLightmaps = 0;
+		lm_numSlots = 0;
 	}
 
     len = l->filelen;
@@ -200,9 +251,19 @@ static	void R_LoadLightmaps( lump_t *l, const char *psMapName, world_t &worldDat
 	R_IssuePendingRenderCommands(); //
 
 	// create all the lightmaps
-	worldData.startLightMapIndex = tr.numLightmaps;
 	count = len / (LIGHTMAP_SIZE * LIGHTMAP_SIZE * 3);
-	tr.numLightmaps += count;
+	if ( r_mergeLightmaps->integer )
+	{	// start each world on a page so a page never spans two of them
+		lm_numSlots = ( lm_numSlots + LMATLAS_SLOTS - 1 ) & ~( LMATLAS_SLOTS - 1 );
+		worldData.startLightMapIndex = lm_numSlots;
+		lm_numSlots += count;
+		tr.numLightmaps = ( lm_numSlots + LMATLAS_SLOTS - 1 ) / LMATLAS_SLOTS;
+	}
+	else
+	{
+		worldData.startLightMapIndex = tr.numLightmaps;
+		tr.numLightmaps += count;
+	}
 
 	// if we are in r_vertexLight mode, we don't need the lightmaps at all
 	if ( r_vertexLight->integer ) {
@@ -212,50 +273,53 @@ static	void R_LoadLightmaps( lump_t *l, const char *psMapName, world_t &worldDat
 	char sMapName[MAX_QPATH];
 	COM_StripExtension(psMapName,sMapName, sizeof(sMapName));
 
-	for ( i = 0 ; i < count ; i++ ) {
-		// expand the 24 bit on-disk to 32 bit
-		buf_p = buf + i * LIGHTMAP_SIZE*LIGHTMAP_SIZE * 3;
+	if ( r_mergeLightmaps->integer )
+	{
+		int		firstPage = worldData.startLightMapIndex / LMATLAS_SLOTS;
+		int		lastPage = ( worldData.startLightMapIndex + count - 1 ) / LMATLAS_SLOTS;
+		byte	*pageData = (byte *)R_Malloc( LMATLAS_SIZE*LMATLAS_SIZE*4, TAG_TEMP_WORKSPACE, qfalse );
 
-		if ( r_lightmap->integer == 2 )
-		{	// color code by intensity as development tool	(FIXME: check range)
-			for ( j = 0; j < LIGHTMAP_SIZE * LIGHTMAP_SIZE; j++ )
+		for ( int page = firstPage; page <= lastPage && page < MAX_LIGHTMAPS; page++ )
+		{
+			// opaque fill; a zero-alpha unused slot would force the page to 32 bit
+			for ( int t = 0; t < LMATLAS_SIZE*LMATLAS_SIZE; t++ ) {
+				((unsigned int *)pageData)[t] = 0xFF000000;
+			}
+
+			for ( int slot = 0; slot < LMATLAS_SLOTS; slot++ )
 			{
-				float r = buf_p[j*3+0];
-				float g = buf_p[j*3+1];
-				float b = buf_p[j*3+2];
-				float intensity;
-				float out[3] = {0.0f, 0.0f, 0.0f};
-
-				intensity = 0.33f * r + 0.685f * g + 0.063f * b;
-
-				if ( intensity > 255 )
-					intensity = 1.0f;
-				else
-					intensity /= 255.0f;
-
-				if ( intensity > maxIntensity )
-					maxIntensity = intensity;
-
-				HSVtoRGB( intensity, 1.00, 0.50, out );
-
-				image[j*4+0] = out[0] * 255;
-				image[j*4+1] = out[1] * 255;
-				image[j*4+2] = out[2] * 255;
-				image[j*4+3] = 255;
-
-				sumIntensity += intensity;
+				i = page * LMATLAS_SLOTS + slot - worldData.startLightMapIndex;
+				if ( i < 0 || i >= count ) {
+					continue;
+				}
+				R_UnpackLightmap( buf + i * LIGHTMAP_SIZE*LIGHTMAP_SIZE*3,
+					pageData + ( (slot / LMATLAS_COLS) * LIGHTMAP_SIZE * LMATLAS_SIZE
+								+ (slot % LMATLAS_COLS) * LIGHTMAP_SIZE ) * 4,
+					LMATLAS_SIZE, maxIntensity, sumIntensity );
 			}
-		} else {
-			for ( j = 0 ; j < LIGHTMAP_SIZE * LIGHTMAP_SIZE; j++ ) {
-				R_ColorShiftLightingBytes( &buf_p[j*3], &image[j*4] );
-				image[j*4+3] = 255;
-			}
+
+			tr.lightmaps[page] = R_CreateImage( va("$%s/lightmap%d", sMapName, page),
+				pageData, LMATLAS_SIZE, LMATLAS_SIZE, GL_RGBA, qfalse, qfalse,
+				(qboolean)(r_ext_compressed_lightmaps->integer != 0),
+				GL_CLAMP);
 		}
-		tr.lightmaps[worldData.startLightMapIndex+i] = R_CreateImage(
-			va("$%s/lightmap%d", sMapName, worldData.startLightMapIndex+i),
-			image, LIGHTMAP_SIZE, LIGHTMAP_SIZE, GL_RGBA, qfalse, qfalse,
-			(qboolean)(r_ext_compressed_lightmaps->integer != 0),
-			GL_CLAMP);
+
+		R_Free( pageData );
+	}
+	else
+	{
+		byte	image[LIGHTMAP_SIZE*LIGHTMAP_SIZE*4];
+
+		for ( i = 0 ; i < count ; i++ ) {
+			R_UnpackLightmap( buf + i * LIGHTMAP_SIZE*LIGHTMAP_SIZE*3, image,
+				LIGHTMAP_SIZE, maxIntensity, sumIntensity );
+
+			tr.lightmaps[worldData.startLightMapIndex+i] = R_CreateImage(
+				va("$%s/lightmap%d", sMapName, worldData.startLightMapIndex+i),
+				image, LIGHTMAP_SIZE, LIGHTMAP_SIZE, GL_RGBA, qfalse, qfalse,
+				(qboolean)(r_ext_compressed_lightmaps->integer != 0),
+				GL_CLAMP);
+		}
 	}
 
 	if ( r_lightmap->integer == 2 )	{
@@ -371,14 +435,21 @@ static void ParseFace( dsurface_t *ds, mapVert_t *verts, msurface_t *surf, int *
 	srfSurfaceFace_t	*cv;
 	int			numPoints, numIndexes;
 	int			lightmapNum[MAXLIGHTMAPS];
+	int			lmSlot[MAXLIGHTMAPS];
 	int			sfaceSize, ofsIndexes;
 
 	for(i=0;i<MAXLIGHTMAPS;i++)
 	{
 		lightmapNum[i] = LittleLong( ds->lightmapNum[i] );
+		lmSlot[i] = -1;
 		if (lightmapNum[i] >= 0)
 		{
 			lightmapNum[i] += worldData.startLightMapIndex;
+			if ( r_mergeLightmaps->integer )
+			{	// index the page, so surfaces sharing a texture reach the same shader
+				lmSlot[i] = lightmapNum[i];
+				lightmapNum[i] /= LMATLAS_SLOTS;
+			}
 		}
 	}
 
@@ -407,6 +478,8 @@ static void ParseFace( dsurface_t *ds, mapVert_t *verts, msurface_t *surf, int *
 	pFaceDataBuffer += sfaceSize;	// :-)
 
 	cv->surfaceType = SF_FACE;
+	cv->vboGroup = -1;
+	cv->vboIndexes = NULL;
 	cv->numPoints = numPoints;
 	cv->numIndices = numIndexes;
 	cv->ofsIndices = ofsIndexes;
@@ -425,6 +498,10 @@ static void ParseFace( dsurface_t *ds, mapVert_t *verts, msurface_t *surf, int *
 		}
 		for(k=0;k<MAXLIGHTMAPS;k++)
 		{
+			if (lmSlot[k] >= 0)
+			{
+				R_RemapLightmapUV( lmSlot[k], &cv->points[i][VERTEX_LM+(k*2)] );
+			}
 			R_ColorShiftLightingBytes( verts[i].color[k], (byte *)&cv->points[i][VERTEX_COLOR+k] );
 		}
 	}
@@ -457,6 +534,7 @@ static void ParseMesh ( dsurface_t *ds, mapVert_t *verts, msurface_t *surf, worl
 	int				width, height, numPoints;
 	drawVert_t points[MAX_PATCH_SIZE*MAX_PATCH_SIZE];
 	int				lightmapNum[MAXLIGHTMAPS];
+	int				lmSlot[MAXLIGHTMAPS];
 	vec3_t			bounds[2];
 	vec3_t			tmpVec;
 	static surfaceType_t	skipData = SF_SKIP;
@@ -464,9 +542,15 @@ static void ParseMesh ( dsurface_t *ds, mapVert_t *verts, msurface_t *surf, worl
 	for(i=0;i<MAXLIGHTMAPS;i++)
 	{
 		lightmapNum[i] = LittleLong( ds->lightmapNum[i] );
+		lmSlot[i] = -1;
 		if (lightmapNum[i] >= 0)
 		{
 			lightmapNum[i] += worldData.startLightMapIndex;
+			if ( r_mergeLightmaps->integer )
+			{	// index the page, so surfaces sharing a texture reach the same shader
+				lmSlot[i] = lightmapNum[i];
+				lightmapNum[i] /= LMATLAS_SLOTS;
+			}
 		}
 	}
 
@@ -509,6 +593,10 @@ static void ParseMesh ( dsurface_t *ds, mapVert_t *verts, msurface_t *surf, worl
 		}
 		for(k=0;k<MAXLIGHTMAPS;k++)
 		{
+			if (lmSlot[k] >= 0)
+			{
+				R_RemapLightmapUV( lmSlot[k], points[i].lightmap[k] );
+			}
 			R_ColorShiftLightingBytes( verts[i].color[k], points[i].color[k] );
 		}
 	}
@@ -1427,6 +1515,7 @@ void RE_LoadWorldMap_Actual( const char *name, world_t &worldData, int index ) {
 	R_LoadFogs( &header->lumps[LUMP_FOGS], &header->lumps[LUMP_BRUSHES], &header->lumps[LUMP_BRUSHSIDES], worldData, index );
 	R_LoadSurfaces( &header->lumps[LUMP_SURFACES], &header->lumps[LUMP_DRAWVERTS], &header->lumps[LUMP_DRAWINDEXES], worldData, index );
 	R_LoadMarksurfaces (&header->lumps[LUMP_LEAFSURFACES], worldData);
+	R_BuildWorldVBO( worldData );
 	R_LoadNodesAndLeafs (&header->lumps[LUMP_NODES], &header->lumps[LUMP_LEAFS], worldData);
 	R_LoadSubmodels (&header->lumps[LUMP_MODELS], worldData, index);
 	R_LoadVisibility( &header->lumps[LUMP_VISIBILITY], worldData );
