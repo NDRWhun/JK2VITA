@@ -917,15 +917,6 @@ int	PlaneTypeForNormal( vec3_t normal )
 	return PLANE_NON_AXIAL;
 }
 
-/*
-==================
-BoxOnPlaneSide
-
-Returns 1, 2, or 1 + 2
-==================
-*/
-
-
 ///////////////////////////////////////////////////////////////////////////
 //
 //      AXIS
