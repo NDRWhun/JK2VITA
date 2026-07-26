@@ -309,28 +309,7 @@ signed short ClampShort( int i )
 	return i;
 }
 
-int Com_Clampi( int min, int max, int value )
-{
-	if ( value < min )
-	{
-		return min;
-	}
-	if ( value > max )
-	{
-		return max;
-	}
-	return value;
-}
 
-float Com_Clamp( float min, float max, float value ) {
-	if ( value < min ) {
-		return min;
-	}
-	if ( value > max ) {
-		return max;
-	}
-	return value;
-}
 
 int Com_AbsClampi( int min, int max, int value )
 {
@@ -945,41 +924,6 @@ BoxOnPlaneSide
 Returns 1, 2, or 1 + 2
 ==================
 */
-int BoxOnPlaneSide(vec3_t emins, vec3_t emaxs, cplane_t *p)
-{
-	float	dist[2];
-	int		sides, b, i;
-
-	// fast axial cases
-	if (p->type < 3)
-	{
-		if (p->dist <= emins[p->type])
-			return 1;
-		if (p->dist >= emaxs[p->type])
-			return 2;
-		return 3;
-	}
-
-	// general case
-	dist[0] = dist[1] = 0;
-	if (p->signbits < 8) // >= 8: default case is original code (dist[0]=dist[1]=0)
-	{
-		for (i=0 ; i<3 ; i++)
-		{
-			b = (p->signbits >> i) & 1;
-			dist[ b] += p->normal[i]*emaxs[i];
-			dist[!b] += p->normal[i]*emins[i];
-		}
-	}
-
-	sides = 0;
-	if (dist[0] >= p->dist)
-		sides = 1;
-	if (dist[1] < p->dist)
-		sides |= 2;
-
-	return sides;
-}
 
 
 ///////////////////////////////////////////////////////////////////////////
@@ -1071,59 +1015,9 @@ void VectorCopy2( const vec2_t vecIn, vec2_t vecOut )
 ///////////////////////////////////////////////////////////////////////////
 vec3_t		vec3_origin = {0,0,0};
 
-void VectorAdd( const vec3_t vec1, const vec3_t vec2, vec3_t vecOut )
-{
-	vecOut[0] = vec1[0]+vec2[0];
-	vecOut[1] = vec1[1]+vec2[1];
-	vecOut[2] = vec1[2]+vec2[2];
-}
-
-void VectorSubtract( const vec3_t vec1, const vec3_t vec2, vec3_t vecOut )
-{
-	vecOut[0] = vec1[0]-vec2[0];
-	vecOut[1] = vec1[1]-vec2[1];
-	vecOut[2] = vec1[2]-vec2[2];
-}
-
-void VectorScale( const vec3_t vecIn, float scale, vec3_t vecOut )
-{
-	vecOut[0] = vecIn[0]*scale;
-	vecOut[1] = vecIn[1]*scale;
-	vecOut[2] = vecIn[2]*scale;
-}
-
-void VectorMA( const vec3_t vec1, float scale, const vec3_t vec2, vec3_t vecOut )
-{
-	vecOut[0] = vec1[0] + scale*vec2[0];
-	vecOut[1] = vec1[1] + scale*vec2[1];
-	vecOut[2] = vec1[2] + scale*vec2[2];
-}
-
-void VectorSet( vec3_t vec, float x, float y, float z )
-{
-	vec[0]=x; vec[1]=y; vec[2]=z;
-}
-
-void VectorClear( vec3_t vec )
-{
-	vec[0] = vec[1] = vec[2] = 0.0f;
-}
-
-void VectorCopy( const vec3_t vecIn, vec3_t vecOut )
-{
-	vecOut[0] = vecIn[0];
-	vecOut[1] = vecIn[1];
-	vecOut[2] = vecIn[2];
-}
-
 float VectorLength( const vec3_t vec )
 {
 	return (float)sqrt( vec[0]*vec[0] + vec[1]*vec[1] + vec[2]*vec[2] );
-}
-
-float VectorLengthSquared( const vec3_t vec )
-{
-	return (vec[0]*vec[0] + vec[1]*vec[1] + vec[2]*vec[2]);
 }
 
 float Distance( const vec3_t p1, const vec3_t p2 )
@@ -1208,16 +1102,6 @@ void VectorDec( vec3_t vec ) {
 
 void VectorInverse( vec3_t vec ) {
 	vec[0] = -vec[0]; vec[1] = -vec[1]; vec[2] = -vec[2];
-}
-
-void CrossProduct( const vec3_t vec1, const vec3_t vec2, vec3_t vecOut ) {
-	vecOut[0] = vec1[1]*vec2[2] - vec1[2]*vec2[1];
-	vecOut[1] = vec1[2]*vec2[0] - vec1[0]*vec2[2];
-	vecOut[2] = vec1[0]*vec2[1] - vec1[1]*vec2[0];
-}
-
-float DotProduct( const vec3_t vec1, const vec3_t vec2 ) {
-	return vec1[0]*vec2[0] + vec1[1]*vec2[1] + vec1[2]*vec2[2];
 }
 
 qboolean VectorCompare( const vec3_t vec1, const vec3_t vec2 )

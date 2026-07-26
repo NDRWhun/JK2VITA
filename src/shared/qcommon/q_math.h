@@ -107,8 +107,17 @@ static inline long Q_ftol( float f )
 
 signed char ClampChar( int i );
 signed short ClampShort( int i );
-int Com_Clampi( int min, int max, int value );
-float Com_Clamp( float min, float max, float value );
+// inline: called three times per vertex from ComputeFinalVertexColor
+static inline int Com_Clampi( int min, int max, int value ) {
+	if ( value < min ) return min;
+	if ( value > max ) return max;
+	return value;
+}
+static inline float Com_Clamp( float min, float max, float value ) {
+	if ( value < min ) return min;
+	if ( value > max ) return max;
+	return value;
+}
 int Com_AbsClampi( int min, int max, int value );
 float Com_AbsClamp( float min, float max, float value );
 
@@ -185,7 +194,37 @@ typedef struct cplane_s {
 
 void SetPlaneSignbits( cplane_t *out );
 int	PlaneTypeForNormal( vec3_t normal );
-int BoxOnPlaneSide(vec3_t emins, vec3_t emaxs, cplane_t *p);
+// inline: R_RecursiveWorldNode calls this up to five times for every node it walks
+static inline int BoxOnPlaneSide( const vec3_t emins, const vec3_t emaxs, const cplane_t *p )
+{
+	// fast axial cases
+	if ( p->type < 3 )
+	{
+		if ( p->dist <= emins[p->type] ) return 1;
+		if ( p->dist >= emaxs[p->type] ) return 2;
+		return 3;
+	}
+
+	float dist0 = 0.0f, dist1 = 0.0f;
+
+	if ( p->signbits < 8 )	// >= 8 keeps the original all-zero distances
+	{
+		for ( int i = 0; i < 3; i++ )
+		{
+			const int b = (p->signbits >> i) & 1;
+			const float mx = p->normal[i] * emaxs[i];
+			const float mn = p->normal[i] * emins[i];
+			dist0 += b ? mn : mx;
+			dist1 += b ? mx : mn;
+		}
+	}
+
+	int sides = 0;
+	if ( dist0 >= p->dist ) sides = 1;
+	if ( dist1 < p->dist ) sides |= 2;
+
+	return sides;
+}
 
 
 ///////////////////////////////////////////////////////////////////////////
@@ -243,15 +282,43 @@ extern vec3_t vec3_origin;
 #define VectorClearM(dst) \
 	memset((dst), 0, sizeof((dst)[0]) * 3)
 
-void VectorAdd( const vec3_t vec1, const vec3_t vec2, vec3_t vecOut );
-void VectorSubtract( const vec3_t vec1, const vec3_t vec2, vec3_t vecOut );
-void VectorScale( const vec3_t vecIn, float scale, vec3_t vecOut );
-void VectorMA( const vec3_t vec1, float scale, const vec3_t vec2, vec3_t vecOut );
-void VectorSet( vec3_t vec, float x, float y, float z );
-void VectorClear( vec3_t vec );
-void VectorCopy( const vec3_t vecIn, vec3_t vecOut );
+// defined here rather than in q_math.c: without LTO each use was a call, which also
+// clobbered memory and stopped the per-vertex loops vectorizing
+static inline void VectorAdd( const vec3_t vec1, const vec3_t vec2, vec3_t vecOut ) {
+	vecOut[0] = vec1[0] + vec2[0];
+	vecOut[1] = vec1[1] + vec2[1];
+	vecOut[2] = vec1[2] + vec2[2];
+}
+static inline void VectorSubtract( const vec3_t vec1, const vec3_t vec2, vec3_t vecOut ) {
+	vecOut[0] = vec1[0] - vec2[0];
+	vecOut[1] = vec1[1] - vec2[1];
+	vecOut[2] = vec1[2] - vec2[2];
+}
+static inline void VectorScale( const vec3_t vecIn, float scale, vec3_t vecOut ) {
+	vecOut[0] = vecIn[0] * scale;
+	vecOut[1] = vecIn[1] * scale;
+	vecOut[2] = vecIn[2] * scale;
+}
+static inline void VectorMA( const vec3_t vec1, float scale, const vec3_t vec2, vec3_t vecOut ) {
+	vecOut[0] = vec1[0] + scale * vec2[0];
+	vecOut[1] = vec1[1] + scale * vec2[1];
+	vecOut[2] = vec1[2] + scale * vec2[2];
+}
+static inline void VectorSet( vec3_t vec, float x, float y, float z ) {
+	vec[0] = x; vec[1] = y; vec[2] = z;
+}
+static inline void VectorClear( vec3_t vec ) {
+	vec[0] = vec[1] = vec[2] = 0.0f;
+}
+static inline void VectorCopy( const vec3_t vecIn, vec3_t vecOut ) {
+	vecOut[0] = vecIn[0];
+	vecOut[1] = vecIn[1];
+	vecOut[2] = vecIn[2];
+}
+static inline float VectorLengthSquared( const vec3_t vec ) {
+	return vec[0]*vec[0] + vec[1]*vec[1] + vec[2]*vec[2];
+}
 float VectorLength( const vec3_t vec );
-float VectorLengthSquared( const vec3_t vec );
 void VectorNormalizeFast( vec3_t vec );
 float VectorNormalize( vec3_t vec );
 float VectorNormalize2( const vec3_t vec, vec3_t vecOut );
@@ -259,8 +326,14 @@ void VectorAdvance( const vec3_t veca, const float scale, const vec3_t vecb, vec
 void VectorInc( vec3_t vec );
 void VectorDec( vec3_t vec );
 void VectorInverse( vec3_t vec );
-void CrossProduct( const vec3_t vec1, const vec3_t vec2, vec3_t vecOut );
-float DotProduct( const vec3_t vec1, const vec3_t vec2 );
+static inline void CrossProduct( const vec3_t vec1, const vec3_t vec2, vec3_t vecOut ) {
+	vecOut[0] = vec1[1]*vec2[2] - vec1[2]*vec2[1];
+	vecOut[1] = vec1[2]*vec2[0] - vec1[0]*vec2[2];
+	vecOut[2] = vec1[0]*vec2[1] - vec1[1]*vec2[0];
+}
+static inline float DotProduct( const vec3_t vec1, const vec3_t vec2 ) {
+	return vec1[0]*vec2[0] + vec1[1]*vec2[1] + vec1[2]*vec2[2];
+}
 qboolean VectorCompare( const vec3_t vec1, const vec3_t vec2 );
 qboolean VectorCompare2( const vec3_t v1, const vec3_t v2 );
 
