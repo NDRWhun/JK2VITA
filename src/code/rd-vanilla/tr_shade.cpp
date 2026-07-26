@@ -197,10 +197,19 @@ static void R_DrawElements( int numIndexes, const glIndex_t *indexes ) {
 
 
 	if ( primitives == 2 ) {
+#ifdef VITA
+		// passing the vertex range spares vitaGL a CPU scan of every index per draw
+		qglDrawRangeElements( GL_TRIANGLES, 0,
+						tess.numVertexes ? tess.numVertexes - 1 : 0,
+						numIndexes,
+						GL_INDEX_TYPE,
+						indexes );
+#else
 		qglDrawElements( GL_TRIANGLES,
 						numIndexes,
 						GL_INDEX_TYPE,
 						indexes );
+#endif
 		return;
 	}
 

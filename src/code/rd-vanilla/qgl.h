@@ -122,6 +122,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #define qglDrawArrays glDrawArrays
 #define qglDrawBuffer glDrawBuffer
 #define qglDrawElements glDrawElements
+#define qglDrawRangeElements glDrawRangeElements
 #define qglDrawPixels glDrawPixels
 #define qglEdgeFlag glEdgeFlag
 #define qglEdgeFlagPointer glEdgeFlagPointer
