@@ -1507,7 +1507,6 @@ void RB_SurfaceGrid( srfGridMesh_t *cv ) {
 	int		*vDlightBits;
 
 	dlightBits = cv->dlightBits[backEnd.smpFrame];
-	tess.dlightBits |= dlightBits;
 
 	// determine the allowable discrepance
 	lodError = LodErrorForVolume( cv->lodOrigin, cv->lodRadius );
@@ -1556,6 +1555,9 @@ void RB_SurfaceGrid( srfGridMesh_t *cv ) {
 				break;
 			}
 		} while ( 1 );
+
+		// re-applied per pass: the flush above restarts tess, which clears the bits
+		tess.dlightBits |= dlightBits;
 
 		rows = irows;
 		if ( vrows < irows + 1 ) {
