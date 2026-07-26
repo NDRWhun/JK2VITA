@@ -107,7 +107,7 @@ R_ColorShiftLightingBytes
 
 ===============
 */
-void R_ColorShiftLightingBytes( byte in[4], byte out[4] ) {
+void R_ColorShiftLightingBytes( const byte in[4], byte out[4] ) {
 	int shift, r, g, b;
 
 	// shift the color data based on overbright range
@@ -178,6 +178,7 @@ R_LoadLightmaps
 #define	LMATLAS_SIZE	512									// merged page dimension
 #define	LMATLAS_COLS	(LMATLAS_SIZE/LIGHTMAP_SIZE)
 #define	LMATLAS_SLOTS	(LMATLAS_COLS*LMATLAS_COLS)			// must stay a power of two
+#define	LMATLAS_INSET	(0.5f/LIGHTMAP_SIZE)					// half a texel, the inset q3map2 already bakes in
 
 static int	lm_numSlots;					// lightmaps packed so far across every loaded world
 
@@ -224,8 +225,8 @@ static void R_RemapLightmapUV( int slot, float *st )
 	int	n = slot & (LMATLAS_SLOTS - 1);
 
 	// clamping stands in for the GL_CLAMP an un-merged lightmap got; a few map verts sit just past 1
-	st[0] = ( (n % LMATLAS_COLS) + Com_Clamp( 0.0f, 1.0f, st[0] ) ) * (1.0f / LMATLAS_COLS);
-	st[1] = ( (n / LMATLAS_COLS) + Com_Clamp( 0.0f, 1.0f, st[1] ) ) * (1.0f / LMATLAS_COLS);
+	st[0] = ( (n % LMATLAS_COLS) + Com_Clamp( LMATLAS_INSET, 1.0f - LMATLAS_INSET, st[0] ) ) * (1.0f / LMATLAS_COLS);
+	st[1] = ( (n / LMATLAS_COLS) + Com_Clamp( LMATLAS_INSET, 1.0f - LMATLAS_INSET, st[1] ) ) * (1.0f / LMATLAS_COLS);
 }
 
 static	void R_LoadLightmaps( lump_t *l, const char *psMapName, world_t &worldData )
