@@ -49,9 +49,10 @@ void R_Splash( void );			// defined in tr_init.cpp; run on the render thread dur
 // tess is thread-local: the frontend (main) and the render backend each pick
 // their own tessArray slot via the ARM user-RW TLS register, so frame N+1's
 // frontend build and frame N's backend draw never share the work buffer.
+// not volatile: the register is fixed per thread, so the reads fold into one
 static inline unsigned int vita_get_tls_reg( void ) {
 	unsigned int v;
-	__asm__ __volatile__( "mrc p15, 0, %0, c13, c0, 3" : "=r" (v) );
+	__asm__( "mrc p15, 0, %0, c13, c0, 3" : "=r" (v) );
 	return v;
 }
 #define get_tls_addr() ( vita_get_tls_reg() - 1980 )
@@ -59,8 +60,8 @@ static inline unsigned int vita_get_tls_reg( void ) {
 #define tessPtr ( (shaderCommands_t *)( *(uintptr_t *)get_tls_addr() ) )
 #endif
 
-#define GL_INDEX_TYPE		GL_UNSIGNED_INT
-typedef unsigned int glIndex_t;
+#define GL_INDEX_TYPE		GL_UNSIGNED_SHORT
+typedef unsigned short glIndex_t;	// batch indices are < SHADER_MAX_VERTEXES (1000); GXM-native 16-bit halves the index fetch
 
 extern refimport_t ri;
 
@@ -689,6 +690,10 @@ typedef struct {
 	int			numPoints;
 	int			numIndices;
 	int			ofsIndices;
+#ifdef VITA
+	int			vboGroup;			// static world buffer this lives in, -1 if not resident
+	glIndex_t	*vboIndexes;		// pre-offset to the group, NULL if not resident
+#endif
 	float		points[1][VERTEXSIZE];	// variable sized
 										// there is a variable length list of indices here also
 } srfSurfaceFace_t;
@@ -1191,6 +1196,7 @@ extern cvar_t	*r_ignorehwgamma;		// overrides hardware gamma capabilities
 extern cvar_t	*r_allowExtensions;				// global enable/disable of OpenGL extensions
 extern cvar_t	*r_ext_compressed_textures;		// these control use of specific extensions
 extern cvar_t	*r_ext_compressed_lightmaps;	// turns on compression of lightmaps, off by default
+extern cvar_t	*r_mergeLightmaps;				// pack lightmaps into atlas pages so world surfaces batch
 extern cvar_t	*r_ext_preferred_tc_method;
 extern cvar_t	*r_ext_gamma_control;
 extern cvar_t	*r_ext_texenv_op;
@@ -1703,6 +1709,13 @@ void R_FreeGhoulSkinArena( void );
 float R_EvalWaveForm( const waveForm_t *wf );
 // static MD3 vertex cache (tr_surface.cpp)
 void R_MD3VertCacheClear( void );
+// static world geometry in GPU buffers (tr_worldvbo.cpp)
+extern cvar_t *r_worldVBO;
+void		R_BuildWorldVBO( world_t &worldData );
+void		R_WorldVBO_Clear( void );
+void		R_WorldVBO_ContextReset( void );
+qboolean	R_WorldVBO_Surface( const srfSurfaceFace_t *face, int fogNum, int dlighted );
+void		R_WorldVBO_Flush( shader_t *shader );
 #endif
 /*
 Ghoul2 Insert End

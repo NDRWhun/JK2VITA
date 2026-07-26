@@ -724,6 +724,12 @@ void RB_RenderDrawSurfList( drawSurf_t *drawSurfs, int numDrawSurfs ) {
 	for (i = 0, drawSurf = drawSurfs ; i < numDrawSurfs ; i++, drawSurf++) {
 		if ( drawSurf->sort == oldSort ) {
 			// fast path, same as previous sort
+#ifdef VITA
+			if ( *drawSurf->surface == SF_FACE
+				&& R_WorldVBO_Surface( (const srfSurfaceFace_t *)drawSurf->surface, fogNum, dlighted ) ) {
+				continue;
+			}
+#endif
 			rb_surfaceTable[ *drawSurf->surface ]( drawSurf->surface );
 			continue;
 		}
@@ -798,6 +804,9 @@ void RB_RenderDrawSurfList( drawSurf_t *drawSurfs, int numDrawSurfs ) {
 			|| ( entityNum != oldEntityNum && !shader->entityMergable ) )
 		{
 			if (oldShader != NULL) {
+#ifdef VITA
+				R_WorldVBO_Flush( oldShader );
+#endif
 				RB_EndSurface();
 				if (!didShadowPass && shader && shader->sort > SS_BANNER)
 				{
@@ -872,11 +881,20 @@ void RB_RenderDrawSurfList( drawSurf_t *drawSurfs, int numDrawSurfs ) {
 		}
 
 		// add the triangles for this surface
+#ifdef VITA
+		if ( *drawSurf->surface == SF_FACE
+			&& R_WorldVBO_Surface( (const srfSurfaceFace_t *)drawSurf->surface, fogNum, dlighted ) ) {
+			continue;
+		}
+#endif
 		rb_surfaceTable[ *drawSurf->surface ]( drawSurf->surface );
 	}
 
 	// draw the contents of the last shader batch
 	if (oldShader != NULL) {
+#ifdef VITA
+		R_WorldVBO_Flush( oldShader );
+#endif
 		RB_EndSurface();
 	}
 
