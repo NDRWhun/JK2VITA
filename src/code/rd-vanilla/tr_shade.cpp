@@ -174,7 +174,7 @@ instead of using the single glDrawElements call that may be inefficient
 without compiled vertex arrays.
 ==================
 */
-static void R_DrawElements( int numIndexes, const glIndex_t *indexes ) {
+static void R_DrawElements( int numIndexes, const glIndex_t *indexes, int numVertexes ) {
 	int		primitives;
 
 	primitives = r_primitives->integer;
@@ -198,9 +198,10 @@ static void R_DrawElements( int numIndexes, const glIndex_t *indexes ) {
 
 	if ( primitives == 2 ) {
 #ifdef VITA
-		// passing the vertex range spares vitaGL a CPU scan of every index per draw
+		// spares vitaGL a CPU scan of every index, but it also sizes the vertex staging copy
+		// from this range, so numVertexes must count the array the caller actually bound
 		qglDrawRangeElements( GL_TRIANGLES, 0,
-						tess.numVertexes ? tess.numVertexes - 1 : 0,
+						numVertexes > 0 ? numVertexes - 1 : 0,
 						numIndexes,
 						GL_INDEX_TYPE,
 						indexes );
@@ -368,7 +369,7 @@ static void DrawTris (shaderCommands_t *input)
 			GLimp_LogComment( "glLockArraysEXT\n" );
 		}
 
-		R_DrawElements( input->numIndexes, input->indexes );
+		R_DrawElements( input->numIndexes, input->indexes, input->numVertexes );
 
 		if ( qglUnlockArraysEXT )
 		{
@@ -394,7 +395,7 @@ static void DrawTris (shaderCommands_t *input)
 			GLimp_LogComment( "glLockArraysEXT\n" );
 		}
 
-		R_DrawElements( input->numIndexes, input->indexes );
+		R_DrawElements( input->numIndexes, input->indexes, input->numVertexes );
 
 		if (qglUnlockArraysEXT) {
 			qglUnlockArraysEXT();
@@ -505,7 +506,7 @@ static void DrawMultitextured( shaderCommands_t *input, int stage ) {
 
 	R_BindAnimatedImage( &pStage->bundle[1] );
 
-	R_DrawElements( input->numIndexes, input->indexes );
+	R_DrawElements( input->numIndexes, input->indexes, input->numVertexes );
 
 	//
 	// disable texturing on TEXTURE1, then select TEXTURE0
@@ -958,7 +959,7 @@ static void ProjectDlightTexture2( void ) {
 
 			GL_State(GLS_SRCBLEND_ONE | GLS_DSTBLEND_ONE | GLS_DEPTHFUNC_EQUAL);// | GLS_ATEST_GT_0);
 
-			R_DrawElements( numIndexes, hitIndexes );
+			R_DrawElements( numIndexes, hitIndexes, numIndexes );
 
 			qglDisable( GL_TEXTURE_2D );
 			GL_SelectTexture(0);
@@ -982,7 +983,7 @@ static void ProjectDlightTexture2( void ) {
 				GL_State( GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_ONE | GLS_DEPTHFUNC_EQUAL );
 			}
 
-			R_DrawElements( numIndexes, hitIndexes );
+			R_DrawElements( numIndexes, hitIndexes, numIndexes );
 		}
 
 #ifndef JK2_MODE
@@ -1304,7 +1305,7 @@ static void ProjectDlightTexture( void ) {
 
 			GL_State(GLS_SRCBLEND_ONE | GLS_DSTBLEND_ONE | GLS_DEPTHFUNC_EQUAL);// | GLS_ATEST_GT_0);
 
-			R_DrawElements( numIndexes, hitIndexes );
+			R_DrawElements( numIndexes, hitIndexes, tess.numVertexes );
 
 			qglDisable( GL_TEXTURE_2D );
 			GL_SelectTexture(0);
@@ -1328,7 +1329,7 @@ static void ProjectDlightTexture( void ) {
 				GL_State( GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_ONE | GLS_DEPTHFUNC_EQUAL );
 			}
 
-			R_DrawElements( numIndexes, hitIndexes );
+			R_DrawElements( numIndexes, hitIndexes, tess.numVertexes );
 		}
 
 #ifndef JK2_MODE
@@ -1377,7 +1378,7 @@ static void RB_FogPass( void ) {
 		GL_State( GLS_SRCBLEND_SRC_ALPHA | GLS_DSTBLEND_ONE_MINUS_SRC_ALPHA );
 	}
 
-	R_DrawElements( tess.numIndexes, tess.indexes );
+	R_DrawElements( tess.numIndexes, tess.indexes, tess.numVertexes );
 }
 
 
@@ -2182,7 +2183,7 @@ static void RB_IterateStagesGeneric( shaderCommands_t *input )
 				if (pStage->lightmapStyle == 0)
 				{
 					GL_State( GLS_DSTBLEND_ZERO | GLS_SRCBLEND_ZERO );
-					R_DrawElements( input->numIndexes, input->indexes );
+					R_DrawElements( input->numIndexes, input->indexes, input->numVertexes );
 				}
 				continue;
 			}
@@ -2247,7 +2248,7 @@ static void RB_IterateStagesGeneric( shaderCommands_t *input )
 			//
 			// draw
 			//
-			R_DrawElements( input->numIndexes, input->indexes );
+			R_DrawElements( input->numIndexes, input->indexes, input->numVertexes );
 
 			if (lStencilled)
 			{ //re-enable the color buffer, disable stencil test
