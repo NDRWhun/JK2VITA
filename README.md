@@ -33,7 +33,7 @@ You need your own legally-owned copy of Jedi Outcast (eg.: from Steam)
 | Right stick | Look / turn |
 | Front touchscreen | In menus acting like a pointer moving the cursor |
 
-In menus, Cross selects/clicks and Circle goes back/cancels. That face-button remap is in `cl_keys.cpp`. Navigate menus with the left stick plus those two buttons.
+In menus, Cross selects/clicks and Circle goes back/cancels. Navigate menus with the left stick plus those two buttons.
 
 ### Base layer (physical buttons)
 
@@ -76,6 +76,8 @@ The rear panel is split into four corner zones. A cross-shaped dead band down th
 
 The combo layer only fires instant commands. The modifier role is latched per button at the moment it is pressed, so releasing the rear modifier mid-press can't strand a held action. The combo layer is inactive while a menu is open.
 
+Defaults are applied on first launch only, so rebinds persist. Set `vita_defaultBinds 1` and relaunch to restore them.
+
 ### Console
 
 Open with **Start + Select** — the on-screen keyboard pops up. Type a command, press **Enter** to run it. Close with **Circle** or **Start + Select** again.
@@ -100,7 +102,9 @@ Tune by editing `ux0:data/JK2VITA/base/openjo_sp.cfg` on the card, or from the i
 | `r_swapInterval` | `0` | Frame cap / vsync — `0` = uncapped, `1` = 60 fps, `2` = 30 fps |
 | `s_asyncLoad` | `1` | Read sound files on a worker thread; `0` = synchronous |
 | `s_mixThread` | `1` | Mix sound + decode music on a worker thread; `0` = on the main thread *(latched)* |
-| `r_picmip` | `1` | Texture detail — higher = lower-res, less VRAM, faster *(latched)* |
+| `r_picmip` | `1` | Texture detail — higher = lower-res, less VRAM, faster; `1` is the floor *(latched)* |
+| `r_worldVBO` | `1` | Draw static world surfaces from GPU buffers; `0` = per-frame vertex upload *(latched)* |
+| `r_mergeLightmaps` | `1` | Pack lightmaps into atlas pages so world surfaces batch; `0` = one texture each *(latched)* |
 | `r_subdivisions` | `4` | Curve tessellation — higher = coarser curves, fewer verts *(latched)* |
 | `r_lodbias` | `0` | Model LOD bias — higher drops to low-detail models sooner |
 | `r_surfaceSprites` | `0` | Foliage / grass sprites — `1` = on (stock default), `0` = off (Vita default) |
