@@ -433,6 +433,12 @@ int RE_RegisterMedia_GetLevel(void)
 
 void RE_RegisterMedia_LevelLoadEnd(void)
 {
+#ifdef VITA
+	// the deletes below free GL textures and model data the backend may still be reading
+	if ( r_renderThread && r_renderThread->integer ) {
+		R_IssuePendingRenderCommands();
+	}
+#endif
 	RE_RegisterModels_LevelLoadEnd(qfalse);
 	RE_RegisterImages_LevelLoadEnd();
 	ri.SND_RegisterAudio_LevelLoadEnd(qfalse);
