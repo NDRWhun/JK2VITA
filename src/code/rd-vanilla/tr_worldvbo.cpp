@@ -287,14 +287,19 @@ void R_WorldVBO_Flush( shader_t *shader )
 
 	GL_SelectTexture( 1 );
 	qglEnable( GL_TEXTURE_2D );
-	GL_TexEnv( tess.shader->multitextureEnv );
+	GL_TexEnv( r_lightmap->integer ? GL_REPLACE : shader->multitextureEnv );
 	R_BindAnimatedImage( &st->bundle[1] );
 	qglEnableClientState( GL_TEXTURE_COORD_ARRAY );
 	qglTexCoordPointer( 2, GL_FLOAT, WVBO_STRIDE, (void *)WVBO_OFS_LM );
 
-	// the eligibility gate only lets constant-colour stages through
+	// the gate only lets constant-colour stages through; CGEN_IDENTITY is full white,
+	// CGEN_IDENTITY_LIGHTING is scaled by the overbright factor
 	qglDisableClientState( GL_COLOR_ARRAY );
-	qglColor4f( tr.identityLight, tr.identityLight, tr.identityLight, 1.0f );
+	if ( st->rgbGen == CGEN_IDENTITY_LIGHTING ) {
+		qglColor4f( tr.identityLight, tr.identityLight, tr.identityLight, 1.0f );
+	} else {
+		qglColor4f( 1.0f, 1.0f, 1.0f, 1.0f );
+	}
 
 	glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, 0 );
 	qglDrawRangeElements( GL_TRIANGLES, 0, wvbo_groups[wvbo_curGroup].numVerts - 1,
