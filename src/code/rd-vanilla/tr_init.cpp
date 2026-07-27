@@ -1987,6 +1987,11 @@ void R_Init( void ) {
 		backEndDataPtr[1] = backEndDataPtr[0];
 	}
 	backEndData = backEndDataPtr[0];
+	// vid_restart can land here on odd parity; the hand-off state must match slot 0
+	activeBackEnd = 0;
+	rendBackEnd = 0;
+	tr.smpFrame = 0;
+	set_tessPtr( &tessArray[0] );
 #else
 	backEndData = (backEndData_t *) R_Hunk_Alloc( sizeof( backEndData_t ), qtrue );
 #endif
