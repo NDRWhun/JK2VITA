@@ -282,8 +282,7 @@ extern vec3_t vec3_origin;
 #define VectorClearM(dst) \
 	memset((dst), 0, sizeof((dst)[0]) * 3)
 
-// defined here rather than in q_math.c: without LTO each use was a call, which also
-// clobbered memory and stopped the per-vertex loops vectorizing
+// defined here, not in q_math.c: without LTO each use was a call that blocked vectorizing
 static inline void VectorAdd( const vec3_t vec1, const vec3_t vec2, vec3_t vecOut ) {
 	vecOut[0] = vec1[0] + vec2[0];
 	vecOut[1] = vec1[1] + vec2[1];

@@ -114,8 +114,7 @@ static qboolean R_WorldVBO_ShaderEligible( const shader_t *shader )
 	if ( st->rgbGen != CGEN_IDENTITY && st->rgbGen != CGEN_IDENTITY_LIGHTING ) {
 		return qfalse;					// only the constant-colour cases need no array
 	}
-	// ParseStage rewrites identity to skip on script-authored stages, so rejecting
-	// skip would drop every hand-written world shader while keeping the implicit ones
+	// ParseStage rewrites identity to skip on script-authored stages
 	if ( st->alphaGen != AGEN_IDENTITY && st->alphaGen != AGEN_SKIP ) {
 		return qfalse;
 	}
@@ -294,8 +293,7 @@ void R_WorldVBO_Flush( shader_t *shader )
 	qglEnableClientState( GL_TEXTURE_COORD_ARRAY );
 	qglTexCoordPointer( 2, GL_FLOAT, WVBO_STRIDE, (void *)WVBO_OFS_LM );
 
-	// the gate only lets constant-colour stages through; CGEN_IDENTITY is full white,
-	// CGEN_IDENTITY_LIGHTING is scaled by the overbright factor
+	// the gate only lets constant-colour stages through
 	qglDisableClientState( GL_COLOR_ARRAY );
 	if ( st->rgbGen == CGEN_IDENTITY_LIGHTING ) {
 		qglColor4f( tr.identityLight, tr.identityLight, tr.identityLight, 1.0f );

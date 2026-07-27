@@ -215,8 +215,7 @@ void R_StopRenderThread( void ) {
 R_IssueRenderCommands
 ====================
 */
-// endOfFrame: only the hand-off flips the buffer. A mid-frame flush must leave the
-// scene arrays that r_numentities/r_numdlights/r_numpolys still index reachable.
+// endOfFrame: a mid-frame flush must not flip away from the scene arrays still in use
 void R_IssueRenderCommands( qboolean runPerformanceCounters, qboolean endOfFrame ) {
 	renderCommandList_t	*cmdList;
 
@@ -232,8 +231,7 @@ void R_IssueRenderCommands( qboolean runPerformanceCounters, qboolean endOfFrame
 #ifdef VITA
 	if ( r_renderThread && r_renderThread->integer ) {
 		// hand the frame to the render thread, flip the frontend to the other buffer
-		// r_speeds 8: "main" is the whole main thread - server frame, cgame and renderer
-		// frontend; the stall is the backend overrun, so near zero means main leads
+		// r_speeds 8: "main" is the whole main thread, "stall" the backend overrun
 		static unsigned int fe_handoff = 0;
 		const unsigned int fe_t0 = sceKernelGetProcessTimeLow();
 

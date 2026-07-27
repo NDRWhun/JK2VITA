@@ -224,7 +224,7 @@ static void R_RemapLightmapUV( int slot, float *st )
 {
 	int	n = slot & (LMATLAS_SLOTS - 1);
 
-	// clamping stands in for the GL_CLAMP an un-merged lightmap got; a few map verts sit just past 1
+	// an un-merged lightmap got this clamp from GL_CLAMP
 	st[0] = ( (n % LMATLAS_COLS) + Com_Clamp( LMATLAS_INSET, 1.0f - LMATLAS_INSET, st[0] ) ) * (1.0f / LMATLAS_COLS);
 	st[1] = ( (n / LMATLAS_COLS) + Com_Clamp( LMATLAS_INSET, 1.0f - LMATLAS_INSET, st[1] ) ) * (1.0f / LMATLAS_COLS);
 }

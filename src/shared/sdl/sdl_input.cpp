@@ -682,8 +682,7 @@ void IN_Init( void *windowData )
 	//   Down=JOY7 Left=JOY8 Up=JOY9 Right=JOY10 Select=JOY11 Start=JOY12
 	vita_rearTouch = Cvar_Get( "vita_rearTouch", "1", CVAR_ARCHIVE );	// rear-panel zones on/off
 
-	// first run only; IN_Init also runs on vid_restart, and re-issuing these would
-	// overwrite whatever the player rebound. Set it back to 1 to restore the defaults.
+	// first run only; IN_Init also runs on vid_restart and would overwrite the player's binds
 	cvar_t *vitaDefaultBinds = Cvar_Get( "vita_defaultBinds", "1", CVAR_ARCHIVE );
 	if ( vitaDefaultBinds->integer ) {
 		Cvar_Set( "vita_defaultBinds", "0" );

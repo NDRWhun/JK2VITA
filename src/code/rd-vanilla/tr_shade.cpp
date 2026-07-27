@@ -198,8 +198,7 @@ static void R_DrawElements( int numIndexes, const glIndex_t *indexes, int numVer
 
 	if ( primitives == 2 ) {
 #ifdef VITA
-		// spares vitaGL a CPU scan of every index, but it also sizes the vertex staging copy
-		// from this range, so numVertexes must count the array the caller actually bound
+		// vitaGL sizes its vertex staging copy from this range, so it must cover every index
 		qglDrawRangeElements( GL_TRIANGLES, 0,
 						numVertexes > 0 ? numVertexes - 1 : 0,
 						numIndexes,
