@@ -114,7 +114,9 @@ static qboolean R_WorldVBO_ShaderEligible( const shader_t *shader )
 	if ( st->rgbGen != CGEN_IDENTITY && st->rgbGen != CGEN_IDENTITY_LIGHTING ) {
 		return qfalse;					// only the constant-colour cases need no array
 	}
-	if ( st->alphaGen != AGEN_IDENTITY ) {
+	// ParseStage rewrites identity to skip on script-authored stages, so rejecting
+	// skip would drop every hand-written world shader while keeping the implicit ones
+	if ( st->alphaGen != AGEN_IDENTITY && st->alphaGen != AGEN_SKIP ) {
 		return qfalse;
 	}
 	if ( st->bundle[0].tcGen != TCGEN_TEXTURE || st->bundle[0].numTexMods ) {
