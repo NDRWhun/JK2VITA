@@ -65,9 +65,7 @@ CON_Print
 ==================
 */
 void CON_Print(const char *msg) {
-#if 1
-    printf(msg);
-#endif
+	printf( "%s", msg );
 }
 #else
 /*
