@@ -681,25 +681,32 @@ void IN_Init( void *windowData )
 	//   Triangle=JOY1 Circle=JOY2 Cross=JOY3 Square=JOY4 L=JOY5 R=JOY6
 	//   Down=JOY7 Left=JOY8 Up=JOY9 Right=JOY10 Select=JOY11 Start=JOY12
 	vita_rearTouch = Cvar_Get( "vita_rearTouch", "1", CVAR_ARCHIVE );	// rear-panel zones on/off
-	Cbuf_AddText(
-		// --- base layer (physical buttons) ---
-		"bind JOY6 +attack\n"          // R  -> fire / saber attack
-		"bind JOY5 +altattack\n"       // L  -> alt attack / saber throw
-		"bind JOY3 +moveup\n"          // Cross  -> jump
-		"bind JOY4 +movedown\n"        // Square -> crouch
-		"bind JOY2 +use\n"             // Circle -> use
-		"bind JOY1 +useforce\n"        // Triangle -> use selected force power
-		"bind JOY9 weapnext\n"         // D-Up    -> next weapon
-		"bind JOY7 weapprev\n"         // D-Down  -> prev weapon
-		"bind JOY8 forceprev\n"        // D-Left  -> select prev force power
-		"bind JOY10 forcenext\n"       // D-Right -> select next force power
-		"bind JOY11 datapad\n"         // Select  -> mission objectives (datapad)
-		"bind JOY12 togglemenu\n"      // Start   -> in-game menu (ESC toggle)
-		// --- rear touch zones (AUX1 top-left is the combo modifier, handled in code) ---
-		"bind AUX2 zoom\n"             // rear top-right    -> binocular zoom
-		"bind AUX3 +useforce\n"        // rear bottom-left  -> secondary force fire
-		"bind AUX4 +speed\n"           // rear bottom-right -> run / walk
-	);
+
+	// first run only; IN_Init also runs on vid_restart, and re-issuing these would
+	// overwrite whatever the player rebound. Set it back to 1 to restore the defaults.
+	cvar_t *vitaDefaultBinds = Cvar_Get( "vita_defaultBinds", "1", CVAR_ARCHIVE );
+	if ( vitaDefaultBinds->integer ) {
+		Cvar_Set( "vita_defaultBinds", "0" );
+		Cbuf_AddText(
+			// --- base layer (physical buttons) ---
+			"bind JOY6 +attack\n"          // R  -> fire / saber attack
+			"bind JOY5 +altattack\n"       // L  -> alt attack / saber throw
+			"bind JOY3 +moveup\n"          // Cross  -> jump
+			"bind JOY4 +movedown\n"        // Square -> crouch
+			"bind JOY2 +use\n"             // Circle -> use
+			"bind JOY1 +useforce\n"        // Triangle -> use selected force power
+			"bind JOY9 weapnext\n"         // D-Up    -> next weapon
+			"bind JOY7 weapprev\n"         // D-Down  -> prev weapon
+			"bind JOY8 forceprev\n"        // D-Left  -> select prev force power
+			"bind JOY10 forcenext\n"       // D-Right -> select next force power
+			"bind JOY11 datapad\n"         // Select  -> mission objectives (datapad)
+			"bind JOY12 togglemenu\n"      // Start   -> in-game menu (ESC toggle)
+			// --- rear touch zones (AUX1 top-left is the combo modifier, handled in code) ---
+			"bind AUX2 zoom\n"             // rear top-right    -> binocular zoom
+			"bind AUX3 +useforce\n"        // rear bottom-left  -> secondary force fire
+			"bind AUX4 +speed\n"           // rear bottom-right -> run / walk
+		);
+	}
 
 	// Print the full control map so it's discoverable in the console / log.
 	Com_Printf( "\n^3JK2VITA controls:^7\n"
