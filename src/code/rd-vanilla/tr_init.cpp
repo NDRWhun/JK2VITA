@@ -2076,6 +2076,11 @@ void RE_Shutdown( qboolean destroyWindow, qboolean restarting ) {
 	{
 		R_IssuePendingRenderCommands();
 #ifdef VITA
+		// map change too: the hunk the VBO's surface keys point into is about to be cleared,
+		// and the old buffers would otherwise sit in the vitaGL pool through the next map's
+		// texture load
+		R_WorldVBO_Clear();
+
 		// map change: drop old-map textures now, not at the new map's first frame
 		// (drained above so main owns GL; builtins re-create in R_Init)
 		if ( !destroyWindow && r_dropTexturesOnLoad && r_dropTexturesOnLoad->integer )
