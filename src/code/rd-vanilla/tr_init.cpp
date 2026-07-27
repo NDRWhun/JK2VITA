@@ -1663,7 +1663,7 @@ void R_Register( void )
 	// old texture VRAM, one full mip sharper. A floor (not a force) so the menu can pick
 	// 1..3; picmip 0 waits on memory headroom validation.
 	r_picmip = ri.Cvar_Get ("r_picmip", "1", CVAR_ARCHIVE | CVAR_LATCH );
-	ri.Cvar_CheckRange( r_picmip, 0, 16, qtrue );
+	ri.Cvar_CheckRange( r_picmip, 1, 16, qtrue );
 #else
 	r_picmip = ri.Cvar_Get ("r_picmip", "0", CVAR_ARCHIVE | CVAR_LATCH );
 	ri.Cvar_CheckRange( r_picmip, 0, 16, qtrue );
