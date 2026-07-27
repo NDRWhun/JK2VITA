@@ -1687,6 +1687,7 @@ CRenderableSurface():
 		boneCache=0;
 		surfaceData=0;
 		boneMats=0;
+		preSkinned=0;
 #ifdef _G2_GORE
 		ident = SF_MDX;
 		alternateTex=0;
