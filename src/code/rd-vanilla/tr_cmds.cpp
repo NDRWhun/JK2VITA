@@ -215,7 +215,9 @@ void R_StopRenderThread( void ) {
 R_IssueRenderCommands
 ====================
 */
-void R_IssueRenderCommands( qboolean runPerformanceCounters ) {
+// endOfFrame: only the hand-off flips the buffer. A mid-frame flush must leave the
+// scene arrays that r_numentities/r_numdlights/r_numpolys still index reachable.
+void R_IssueRenderCommands( qboolean runPerformanceCounters, qboolean endOfFrame ) {
 	renderCommandList_t	*cmdList;
 
 	cmdList = &backEndData->commands;
@@ -254,10 +256,12 @@ void R_IssueRenderCommands( qboolean runPerformanceCounters ) {
 		}
 		rend_handedBuffer = activeBackEnd;
 		sceKernelSignalSema( rend_mutex_in, 1 );
-		activeBackEnd = !activeBackEnd;
-		tr.smpFrame = activeBackEnd;
-		backEndData = backEndDataPtr[activeBackEnd];
-		set_tessPtr( &tessArray[activeBackEnd] );
+		if ( endOfFrame ) {
+			activeBackEnd = !activeBackEnd;
+			tr.smpFrame = activeBackEnd;
+			backEndData = backEndDataPtr[activeBackEnd];
+			set_tessPtr( &tessArray[activeBackEnd] );
+		}
 		return;
 	}
 #endif
@@ -287,7 +291,7 @@ void R_IssuePendingRenderCommands( void ) {
 	if ( !tr.registered ) {
 		return;
 	}
-	R_IssueRenderCommands( qfalse );
+	R_IssueRenderCommands( qfalse, qfalse );
 
 #ifdef VITA
 	// The hand-off above is asynchronous; a pending flush must wait until the backend
@@ -681,7 +685,7 @@ void RE_EndFrame( int *frontEndMsec, int *backEndMsec ) {
 	}
 	cmd->commandId = RC_SWAP_BUFFERS;
 
-	R_IssueRenderCommands( qtrue );
+	R_IssueRenderCommands( qtrue, qtrue );
 
 	R_InitNextFrame();
 
