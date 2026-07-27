@@ -415,11 +415,11 @@ float Q_powf ( float x, int y )
 
 qboolean Q_isnan (float f)
 {
-#ifdef _MSC_VER
-	return (qboolean)(_isnan (f) != 0);
-#else
-	return (qboolean)(isnan (f) != 0);
-#endif
+	// a bit test, not isnan(): -ffast-math implies -ffinite-math-only, which folds that to 0
+	union { float f; unsigned int u; } v;
+
+	v.f = f;
+	return (qboolean)( ( v.u & 0x7f800000u ) == 0x7f800000u && ( v.u & 0x007fffffu ) != 0u );
 }
 
 int Q_log2( int val )
