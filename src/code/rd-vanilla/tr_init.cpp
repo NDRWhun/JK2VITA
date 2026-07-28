@@ -2093,15 +2093,6 @@ void RE_Shutdown( qboolean destroyWindow, qboolean restarting ) {
 #endif
 		if ( destroyWindow )
 		{
-#ifdef VITA
-			// vid_restart: the render thread OWNS the GXM context and is about to have
-			// its window torn down. Stop + join it here (after the drain above parked
-			// it) so the remaining teardown GL runs single-threaded. Resets rend_thid
-			// so the next R_Init re-creates the thread. No-op unless r_renderThread.
-			if ( r_renderThread && r_renderThread->integer ) {
-				R_StopRenderThread();
-			}
-#endif
 			R_DeleteTextures();	// only do this for vid_restart now, not during things like map load
 
 			if ( restarting )
@@ -2113,6 +2104,10 @@ void RE_Shutdown( qboolean destroyWindow, qboolean restarting ) {
 
 	// shut down platform specific OpenGL stuff
 	if ( destroyWindow ) {
+#ifdef VITA
+		// the render thread owns the GXM context; join it before the window goes away
+		R_StopRenderThread();
+#endif
 		ri.WIN_Shutdown();
 #ifdef VITA
 		// WIN_Shutdown destroyed the window/context (and R_StopRenderThread killed the
