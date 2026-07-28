@@ -2965,7 +2965,7 @@ static void G2_PreSkinSurface( const mdxmSurface_t *surface, const mdxaBone_t *s
 }
 
 
-// --- anim worker (core 1): drains whole characters (bone eval + pre-skin) with core 0.
+// --- anim worker (core 0): drains whole characters (bone eval + pre-skin) alongside main.
 // Safe per character: each job owns its CBoneCache; G2_TransformBone is statics-free.
 static volatile int  s_g2JobNext = 0;		// shared take-index over s_g2Groups, atomic
 static SceUID        s_g2WorkSema = -1, s_g2DoneSema = -1;

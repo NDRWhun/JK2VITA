@@ -602,7 +602,7 @@ static void S_AsyncLoad_Poll( void )
 #endif // VITA
 
 
-// --- mixer thread (core 1): PCM mixing + music decode off the main thread ---
+// --- mixer thread (core 0): PCM mixing + music decode off the main thread ---
 static cvar_t		*s_mixThreadCvar;
 static SceUID		 s_mixThread = -1;
 static SceUID		 s_mixMutex  = -1;	// recursive: entry points nest via the Z_Malloc freeup cascade

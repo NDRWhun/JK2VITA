@@ -221,7 +221,7 @@ qboolean S_LoadSound( sfx_t *sfx );
 qboolean S_LoadSound_ReadFile( sfx_t *sfx, char *sLoadName, int iBufSize, byte **pData, int *piSize, qboolean bWorker );
 qboolean S_LoadSound_Finish( sfx_t *sfx, char *sLoadName, byte *data, int size, qboolean bDataIsMalloc );
 
-// mixer thread (core 1): recursive lock guarding channel/music state
+// mixer thread (core 0): recursive lock guarding channel/music state
 void S_MixLock( void );
 void S_MixUnlock( void );
 struct SMixScopeGuard { SMixScopeGuard() { S_MixLock(); } ~SMixScopeGuard() { S_MixUnlock(); } };
