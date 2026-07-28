@@ -61,6 +61,10 @@ configure_file(
   ${CMAKE_SOURCE_DIR}/src/shared/qcommon/q_version.h.in
   ${CMAKE_BINARY_DIR}/generated/qcommon/q_version.h
   @ONLY)
+configure_file(
+  ${CMAKE_SOURCE_DIR}/sce_sys/livearea/contents/template.xml.in
+  ${CMAKE_BINARY_DIR}/generated/livearea/template.xml
+  @ONLY)
 
 #----------------------------------------------------------------------------
 # Defines.
@@ -186,7 +190,7 @@ vita_create_vpk(${GAME_TARGET}.vpk ${VITA_TITLEID} ${GAME_TARGET}.self
   FILE ${CMAKE_SOURCE_DIR}/sce_sys/icon0.png sce_sys/icon0.png
   FILE ${CMAKE_SOURCE_DIR}/sce_sys/livearea/contents/bg.png sce_sys/livearea/contents/bg.png
   FILE ${CMAKE_SOURCE_DIR}/sce_sys/livearea/contents/startup.png sce_sys/livearea/contents/startup.png
-  FILE ${CMAKE_SOURCE_DIR}/sce_sys/livearea/contents/template.xml sce_sys/livearea/contents/template.xml
+  FILE ${CMAKE_BINARY_DIR}/generated/livearea/template.xml sce_sys/livearea/contents/template.xml
   FILE ${CMAKE_SOURCE_DIR}/sce_sys/livearea/contents/config.png sce_sys/livearea/contents/config.png
   FILE ${CMAKE_BINARY_DIR}/companion.bin companion.bin
 )
