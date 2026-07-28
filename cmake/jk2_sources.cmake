@@ -1,11 +1,7 @@
-# Shared engine half + a game half picked by BUILD_JKA:
-#   OFF -> Jedi Outcast (codeJK2/, JK2_MODE)       -> JK2VITA.vpk
-#   ON  -> Jedi Academy (code/{game,cgame,icarus}) -> JAVITA.vpk
-# JKA list matches StaticJK's. Two gotchas: no animtable.cpp (the table lives in
-# code/cgame/animtable.h), and use bg_vehicleLoad.cpp, not g_vehicleLoad.cpp.
+# Engine half (shared OpenJK code/) + the Jedi Outcast game half (codeJK2/).
 
 #----------------------------------------------------------------------------
-# Engine half (shared, Vita-working) — identical for JK2 and JKA.
+# Engine half (shared, Vita-working).
 #----------------------------------------------------------------------------
 set(JK_ENGINE_SOURCES
     src/code/Ratl/ratl.cpp
@@ -149,7 +145,7 @@ set(JK_ENGINE_SOURCES
 )
 
 #----------------------------------------------------------------------------
-# Jedi Outcast game half — codeJK2/ (built when BUILD_JKA is OFF).
+# Jedi Outcast game half - codeJK2/.
 #----------------------------------------------------------------------------
 set(JK2_GAME_SOURCES
     src/codeJK2/game/AI_Atst.cpp
@@ -290,177 +286,6 @@ set(JK2_GAME_SOURCES
 )
 
 #----------------------------------------------------------------------------
-# Jedi Academy game half — code/{game,cgame,icarus} (stock OpenJK JKA SP,
-# built when BUILD_JKA is ON). Mirrors third_party/StaticJK/CMakeLists.txt.
+# Final source set.
 #----------------------------------------------------------------------------
-set(JKA_GAME_SOURCES
-    src/code/cgame/FX_ATSTMain.cpp
-    src/code/cgame/FX_Blaster.cpp
-    src/code/cgame/FX_Bowcaster.cpp
-    src/code/cgame/FX_BryarPistol.cpp
-    src/code/cgame/FX_Concussion.cpp
-    src/code/cgame/FX_DEMP2.cpp
-    src/code/cgame/FX_Disruptor.cpp
-    src/code/cgame/FX_Emplaced.cpp
-    src/code/cgame/FX_Flechette.cpp
-    src/code/cgame/FX_HeavyRepeater.cpp
-    src/code/cgame/FX_NoghriShot.cpp
-    src/code/cgame/FX_RocketLauncher.cpp
-    src/code/cgame/FX_TuskenShot.cpp
-    src/code/cgame/FxPrimitives.cpp
-    src/code/cgame/FxScheduler.cpp
-    src/code/cgame/FxSystem.cpp
-    src/code/cgame/FxTemplate.cpp
-    src/code/cgame/FxUtil.cpp
-    src/code/cgame/cg_camera.cpp
-    src/code/cgame/cg_consolecmds.cpp
-    src/code/cgame/cg_credits.cpp
-    src/code/cgame/cg_draw.cpp
-    src/code/cgame/cg_drawtools.cpp
-    src/code/cgame/cg_effects.cpp
-    src/code/cgame/cg_ents.cpp
-    src/code/cgame/cg_event.cpp
-    src/code/cgame/cg_headers.cpp
-    src/code/cgame/cg_info.cpp
-    src/code/cgame/cg_lights.cpp
-    src/code/cgame/cg_localents.cpp
-    src/code/cgame/cg_main.cpp
-    src/code/cgame/cg_marks.cpp
-    src/code/cgame/cg_players.cpp
-    src/code/cgame/cg_playerstate.cpp
-    src/code/cgame/cg_predict.cpp
-    src/code/cgame/cg_scoreboard.cpp
-    src/code/cgame/cg_servercmds.cpp
-    src/code/cgame/cg_snapshot.cpp
-    src/code/cgame/cg_syscalls.cpp
-    src/code/cgame/cg_text.cpp
-    src/code/cgame/cg_view.cpp
-    src/code/cgame/cg_weapons.cpp
-    src/code/game/AI_Animal.cpp
-    src/code/game/AI_AssassinDroid.cpp
-    src/code/game/AI_Atst.cpp
-    src/code/game/AI_BobaFett.cpp
-    src/code/game/AI_Civilian.cpp
-    src/code/game/AI_Default.cpp
-    src/code/game/AI_Droid.cpp
-    src/code/game/AI_GalakMech.cpp
-    src/code/game/AI_Grenadier.cpp
-    src/code/game/AI_HazardTrooper.cpp
-    src/code/game/AI_Howler.cpp
-    src/code/game/AI_ImperialProbe.cpp
-    src/code/game/AI_Interrogator.cpp
-    src/code/game/AI_Jedi.cpp
-    src/code/game/AI_Mark1.cpp
-    src/code/game/AI_Mark2.cpp
-    src/code/game/AI_MineMonster.cpp
-    src/code/game/AI_Rancor.cpp
-    src/code/game/AI_Remote.cpp
-    src/code/game/AI_RocketTrooper.cpp
-    src/code/game/AI_SaberDroid.cpp
-    src/code/game/AI_SandCreature.cpp
-    src/code/game/AI_Seeker.cpp
-    src/code/game/AI_Sentry.cpp
-    src/code/game/AI_Sniper.cpp
-    src/code/game/AI_Stormtrooper.cpp
-    src/code/game/AI_Tusken.cpp
-    src/code/game/AI_Utils.cpp
-    src/code/game/AI_Wampa.cpp
-    src/code/game/AnimalNPC.cpp
-    src/code/game/FighterNPC.cpp
-    src/code/game/G_Timer.cpp
-    src/code/game/NPC.cpp
-    src/code/game/NPC_behavior.cpp
-    src/code/game/NPC_combat.cpp
-    src/code/game/NPC_goal.cpp
-    src/code/game/NPC_misc.cpp
-    src/code/game/NPC_move.cpp
-    src/code/game/NPC_reactions.cpp
-    src/code/game/NPC_senses.cpp
-    src/code/game/NPC_sounds.cpp
-    src/code/game/NPC_spawn.cpp
-    src/code/game/NPC_stats.cpp
-    src/code/game/NPC_utils.cpp
-    src/code/game/Q3_Interface.cpp
-    src/code/game/SpeederNPC.cpp
-    src/code/game/WalkerNPC.cpp
-    src/code/game/bg_misc.cpp
-    src/code/game/bg_pangles.cpp
-    src/code/game/bg_panimate.cpp
-    src/code/game/bg_pmove.cpp
-    src/code/game/bg_slidemove.cpp
-    src/code/game/bg_vehicleLoad.cpp
-    src/code/game/g_active.cpp
-    src/code/game/g_breakable.cpp
-    src/code/game/g_camera.cpp
-    src/code/game/g_client.cpp
-    src/code/game/g_cmds.cpp
-    src/code/game/g_combat.cpp
-    src/code/game/g_emplaced.cpp
-    src/code/game/g_functions.cpp
-    src/code/game/g_fx.cpp
-    src/code/game/g_inventory.cpp
-    src/code/game/g_itemLoad.cpp
-    src/code/game/g_items.cpp
-    src/code/game/g_main.cpp
-    src/code/game/g_mem.cpp
-    src/code/game/g_misc.cpp
-    src/code/game/g_misc_model.cpp
-    src/code/game/g_missile.cpp
-    src/code/game/g_mover.cpp
-    src/code/game/g_nav.cpp
-    src/code/game/g_navigator.cpp
-    src/code/game/g_navnew.cpp
-    src/code/game/g_object.cpp
-    src/code/game/g_objectives.cpp
-    src/code/game/g_rail.cpp
-    src/code/game/g_ref.cpp
-    src/code/game/g_roff.cpp
-    src/code/game/g_savegame.cpp
-    src/code/game/g_session.cpp
-    src/code/game/g_spawn.cpp
-    src/code/game/g_svcmds.cpp
-    src/code/game/g_target.cpp
-    src/code/game/g_trigger.cpp
-    src/code/game/g_turret.cpp
-    src/code/game/g_usable.cpp
-    src/code/game/g_utils.cpp
-    src/code/game/g_vehicles.cpp
-    src/code/game/g_weapon.cpp
-    src/code/game/g_weaponLoad.cpp
-    src/code/game/genericparser2.cpp
-    src/code/game/wp_atst.cpp
-    src/code/game/wp_blaster_pistol.cpp
-    src/code/game/wp_blaster_rifle.cpp
-    src/code/game/wp_bot_laser.cpp
-    src/code/game/wp_bowcaster.cpp
-    src/code/game/wp_concussion.cpp
-    src/code/game/wp_demp2.cpp
-    src/code/game/wp_det_pack.cpp
-    src/code/game/wp_disruptor.cpp
-    src/code/game/wp_emplaced_gun.cpp
-    src/code/game/wp_flechette.cpp
-    src/code/game/wp_melee.cpp
-    src/code/game/wp_noghri_stick.cpp
-    src/code/game/wp_repeater.cpp
-    src/code/game/wp_rocket_launcher.cpp
-    src/code/game/wp_saber.cpp
-    src/code/game/wp_saberLoad.cpp
-    src/code/game/wp_stun_baton.cpp
-    src/code/game/wp_thermal.cpp
-    src/code/game/wp_trip_mine.cpp
-    src/code/game/wp_tusken.cpp
-    src/code/icarus/BlockStream.cpp
-    src/code/icarus/IcarusImplementation.cpp
-    src/code/icarus/Sequence.cpp
-    src/code/icarus/Sequencer.cpp
-    src/code/icarus/TaskManager.cpp
-)
-
-#----------------------------------------------------------------------------
-# Final source set selected by game mode.
-#----------------------------------------------------------------------------
-if(BUILD_JKA)
-    set(JK2_SOURCES ${JK_ENGINE_SOURCES} ${JKA_GAME_SOURCES})
-else()
-    set(JK2_SOURCES ${JK_ENGINE_SOURCES} ${JK2_GAME_SOURCES})
-endif()
+set(JK2_SOURCES ${JK_ENGINE_SOURCES} ${JK2_GAME_SOURCES})

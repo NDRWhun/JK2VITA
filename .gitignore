@@ -1,6 +1,5 @@
 build/
 /build/
-build-jka/
 *.vpk
 *.elf
 *.velf

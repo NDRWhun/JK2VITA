@@ -24,43 +24,23 @@ set(CMAKE_CXX_STANDARD 14)
 
 include("${VITASDK}/share/vita.cmake" REQUIRED)
 
-# Game selection: OFF -> Jedi Outcast (JK2VITA), ON -> Jedi Academy (JAVITA).
-# Configure JKA with:  cmake -S . -B build-jka -DBUILD_JKA=ON
-option(BUILD_JKA "Build Jedi Academy (JAVITA) instead of Jedi Outcast (JK2VITA)" OFF)
-if(BUILD_JKA)
-  set(GAME_TARGET   "JAVITA")
-  set(VITA_APP_NAME "JAVITA: Jedi Academy")
-  set(VITA_TITLEID  "JAVITA001")
-else()
-  set(GAME_TARGET   "JK2VITA")
-  set(VITA_APP_NAME "JK2VITA: Jedi Outcast")
-  set(VITA_TITLEID  "JK2VITA01")
-endif()
+set(GAME_TARGET   "JK2VITA")
+set(VITA_APP_NAME "JK2VITA: Jedi Outcast")
+set(VITA_TITLEID  "JK2VITA01")
 set(PORT_VERSION  "0.9.82")
 set(VITA_VERSION  "00.98")	# SFO APP_VER is NN.NN and cannot carry the patch digit
 
 #----------------------------------------------------------------------------
 # Include domains.
-# Game-specific include dirs FIRST so the selected game's headers win over the
-# shared code/ versions. JKA -> code/{game,cgame,icarus}; JK2 -> codeJK2/*.
-if(BUILD_JKA)
-  include_directories(
-    ${CMAKE_SOURCE_DIR}/src/compat   # newlib gap-fillers (e.g. <endian.h>); must be first
-    ${CMAKE_SOURCE_DIR}/src
-    ${CMAKE_SOURCE_DIR}/src/code/game
-    ${CMAKE_SOURCE_DIR}/src/code/cgame
-    ${CMAKE_SOURCE_DIR}/src/code/icarus
-  )
-else()
-  include_directories(
-    ${CMAKE_SOURCE_DIR}/src/compat   # newlib gap-fillers (e.g. <endian.h>); must be first
-    ${CMAKE_SOURCE_DIR}/src
-    ${CMAKE_SOURCE_DIR}/src/codeJK2/game
-    ${CMAKE_SOURCE_DIR}/src/codeJK2/cgame
-    ${CMAKE_SOURCE_DIR}/src/codeJK2/icarus
-    ${CMAKE_SOURCE_DIR}/src/codeJK2
-  )
-endif()
+# codeJK2 include dirs FIRST so the game's headers win over the shared code/ versions.
+include_directories(
+  ${CMAKE_SOURCE_DIR}/src/compat   # newlib gap-fillers (e.g. <endian.h>); must be first
+  ${CMAKE_SOURCE_DIR}/src
+  ${CMAKE_SOURCE_DIR}/src/codeJK2/game
+  ${CMAKE_SOURCE_DIR}/src/codeJK2/cgame
+  ${CMAKE_SOURCE_DIR}/src/codeJK2/icarus
+  ${CMAKE_SOURCE_DIR}/src/codeJK2
+)
 include_directories(
   ${CMAKE_SOURCE_DIR}/src/code
   ${CMAKE_SOURCE_DIR}/src/code/game
@@ -85,7 +65,7 @@ configure_file(
 #----------------------------------------------------------------------------
 # Defines.
 #  SP_GAME / _JK2EXE : OpenJK single-player build (engine + game unified)
-#  JK2_MODE          : Jedi Outcast (vs Jedi Academy) behavior
+#  JK2_MODE          : Jedi Outcast behavior
 #  VITA / __linux__  : Vita platform + take the unix code paths
 #----------------------------------------------------------------------------
 add_compile_definitions(
@@ -99,10 +79,7 @@ add_compile_definitions(
   __FLOAT_WORD_ORDER=1
   IOAPI_NO_64          # minizip: use fopen (newlib has no fopen64)
 )
-# Jedi Outcast behaviour toggle — defined ONLY for the JK2 build, not JKA.
-if(NOT BUILD_JKA)
-  add_compile_definitions(JK2_MODE)
-endif()
+add_compile_definitions(JK2_MODE)
 
 #----------------------------------------------------------------------------
 # Flags (StaticJK-proven ARM/NEON hard-float set).
