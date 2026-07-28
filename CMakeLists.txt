@@ -36,7 +36,8 @@ else()
   set(VITA_APP_NAME "JK2VITA: Jedi Outcast")
   set(VITA_TITLEID  "JK2VITA01")
 endif()
-set(VITA_VERSION  "00.98")
+set(PORT_VERSION  "0.9.82")
+set(VITA_VERSION  "00.98")	# SFO APP_VER is NN.NN and cannot carry the patch digit
 
 #----------------------------------------------------------------------------
 # Include domains.
@@ -74,7 +75,7 @@ include_directories(
 )
 
 # Generate qcommon/q_version.h (normally produced by OpenJK's build).
-set(GIT_TAG "JK2VITA-0.9.81")
+set(GIT_TAG "${GAME_TARGET}-${PORT_VERSION}")
 set(SOURCE_DATE "${CMAKE_BUILD_TYPE}")
 configure_file(
   ${CMAKE_SOURCE_DIR}/src/shared/qcommon/q_version.h.in
