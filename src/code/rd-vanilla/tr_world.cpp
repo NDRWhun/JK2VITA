@@ -309,6 +309,14 @@ static void R_AddWorldSurface( msurface_t *surf, int dlightBits, qboolean noView
 			return;
 		}
 		surf->viewCount = tr.viewCount;
+		// first add this view: a dead light's bits would otherwise evict the surface from the VBO for good
+		if ( *surf->data == SF_FACE ) {
+			((srfSurfaceFace_t *)surf->data)->dlightBits[tr.smpFrame] = 0;
+		} else if ( *surf->data == SF_GRID ) {
+			((srfGridMesh_t *)surf->data)->dlightBits[tr.smpFrame] = 0;
+		} else if ( *surf->data == SF_TRIANGLES ) {
+			((srfTriangles_t *)surf->data)->dlightBits[tr.smpFrame] = 0;
+		}
 		// FIXME: bmodel fog?
 	}
 
