@@ -1716,6 +1716,9 @@ float R_EvalWaveForm( const waveForm_t *wf );
 void R_MD3VertCacheClear( void );
 // static world geometry in GPU buffers (tr_worldvbo.cpp)
 extern cvar_t *r_worldVBO;
+#ifdef USE_GXM_NATIVE
+extern cvar_t *r_gxmStats;		// frames between backend stat lines, 0 = off
+#endif
 void		R_BuildWorldVBO( world_t &worldData );
 void		R_WorldVBO_Clear( void );
 void		R_WorldVBO_ContextReset( void );

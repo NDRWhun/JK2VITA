@@ -1767,6 +1767,9 @@ void R_Register( void )
 	// new map's first frame (the transition OOM peak). Reload comes from the DXT cache.
 	r_dropTexturesOnLoad = ri.Cvar_Get( "r_dropTexturesOnLoad", "1", CVAR_ARCHIVE );
 	r_worldVBO = ri.Cvar_Get( "r_worldVBO", "1", CVAR_ARCHIVE | CVAR_LATCH );
+#ifdef USE_GXM_NATIVE
+	r_gxmStats = ri.Cvar_Get( "r_gxmStats", "120", CVAR_ARCHIVE );	// frames per stat line
+#endif
 #endif
 	ri.Cvar_CheckRange( r_primitives, MIN_PRIMITIVES, MAX_PRIMITIVES, qtrue );
 #ifdef VITA

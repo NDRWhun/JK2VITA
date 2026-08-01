@@ -58,11 +58,11 @@ typedef struct {
 static gxmTexture_t		gxm_textures[GXM_MAX_TEXNUM];
 static unsigned int		gxm_boundTex[2];
 
-static SceGxmShaderPatcherId	gxm_vertIds[3];		// by texcoord set count
-static SceGxmVertexProgram		*gxm_vertProgs[3];
-static const SceGxmProgram		*gxm_vertBlobs[3];
-static SceGxmShaderPatcherId	gxm_fragIds[3][5];	// [textures][alpha test]
-static const SceGxmProgram		*gxm_fragBlobs[3][5];
+static SceGxmShaderPatcherId	gxm_vertIds[3][2];		// [texcoord sets][vertex colour]
+static SceGxmVertexProgram		*gxm_vertProgs[3][2];
+static const SceGxmProgram		*gxm_vertBlobs[3][2];
+static SceGxmShaderPatcherId	gxm_fragIds[3][2][5];	// [textures][env][alpha test]
+static const SceGxmProgram		*gxm_fragBlobs[3][2][5];
 
 static gxmProgCache_t	gxm_progCache[GXM_MAX_PROGRAMS];
 static int				gxm_progCount;
@@ -72,22 +72,29 @@ static bool			gxm_mvpDirty = true;
 static unsigned int	gxm_stateBits;
 static int			gxm_texUnits = 1;
 static int			gxm_vertexColor = 1;
+static int			gxm_texEnv = GXM_TEXENV_MODULATE;
 static float		gxm_constColor[4] = { 1, 1, 1, 1 };
 static bool			gxm_backendOk;
-static int			gxm_statUploads, gxm_statDraws, gxm_statTextured, gxm_statNoTex, gxm_statRingFail;
-static unsigned int	gxm_statFirstTexnum, gxm_statLastBound;
-int gxm_statCreateImage, gxm_statUpload32, gxm_statRgbaHit, gxm_statDxtHit;
 
-static const SceGxmProgram *VertBlob( int nuv )
+// the viewport transform is rebuilt whenever either half of it moves
+static int			gxm_viewX, gxm_viewY, gxm_viewW, gxm_viewH;
+static float		gxm_depthScale = 0.5f, gxm_depthOffset = 0.5f;
+// what the backend actually did this run, reported by r_gxmStats
+static int	gxm_statUploads, gxm_statDraws, gxm_statTextured, gxm_statNoTex, gxm_statRingFail;
+
+static const SceGxmProgram *VertBlob( int nuv, int vcol )
 {
-	switch ( nuv ) {
-	case 0:  return (const SceGxmProgram *)gxs_generic_v_u0_c1;
-	case 1:  return (const SceGxmProgram *)gxs_generic_v_u1_c1;
-	default: return (const SceGxmProgram *)gxs_generic_v_u2_c1;
-	}
+	static const unsigned char *v[3][2] = {
+		{ gxs_generic_v_u0_c0, gxs_generic_v_u0_c1 },
+		{ gxs_generic_v_u1_c0, gxs_generic_v_u1_c1 },
+		{ gxs_generic_v_u2_c0, gxs_generic_v_u2_c1 },
+	};
+	return (const SceGxmProgram *)v[nuv][vcol];
 }
 
-static const SceGxmProgram *FragBlob( int ntex, int atest )
+// GL_ADD only differs from GL_MODULATE once a second texture is in play, so the
+// env variants exist for two units alone
+static const SceGxmProgram *FragBlob( int ntex, int env, int atest )
 {
 	static const unsigned char *t0[5] = {
 		gxs_generic_f_t0_e0_a0, gxs_generic_f_t0_e0_a1, gxs_generic_f_t0_e0_a2,
@@ -95,11 +102,16 @@ static const SceGxmProgram *FragBlob( int ntex, int atest )
 	static const unsigned char *t1[5] = {
 		gxs_generic_f_t1_e0_a0, gxs_generic_f_t1_e0_a1, gxs_generic_f_t1_e0_a2,
 		gxs_generic_f_t1_e0_a3, gxs_generic_f_t1_e0_a4 };
-	static const unsigned char *t2[5] = {
+	static const unsigned char *t2e0[5] = {
 		gxs_generic_f_t2_e0_a0, gxs_generic_f_t2_e0_a1, gxs_generic_f_t2_e0_a2,
 		gxs_generic_f_t2_e0_a3, gxs_generic_f_t2_e0_a4 };
-	const unsigned char **set = ( ntex <= 0 ) ? t0 : ( ntex == 1 ? t1 : t2 );
-	return (const SceGxmProgram *)set[atest];
+	static const unsigned char *t2e1[5] = {
+		gxs_generic_f_t2_e1_a0, gxs_generic_f_t2_e1_a1, gxs_generic_f_t2_e1_a2,
+		gxs_generic_f_t2_e1_a3, gxs_generic_f_t2_e1_a4 };
+
+	if ( ntex <= 0 ) return (const SceGxmProgram *)t0[atest];
+	if ( ntex == 1 ) return (const SceGxmProgram *)t1[atest];
+	return (const SceGxmProgram *)( env ? t2e1[atest] : t2e0[atest] );
 }
 
 /*
@@ -165,21 +177,28 @@ int GXM_BackendInit( void )
 	gxm_progCount = 0;
 
 	for ( int nuv = 0; nuv < 3; nuv++ ) {
-		gxm_vertBlobs[nuv] = VertBlob( nuv );
-		if ( sceGxmShaderPatcherRegisterProgram( GXM_ShaderPatcher(), gxm_vertBlobs[nuv], &gxm_vertIds[nuv] ) < 0 ) {
-			return 0;
-		}
-		gxm_vertProgs[nuv] = BuildVertexProgram( gxm_vertBlobs[nuv], gxm_vertIds[nuv], nuv );
-		if ( !gxm_vertProgs[nuv] ) {
-			return 0;
+		for ( int vcol = 0; vcol < 2; vcol++ ) {
+			gxm_vertBlobs[nuv][vcol] = VertBlob( nuv, vcol );
+			if ( sceGxmShaderPatcherRegisterProgram( GXM_ShaderPatcher(),
+					gxm_vertBlobs[nuv][vcol], &gxm_vertIds[nuv][vcol] ) < 0 ) {
+				return 0;
+			}
+			gxm_vertProgs[nuv][vcol] = BuildVertexProgram( gxm_vertBlobs[nuv][vcol],
+				gxm_vertIds[nuv][vcol], nuv );
+			if ( !gxm_vertProgs[nuv][vcol] ) {
+				return 0;
+			}
 		}
 	}
 
 	for ( int t = 0; t < 3; t++ ) {
-		for ( int a = 0; a < 5; a++ ) {
-			gxm_fragBlobs[t][a] = FragBlob( t, a );
-			if ( sceGxmShaderPatcherRegisterProgram( GXM_ShaderPatcher(), gxm_fragBlobs[t][a], &gxm_fragIds[t][a] ) < 0 ) {
-				return 0;
+		for ( int e = 0; e < 2; e++ ) {
+			for ( int a = 0; a < 5; a++ ) {
+				gxm_fragBlobs[t][e][a] = FragBlob( t, e, a );
+				if ( sceGxmShaderPatcherRegisterProgram( GXM_ShaderPatcher(),
+						gxm_fragBlobs[t][e][a], &gxm_fragIds[t][e][a] ) < 0 ) {
+					return 0;
+				}
 			}
 		}
 	}
@@ -207,7 +226,6 @@ void GXM_TexUpload( unsigned int texnum, const void *rgba, int width, int height
 	}
 	GXM_TextureFree( &gxm_textures[texnum] );
 	if ( GXM_TextureCreateRGBA( &gxm_textures[texnum], rgba, (unsigned)width, (unsigned)height ) ) {
-		if ( !gxm_statUploads ) gxm_statFirstTexnum = texnum;
 		gxm_statUploads++;
 	}
 }
@@ -221,7 +239,6 @@ void GXM_TexUploadDxt( unsigned int texnum, const void *blob, unsigned int size,
 	GXM_TextureFree( &gxm_textures[texnum] );
 	if ( GXM_TextureCreateDxt( &gxm_textures[texnum], blob, size, width, height,
 			mipCount, isDxt5 != 0 ) ) {
-		if ( !gxm_statUploads ) gxm_statFirstTexnum = texnum;
 		gxm_statUploads++;
 	}
 }
@@ -281,6 +298,7 @@ void GXM_SetModelView( const float *m )
 void GXM_SetStateBits( unsigned int stateBits )	{ gxm_stateBits = stateBits; }
 void GXM_SetTexUnitCount( int count )			{ gxm_texUnits = count; }
 void GXM_SetVertexColorEnabled( int enabled )	{ gxm_vertexColor = enabled; }
+void GXM_SetTexEnv( int env )					{ gxm_texEnv = env; }
 
 void GXM_SetConstantColor( float r, float g, float b, float a )
 {
@@ -299,22 +317,68 @@ void GXM_SetCull( int glCullMode, int enabled )
 		( glCullMode == 0x0404 ) ? SCE_GXM_CULL_CW : SCE_GXM_CULL_CCW );
 }
 
+/*
+================
+GXM_SetViewport
+
+The engine's rectangle is GL's: origin bottom-left. GXM's screen space runs top-down,
+so the rectangle is flipped here and the viewport's yScale carries the sign.
+
+Setting the transform explicitly rather than inheriting what sceGxmBeginScene left is
+what pins the conventions down: yScale < 0 puts NDC +1 at the top of the screen, and
+zOffset/zScale 0.5 accept GL's [-1,1] clip Z, so the engine's own projection matrices
+need no rewriting. sceGxmBeginScene resets both, so this has to run every frame.
+================
+*/
 void GXM_SetViewport( int x, int y, int w, int h )
 {
 	if ( w <= 0 || h <= 0 ) {
 		return;
 	}
+	const int top = GXM_DISPLAY_HEIGHT - ( y + h );
+
+	sceGxmSetViewport( GXM_Context(),
+		(float)x + (float)w * 0.5f,      (float)w * 0.5f,
+		(float)top + (float)h * 0.5f, -( (float)h * 0.5f ),
+		gxm_depthOffset, gxm_depthScale );
+
 	sceGxmSetRegionClip( GXM_Context(), SCE_GXM_REGION_CLIP_OUTSIDE,
-		(unsigned)x, (unsigned)y, (unsigned)( x + w - 1 ), (unsigned)( y + h - 1 ) );
+		(unsigned)x, (unsigned)top,
+		(unsigned)( x + w - 1 ), (unsigned)( top + h - 1 ) );
+
+	gxm_viewX = x; gxm_viewY = top; gxm_viewW = w; gxm_viewH = h;
+}
+
+/*
+================
+GXM_SetDepthRange
+
+qglDepthRange's near/far, folded into the viewport's Z transform. GL maps clip Z
+[-1,1] onto [near,far], so scale and offset are half the span and its midpoint.
+================
+*/
+void GXM_SetDepthRange( float zNear, float zFar )
+{
+	gxm_depthScale  = ( zFar - zNear ) * 0.5f;
+	gxm_depthOffset = ( zFar + zNear ) * 0.5f;
+
+	if ( gxm_viewW > 0 ) {
+		sceGxmSetViewport( GXM_Context(),
+			(float)gxm_viewX + (float)gxm_viewW * 0.5f,      (float)gxm_viewW * 0.5f,
+			(float)gxm_viewY + (float)gxm_viewH * 0.5f, -( (float)gxm_viewH * 0.5f ),
+			gxm_depthOffset, gxm_depthScale );
+	}
 }
 
 // ---------------------------------------------------------------------------
 // draw
 // ---------------------------------------------------------------------------
 
-static SceGxmFragmentProgram *ResolveFragment( int ntex, const gxmProgramKey_t *key )
+static SceGxmFragmentProgram *ResolveFragment( int ntex, int env, int vcol,
+											   const gxmProgramKey_t *key )
 {
-	const unsigned int hash = ( GXM_ProgramKeyHash( key ) << 2 ) | (unsigned)ntex;
+	const unsigned int hash = ( GXM_ProgramKeyHash( key ) << 4 )
+		| ( (unsigned)ntex << 2 ) | ( (unsigned)env << 1 ) | (unsigned)vcol;
 
 	for ( int i = 0; i < gxm_progCount; i++ ) {
 		if ( gxm_progCache[i].key == hash ) {
@@ -327,10 +391,10 @@ static SceGxmFragmentProgram *ResolveFragment( int ntex, const gxmProgramKey_t *
 
 	SceGxmFragmentProgram *prog = NULL;
 	if ( sceGxmShaderPatcherCreateFragmentProgram( GXM_ShaderPatcher(),
-			gxm_fragIds[ntex][key->alphaTest],
+			gxm_fragIds[ntex][env][key->alphaTest],
 			SCE_GXM_OUTPUT_REGISTER_FORMAT_UCHAR4, SCE_GXM_MULTISAMPLE_NONE,
 			key->blended ? &key->blend : NULL,
-			gxm_vertBlobs[ntex], &prog ) < 0 ) {	// links the fragment texcoords to the program that will be bound
+			gxm_vertBlobs[ntex][vcol], &prog ) < 0 ) {	// links the fragment texcoords to the program that will be bound
 		return NULL;
 	}
 
@@ -363,7 +427,6 @@ void GXM_DrawTess( int numIndexes, const unsigned short *indexes, int numVertexe
 	if ( ntex > 2 ) ntex = 2;
 	if ( ntex < 0 ) ntex = 0;
 	gxm_statDraws++;
-	gxm_statLastBound = gxm_boundTex[0];
 	if ( ntex >= 1 && !gxm_textures[ gxm_boundTex[0] & (GXM_MAX_TEXNUM-1) ].valid ) {
 		ntex = 0;	// an unbacked texture would sample garbage
 		gxm_statNoTex++;
@@ -371,12 +434,14 @@ void GXM_DrawTess( int numIndexes, const unsigned short *indexes, int numVertexe
 		gxm_statTextured++;
 	}
 
-	SceGxmFragmentProgram *frag = ResolveFragment( ntex, &key );
+	const int nuv  = ntex;
+	const int vcol = ( rgba && gxm_vertexColor ) ? 1 : 0;
+	const int env  = ( ntex >= 2 && gxm_texEnv == GXM_TEXENV_ADD ) ? 1 : 0;
+
+	SceGxmFragmentProgram *frag = ResolveFragment( ntex, env, vcol, &key );
 	if ( !frag ) {
 		return;
 	}
-
-	const int nuv = ntex;
 	gxmVert_t *v = (gxmVert_t *)GXM_RingAlloc( numVertexes * sizeof(gxmVert_t), 4 );
 	unsigned short *idx = (unsigned short *)GXM_RingAlloc( numIndexes * sizeof(unsigned short), 2 );
 	if ( !v || !idx ) {
@@ -392,11 +457,9 @@ void GXM_DrawTess( int numIndexes, const unsigned short *indexes, int numVertexe
 		v[i].uv0[1] = uv0 ? uv0[i * 2 + 1] : 0.0f;
 		v[i].uv1[0] = uv1 ? uv1[i * 2 + 0] : 0.0f;
 		v[i].uv1[1] = uv1 ? uv1[i * 2 + 1] : 0.0f;
-		if ( rgba && gxm_vertexColor ) {
+		if ( vcol ) {
 			memcpy( v[i].rgba, &rgba[i * 4], 4 );
-		} else {
-			v[i].rgba[0] = v[i].rgba[1] = v[i].rgba[2] = v[i].rgba[3] = 255;
-		}
+		}	// otherwise the program has no aColor and the bytes are never read
 	}
 	memcpy( idx, indexes, numIndexes * sizeof(unsigned short) );
 
@@ -405,15 +468,15 @@ void GXM_DrawTess( int numIndexes, const unsigned short *indexes, int numVertexe
 		gxm_mvpDirty = false;
 	}
 
-	sceGxmSetVertexProgram( GXM_Context(), gxm_vertProgs[nuv] );
+	sceGxmSetVertexProgram( GXM_Context(), gxm_vertProgs[nuv][vcol] );
 	sceGxmSetFragmentProgram( GXM_Context(), frag );
 	GXM_ApplyDepthState( &depth );
 
 	void *uniforms = NULL;
 	sceGxmReserveVertexDefaultUniformBuffer( GXM_Context(), &uniforms );
 	if ( uniforms ) {
-		const SceGxmProgramParameter *pm = sceGxmProgramFindParameterByName( gxm_vertBlobs[nuv], "uMVP" );
-		const SceGxmProgramParameter *pc = sceGxmProgramFindParameterByName( gxm_vertBlobs[nuv], "uColor" );
+		const SceGxmProgramParameter *pm = sceGxmProgramFindParameterByName( gxm_vertBlobs[nuv][vcol], "uMVP" );
+		const SceGxmProgramParameter *pc = sceGxmProgramFindParameterByName( gxm_vertBlobs[nuv][vcol], "uColor" );
 		if ( pm ) sceGxmSetUniformDataF( uniforms, pm, 0, 16, gxm_mvp );
 		if ( pc ) sceGxmSetUniformDataF( uniforms, pc, 0, 4, gxm_constColor );
 	}
@@ -430,26 +493,98 @@ void GXM_DrawTess( int numIndexes, const unsigned short *indexes, int numVertexe
 		SCE_GXM_INDEX_FORMAT_U16, idx, numIndexes );
 }
 
-// one-shot picture of what the backend is actually seeing; written directly
-// because the engine's log buffer is not flushed on an abrupt exit
-extern "C" void GXM_ReportStats( int *uploads, int *draws, int *textured, int *notex,
-								   int *ringfail, unsigned int *firstTex, unsigned int *lastBound )
+/*
+================
+GXM_DrawStaticBuffer
+
+The world VBO's vertices already sit in GPU memory in exactly the interleaved layout
+the generic vertex program reads, so only the indices — rebuilt every frame as
+surfaces batch — go through the ring. This is the whole point of the path: static
+geometry is never copied per frame.
+================
+*/
+void GXM_DrawStaticBuffer( const void *vertexBuffer, const unsigned short *indexes,
+						   int numIndexes )
 {
-	*uploads = gxm_statUploads; *draws = gxm_statDraws; *textured = gxm_statTextured;
-	*notex = gxm_statNoTex; *ringfail = gxm_statRingFail;
-	*firstTex = gxm_statFirstTexnum; *lastBound = gxm_statLastBound;
+	if ( !gxm_backendOk || !vertexBuffer || numIndexes <= 0 ) {
+		return;
+	}
 
-	char line[256];
-	const int n = snprintf( line, sizeof(line),
-		"createImage=%d upload32=%d rgbaHit=%d dxtHit=%d | uploads=%d draws=%d notex=%d lastBound=%u\n",
-		gxm_statCreateImage, gxm_statUpload32, gxm_statRgbaHit, gxm_statDxtHit,
-		gxm_statUploads, gxm_statDraws, gxm_statNoTex, gxm_statLastBound );
+	gxmProgramKey_t key;
+	gxmDepthState_t depth;
+	if ( !GXM_TranslateState( gxm_stateBits, &key, &depth ) ) {
+		return;
+	}
 
+	int ntex = gxm_texUnits;
+	if ( ntex > 2 ) ntex = 2;
+	if ( ntex < 0 ) ntex = 0;
+	for ( int t = 0; t < ntex; t++ ) {
+		if ( !gxm_textures[ gxm_boundTex[t] & (GXM_MAX_TEXNUM - 1) ].valid ) {
+			ntex = t;	// an unbacked unit would sample garbage; drop it and any above
+			break;
+		}
+	}
+
+	// the batch gate only admits constant-colour stages, so the colour comes from
+	// the uniform and the buffer's baked vertex colours go unread
+	const int env = ( ntex >= 2 && gxm_texEnv == GXM_TEXENV_ADD ) ? 1 : 0;
+	SceGxmFragmentProgram *frag = ResolveFragment( ntex, env, 0, &key );
+	if ( !frag ) {
+		return;
+	}
+
+	unsigned short *idx = (unsigned short *)GXM_RingAlloc(
+		numIndexes * sizeof(unsigned short), 2 );
+	if ( !idx ) {
+		gxm_statRingFail++;
+		return;
+	}
+	memcpy( idx, indexes, numIndexes * sizeof(unsigned short) );
+
+	if ( gxm_mvpDirty ) {
+		MulMat( gxm_mvp, gxm_proj, gxm_modelView );
+		gxm_mvpDirty = false;
+	}
+
+	sceGxmSetVertexProgram( GXM_Context(), gxm_vertProgs[ntex][0] );
+	sceGxmSetFragmentProgram( GXM_Context(), frag );
+	GXM_ApplyDepthState( &depth );
+
+	void *uniforms = NULL;
+	sceGxmReserveVertexDefaultUniformBuffer( GXM_Context(), &uniforms );
+	if ( uniforms ) {
+		const SceGxmProgramParameter *pm = sceGxmProgramFindParameterByName( gxm_vertBlobs[ntex][0], "uMVP" );
+		const SceGxmProgramParameter *pc = sceGxmProgramFindParameterByName( gxm_vertBlobs[ntex][0], "uColor" );
+		if ( pm ) sceGxmSetUniformDataF( uniforms, pm, 0, 16, gxm_mvp );
+		if ( pc ) sceGxmSetUniformDataF( uniforms, pc, 0, 4, gxm_constColor );
+	}
+
+	for ( int t = 0; t < ntex; t++ ) {
+		const unsigned int tn = gxm_boundTex[t] & (GXM_MAX_TEXNUM - 1);
+		sceGxmSetFragmentTexture( GXM_Context(), t, &gxm_textures[tn].tex );
+	}
+
+	gxm_statDraws++;
+	sceGxmSetVertexStream( GXM_Context(), 0, vertexBuffer );
+	sceGxmDraw( GXM_Context(), SCE_GXM_PRIMITIVE_TRIANGLES,
+		SCE_GXM_INDEX_FORMAT_U16, idx, numIndexes );
+}
+
+// a picture of what the backend actually did, for r_gxmStats
+void GXM_ReportStats( char *out, int outSize )
+{
+	const int n = snprintf( out, outSize,
+		"GXM: uploads=%d draws=%d textured=%d notex=%d ringfail=%d ring=%uKB/%uKB\n",
+		gxm_statUploads, gxm_statDraws, gxm_statTextured, gxm_statNoTex,
+		gxm_statRingFail, GXM_RingUsedLastFrame() / 1024, GXM_RingBytesPerFrame() / 1024 );
+
+	// also to its own file: the engine log is not flushed on an abrupt exit
 	sceIoMkdir( "ux0:data/JK2VITA", 0777 );
 	SceUID f = sceIoOpen( "ux0:data/JK2VITA/gxm_stats.log",
 		SCE_O_WRONLY | SCE_O_CREAT | SCE_O_APPEND, 0777 );
 	if ( f >= 0 ) {
-		sceIoWrite( f, line, n );
+		sceIoWrite( f, out, n );
 		sceIoClose( f );
 	}
 }

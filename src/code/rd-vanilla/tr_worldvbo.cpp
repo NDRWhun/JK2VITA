@@ -28,10 +28,16 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "../server/exe_headers.h"
 
 #include "tr_local.h"
+#ifdef USE_GXM_NATIVE
+#include "../rd-gxm/gxm_device.h"
+#endif
 
 #ifdef VITA
 
 cvar_t	*r_worldVBO = NULL;
+#ifdef USE_GXM_NATIVE
+cvar_t	*r_gxmStats = NULL;
+#endif
 
 #define WVBO_MAXGROUPS		64
 #define WVBO_GROUPVERTS		65000					// u16 indices address one group
@@ -41,7 +47,12 @@ cvar_t	*r_worldVBO = NULL;
 #define WVBO_OFS_RGBA		28
 
 typedef struct {
+#ifdef USE_GXM_NATIVE
+	void	*data;					// GPU-mapped, read straight by sceGxmSetVertexStream
+	SceUID	uid;
+#else
 	GLuint	vbo;
+#endif
 	int		numVerts;
 } wvboGroup_t;
 
@@ -64,9 +75,15 @@ R_WorldVBO_Clear
 void R_WorldVBO_Clear( void )
 {
 	for ( int i = 0; i < wvbo_numGroups; i++ ) {
+#ifdef USE_GXM_NATIVE
+		if ( wvbo_groups[i].data ) {
+			GXM_Free( wvbo_groups[i].uid );
+		}
+#else
 		if ( wvbo_groups[i].vbo ) {
 			glDeleteBuffers( 1, &wvbo_groups[i].vbo );
 		}
+#endif
 	}
 	memset( wvbo_groups, 0, sizeof( wvbo_groups ) );
 	wvbo_numGroups = 0;
@@ -76,12 +93,15 @@ void R_WorldVBO_Clear( void )
 	wvbo_curGroup = -1;
 }
 
-// A fresh GL context invalidates every buffer name.
+// A fresh GL context invalidates every buffer name. GXM memblocks are owned by the
+// process rather than a context, so there is nothing to forget there.
 void R_WorldVBO_ContextReset( void )
 {
+#ifndef USE_GXM_NATIVE
 	memset( wvbo_groups, 0, sizeof( wvbo_groups ) );
 	wvbo_numGroups = 0;
 	wvbo_bytes = 0;
+#endif
 }
 
 // Only the static per-vertex data the GL actually reads can come from the buffer;
@@ -170,6 +190,19 @@ void R_BuildWorldVBO( world_t &worldData )
 			if ( wvbo_numGroups >= WVBO_MAXGROUPS ) {
 				break;
 			}
+#ifdef USE_GXM_NATIVE
+			SceUID uid = 0;
+			void *gpu = GXM_Alloc( SCE_KERNEL_MEMBLOCK_TYPE_USER_RW_UNCACHE,
+				groupVerts * WVBO_STRIDE, 4, SCE_GXM_MEMORY_ATTRIB_READ, &uid );
+			if ( !gpu ) {
+				wvbo_failed = qtrue;
+				break;
+			}
+			memcpy( gpu, verts, groupVerts * WVBO_STRIDE );
+
+			wvbo_groups[wvbo_numGroups].data = gpu;
+			wvbo_groups[wvbo_numGroups].uid  = uid;
+#else
 			GLuint id = 0;
 			glGenBuffers( 1, &id );
 			if ( !id ) {
@@ -181,6 +214,7 @@ void R_BuildWorldVBO( world_t &worldData )
 			glBindBuffer( GL_ARRAY_BUFFER, 0 );
 
 			wvbo_groups[wvbo_numGroups].vbo = id;
+#endif
 			wvbo_groups[wvbo_numGroups].numVerts = groupVerts;
 			wvbo_bytes += groupVerts * WVBO_STRIDE;
 			wvbo_numGroups++;
@@ -270,10 +304,32 @@ void R_WorldVBO_Flush( shader_t *shader )
 	}
 
 	const shaderStage_t *st = &shader->stages[0];
-	const GLuint vbo = wvbo_groups[wvbo_curGroup].vbo;
 
 	GL_State( st->stateBits );
 	GL_Cull( shader->cullType );
+
+#ifdef USE_GXM_NATIVE
+	GL_SelectTexture( 0 );
+	R_BindAnimatedImage( &st->bundle[0] );
+	GL_SelectTexture( 1 );
+	GL_TexEnv( r_lightmap->integer ? GL_REPLACE : shader->multitextureEnv );
+	R_BindAnimatedImage( &st->bundle[1] );
+
+	// the gate only lets constant-colour stages through, so the tint is a uniform
+	const float lit = ( st->rgbGen == CGEN_IDENTITY_LIGHTING ) ? tr.identityLight : 1.0f;
+	GXM_SetConstantColor( lit, lit, lit, 1.0f );
+	GXM_SetTexUnitCount( 2 );
+	GXM_SetStateBits( glState.glStateBits );
+	GXM_DrawStaticBuffer( wvbo_groups[wvbo_curGroup].data, wvbo_idx, wvbo_numIdx );
+	GXM_SetTexUnitCount( 1 );
+	GXM_SetConstantColor( 1.0f, 1.0f, 1.0f, 1.0f );
+
+	GL_SelectTexture( 0 );
+	wvbo_numIdx = 0;
+	wvbo_curGroup = -1;
+	return;
+#else
+	const GLuint vbo = wvbo_groups[wvbo_curGroup].vbo;
 
 	glBindBuffer( GL_ARRAY_BUFFER, vbo );
 
@@ -316,6 +372,7 @@ void R_WorldVBO_Flush( shader_t *shader )
 
 	wvbo_numIdx = 0;
 	wvbo_curGroup = -1;
+#endif
 }
 
 #endif	// VITA

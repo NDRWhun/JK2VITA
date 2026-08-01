@@ -49,6 +49,7 @@ void	GXM_RingShutdown( void );
 void	GXM_RingBeginFrame( void );
 void   *GXM_RingAlloc( unsigned int size, unsigned int alignment );
 unsigned int GXM_RingUsedLastFrame( void );
+unsigned int GXM_RingBytesPerFrame( void );
 
 // probe-only test scene
 bool	GXM_TestSceneInit( void );

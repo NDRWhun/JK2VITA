@@ -929,7 +929,7 @@ so the GXM context is owned here
 void WIN_LoadGL( void )
 {
 #ifdef USE_GXM_NATIVE
-	if ( !GXM_DeviceInit() || !GXM_RingInit( 2 * 1024 * 1024 ) || !GXM_BackendInit() )
+	if ( !GXM_DeviceInit() || !GXM_RingInit( 4 * 1024 * 1024 ) || !GXM_BackendInit() )
 	{
 		Com_Error( ERR_FATAL, "WIN_LoadGL: native GXM device init failed" );
 	}

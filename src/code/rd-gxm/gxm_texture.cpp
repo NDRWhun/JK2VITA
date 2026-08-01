@@ -215,13 +215,22 @@ before the CPU can catch up with a slice it is still reading.
 */
 void GXM_RingBeginFrame( void )
 {
-	ring_lastUsed = ring_offset;
-	ring_frame    = ( ring_frame + 1 ) % GXM_RING_FRAMES;
-	ring_offset   = 0;
+	// a high-water mark rather than the last sample, so an occasional heavy frame
+	// still shows up in a report taken every N frames
+	if ( ring_offset > ring_lastUsed ) {
+		ring_lastUsed = ring_offset;
+	}
+	ring_frame  = ( ring_frame + 1 ) % GXM_RING_FRAMES;
+	ring_offset = 0;
 
 	if ( ring_overflowed ) {
 		ring_overflowed = false;
 	}
+}
+
+unsigned int GXM_RingBytesPerFrame( void )
+{
+	return ring_frameBytes;
 }
 
 void *GXM_RingAlloc( unsigned int size, unsigned int alignment )
