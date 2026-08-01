@@ -18,11 +18,10 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 ===========================================================================
 */
 
-// gxm_testscene.cpp -- probe-only scene exercising texture, ring and blending.
+// gxm_testscene.cpp -- probe-only scene exercising the 3D pipeline.
 //
-// Draws two textured quads, the second alpha-blended over the first, so a
-// correct frame proves the ring, the generic shaders and a blended fragment
-// program instance all work together.
+// A rotating textured cube: perspective, depth test and write, and backface
+// culling all have to be right or it renders inside out.
 
 #include "gxm_texture.h"
 #include "shaders/gxm_shaders.h"
@@ -140,57 +139,102 @@ bool GXM_TestSceneInit( void )
 	return true;
 }
 
-static void EmitQuad( float cx, float cy, float half, unsigned char alpha, bool blended )
+static void MakePerspective( float *m, float fovDeg, float aspect, float zn, float zf )
 {
-	testVert_t *v = (testVert_t *)GXM_RingAlloc( 4 * sizeof(testVert_t), 4 );
-	if ( !v ) {
-		return;	// ring exhausted this frame
-	}
-
-	const float x0 = cx - half, x1 = cx + half;
-	const float y0 = cy - half, y1 = cy + half;
-
-	v[0].x = x0; v[0].y = y0; v[0].z = 0.0f; v[0].u = 0.0f; v[0].v = 0.0f;
-	v[1].x = x1; v[1].y = y0; v[1].z = 0.0f; v[1].u = 1.0f; v[1].v = 0.0f;
-	v[2].x = x1; v[2].y = y1; v[2].z = 0.0f; v[2].u = 1.0f; v[2].v = 1.0f;
-	v[3].x = x0; v[3].y = y1; v[3].z = 0.0f; v[3].u = 0.0f; v[3].v = 1.0f;
-	for ( int i = 0; i < 4; i++ ) {
-		v[i].r = 255; v[i].g = 255; v[i].b = 255; v[i].a = alpha;
-	}
-
-	sceGxmSetFragmentProgram( GXM_Context(), blended ? ts_fragBlend : ts_fragOpaque );
-	GXM_TextureBind( 0, &ts_texture );
-	sceGxmSetVertexStream( GXM_Context(), 0, v );
-	sceGxmDraw( GXM_Context(), SCE_GXM_PRIMITIVE_TRIANGLES,
-		SCE_GXM_INDEX_FORMAT_U16, ts_indices, 6 );
+	const float f = 1.0f / tanf( fovDeg * 0.5f * 3.14159265f / 180.0f );
+	memset( m, 0, 16 * sizeof(float) );
+	m[0]  = f / aspect;
+	m[5]  = f;
+	m[10] = ( zf + zn ) / ( zn - zf );
+	m[11] = -1.0f;
+	m[14] = ( 2.0f * zf * zn ) / ( zn - zf );
 }
+
+// row-vector convention to match mul(v, uMVP) in the shader
+static void MulMat( float *out, const float *a, const float *b )
+{
+	for ( int r = 0; r < 4; r++ ) {
+		for ( int c = 0; c < 4; c++ ) {
+			float v = 0.0f;
+			for ( int k = 0; k < 4; k++ ) {
+				v += a[r * 4 + k] * b[k * 4 + c];
+			}
+			out[r * 4 + c] = v;
+		}
+	}
+}
+
+static const float kCubePos[8][3] = {
+	{-1,-1,-1}, { 1,-1,-1}, { 1, 1,-1}, {-1, 1,-1},
+	{-1,-1, 1}, { 1,-1, 1}, { 1, 1, 1}, {-1, 1, 1},
+};
+static const unsigned char kCubeFace[6][4] = {
+	{0,1,2,3}, {5,4,7,6}, {4,0,3,7}, {1,5,6,2}, {3,2,6,7}, {4,5,1,0},
+};
+static const unsigned int kFaceTint[6] = {
+	0xFFFFFFFF, 0xFFC0FFFF, 0xFFFFC0FF, 0xFFFFFFC0, 0xFFC0C0FF, 0xFFFFC0C0,
+};
 
 void GXM_DrawTestQuad( float frame )
 {
-	static const float identity[16] = {
-		1,0,0,0,  0,1,0,0,  0,0,1,0,  0,0,0,1
-	};
-	static const float white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
-
 	GXM_RingBeginFrame();
 
+	float proj[16], mvp[16];
+	MakePerspective( proj, 60.0f, (float)GXM_DISPLAY_WIDTH / (float)GXM_DISPLAY_HEIGHT, 1.0f, 100.0f );
+
+	const float a = frame * 0.012f;
+	const float ca = cosf( a ), sa = sinf( a );
+	const float cb = cosf( a * 0.7f ), sb = sinf( a * 0.7f );
+
+	// yaw * pitch * translate, row-vector order
+	const float model[16] = {
+		 ca,        0.0f,      -sa,       0.0f,
+		 sa * sb,   cb,         ca * sb,  0.0f,
+		 sa * cb,  -sb,         ca * cb,  0.0f,
+		 0.0f,      0.0f,      -6.0f,     1.0f,
+	};
+	MulMat( mvp, model, proj );
+
 	sceGxmSetVertexProgram( GXM_Context(), ts_vertProgram );
+	sceGxmSetFragmentProgram( GXM_Context(), ts_fragOpaque );
 
 	void *uniforms = NULL;
 	sceGxmReserveVertexDefaultUniformBuffer( GXM_Context(), &uniforms );
 	if ( uniforms ) {
-		if ( ts_mvpParam )   sceGxmSetUniformDataF( uniforms, ts_mvpParam, 0, 16, identity );
+		static const float white[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+		if ( ts_mvpParam )   sceGxmSetUniformDataF( uniforms, ts_mvpParam, 0, 16, mvp );
 		if ( ts_colorParam ) sceGxmSetUniformDataF( uniforms, ts_colorParam, 0, 4, white );
 	}
 
-	// depth off: this is a 2D overlay test, and the clear already primed depth
-	sceGxmSetFrontDepthFunc( GXM_Context(), SCE_GXM_DEPTH_FUNC_ALWAYS );
-	sceGxmSetFrontDepthWriteEnable( GXM_Context(), SCE_GXM_DEPTH_WRITE_DISABLED );
+	// the real 3D contract: depth test and write on, backfaces dropped
+	sceGxmSetFrontDepthFunc( GXM_Context(), SCE_GXM_DEPTH_FUNC_LESS_EQUAL );
+	sceGxmSetFrontDepthWriteEnable( GXM_Context(), SCE_GXM_DEPTH_WRITE_ENABLED );
+	sceGxmSetCullMode( GXM_Context(), SCE_GXM_CULL_CCW );
 
-	EmitQuad( -0.25f, 0.0f, 0.45f, 255, false );
+	GXM_TextureBind( 0, &ts_texture );
 
-	const float wobble = sinf( frame * 0.03f ) * 0.25f;
-	EmitQuad( 0.30f + wobble, 0.0f, 0.35f, 160, true );
+	testVert_t *v = (testVert_t *)GXM_RingAlloc( 6 * 4 * sizeof(testVert_t), 4 );
+	if ( !v ) {
+		return;
+	}
+
+	for ( int f = 0; f < 6; f++ ) {
+		static const float uv[4][2] = { {0,0}, {1,0}, {1,1}, {0,1} };
+		const unsigned int tint = kFaceTint[f];
+		for ( int i = 0; i < 4; i++ ) {
+			testVert_t *o = &v[f * 4 + i];
+			const float *p = kCubePos[ kCubeFace[f][i] ];
+			o->x = p[0]; o->y = p[1]; o->z = p[2];
+			o->u = uv[i][0]; o->v = uv[i][1];
+			o->r = (unsigned char)( tint        & 0xFF );
+			o->g = (unsigned char)( (tint >> 8) & 0xFF );
+			o->b = (unsigned char)( (tint >> 16)& 0xFF );
+			o->a = 255;
+		}
+		sceGxmSetVertexStream( GXM_Context(), 0, &v[f * 4] );
+		sceGxmDraw( GXM_Context(), SCE_GXM_PRIMITIVE_TRIANGLES,
+			SCE_GXM_INDEX_FORMAT_U16, ts_indices, 6 );
+	}
 }
 
 void GXM_TestSceneShutdown( void )

@@ -472,9 +472,12 @@ void GXM_BeginFrame( void )
 		NULL, NULL, gxm_buffers[gxm_backBuffer].sync,
 		&gxm_buffers[gxm_backBuffer].surface, &gxm_depthSurface );
 
-	// depth writes on with the test always passing so the clear also resets depth
+	// GXM state survives across scenes, so the clear sets everything it depends on
+	// rather than inheriting whatever the last frame left behind
 	sceGxmSetFrontDepthFunc( gxm_context, SCE_GXM_DEPTH_FUNC_ALWAYS );
 	sceGxmSetFrontDepthWriteEnable( gxm_context, SCE_GXM_DEPTH_WRITE_ENABLED );
+	sceGxmSetCullMode( gxm_context, SCE_GXM_CULL_NONE );
+	sceGxmSetFrontPolygonMode( gxm_context, SCE_GXM_POLYGON_MODE_TRIANGLE_FILL );
 
 	sceGxmSetVertexProgram( gxm_context, gxm_clearVertProgram );
 	sceGxmSetFragmentProgram( gxm_context, gxm_clearFragProgram );
