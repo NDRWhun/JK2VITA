@@ -78,6 +78,9 @@ void GL_Bind( image_t *image ) {
 		glState.currenttextures[glState.currenttmu] = texnum;
 		qglBindTexture (GL_TEXTURE_2D, texnum);
 	}
+#ifdef USE_GXM_NATIVE
+	GXM_TexBind( glState.currenttmu, texnum );
+#endif
 }
 
 /*
@@ -1043,6 +1046,28 @@ void	RB_SetGL2D (void) {
 	qglOrtho (0, 640, 480, 0, 0, 1);
 	qglMatrixMode(GL_MODELVIEW);
     qglLoadIdentity ();
+
+#ifdef USE_GXM_NATIVE
+	{
+		static const float ident[16] = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 };
+		float ortho[16];
+		Com_Memset( ortho, 0, sizeof(ortho) );
+		ortho[0]  =  2.0f / 640.0f;
+		ortho[5]  = -2.0f / 480.0f;
+		ortho[10] = -2.0f;
+		ortho[12] = -1.0f;
+		ortho[13] =  1.0f;
+		ortho[14] = -1.0f;
+		ortho[15] =  1.0f;
+		GXM_SetProjection( ortho );
+		GXM_SetModelView( ident );
+		GXM_SetTexUnitCount( 1 );
+		GXM_SetVertexColorEnabled( 1 );
+		GXM_SetConstantColor( 1.0f, 1.0f, 1.0f, 1.0f );
+		GXM_SetCull( 0, 0 );
+		GXM_SetViewport( 0, 0, glConfig.vidWidth, glConfig.vidHeight );
+	}
+#endif
 
 	GL_State( GLS_DEPTHTEST_DISABLE |
 			  GLS_SRCBLEND_SRC_ALPHA |
