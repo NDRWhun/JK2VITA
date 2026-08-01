@@ -34,6 +34,7 @@ typedef struct {
 	SceUID			uid;
 	void			*data;
 	unsigned int	width, height;
+	unsigned int	bytes;			// what it took from its pool
 	unsigned int	mipCount;		// 0 = top level only, so no mip filtering
 	bool			valid;
 } gxmTexture_t;

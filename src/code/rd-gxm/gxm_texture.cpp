@@ -28,6 +28,32 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 // a failed texture reads back as white geometry, so the two ways it can fail are
 // counted apart: out of memory vs libgxm rejecting the format
 int gxm_texAllocFail, gxm_texInitFail;
+unsigned int gxm_texBytes;
+
+// CDRAM is a separate 128 MB pool that only the display buffers use, while every
+// texture competes with the engine heap for LPDDR. Its 256 KiB granularity would
+// waste most of a small texture, but a power-of-two texture that big is already an
+// exact multiple of it, so the split costs nothing.
+#define GXM_TEX_CDRAM_MIN	( 256 * 1024 )
+
+static void *TexAlloc( unsigned int size, SceUID *uid )
+{
+	void *mem = NULL;
+	if ( size >= GXM_TEX_CDRAM_MIN ) {
+		mem = GXM_Alloc( SCE_KERNEL_MEMBLOCK_TYPE_USER_CDRAM_RW, size,
+			SCE_GXM_TEXTURE_ALIGNMENT, SCE_GXM_MEMORY_ATTRIB_READ, uid );
+	}
+	if ( !mem ) {	// small, or CDRAM is full
+		mem = GXM_Alloc( SCE_KERNEL_MEMBLOCK_TYPE_USER_RW_UNCACHE, size,
+			SCE_GXM_TEXTURE_ALIGNMENT, SCE_GXM_MEMORY_ATTRIB_READ, uid );
+	}
+	if ( mem ) {
+		gxm_texBytes += size;
+	} else {
+		gxm_texAllocFail++;
+	}
+	return mem;
+}
 
 bool GXM_TextureCreateRGBA( gxmTexture_t *t, const void *rgba, unsigned int w, unsigned int h )
 {
@@ -36,10 +62,8 @@ bool GXM_TextureCreateRGBA( gxmTexture_t *t, const void *rgba, unsigned int w, u
 	// a linear texture's stride is implicit: the width rounded up to 8 texels
 	const unsigned int stride = ALIGN( w, 8 );
 	const unsigned int size   = stride * h * 4;
-	t->data = GXM_Alloc( SCE_KERNEL_MEMBLOCK_TYPE_USER_RW_UNCACHE, size,
-		SCE_GXM_TEXTURE_ALIGNMENT, SCE_GXM_MEMORY_ATTRIB_READ, &t->uid );
+	t->data = TexAlloc( size, &t->uid );
 	if ( !t->data ) {
-		gxm_texAllocFail++;
 		return false;
 	}
 
@@ -66,6 +90,7 @@ bool GXM_TextureCreateRGBA( gxmTexture_t *t, const void *rgba, unsigned int w, u
 
 	t->width  = w;
 	t->height = h;
+	t->bytes  = size;
 	t->mipCount = 0;		// RGBA uploads are the top level only
 	t->valid  = true;
 	GXM_TextureSetFilter( t, true, false );
@@ -104,10 +129,8 @@ bool GXM_TextureCreateDxt( gxmTexture_t *t, const void *blob, unsigned int size,
 {
 	memset( t, 0, sizeof(*t) );
 
-	t->data = GXM_Alloc( SCE_KERNEL_MEMBLOCK_TYPE_USER_RW_UNCACHE, size,
-		SCE_GXM_TEXTURE_ALIGNMENT, SCE_GXM_MEMORY_ATTRIB_READ, &t->uid );
+	t->data = TexAlloc( size, &t->uid );
 	if ( !t->data ) {
-		gxm_texAllocFail++;
 		return false;
 	}
 
@@ -144,6 +167,7 @@ bool GXM_TextureCreateDxt( gxmTexture_t *t, const void *blob, unsigned int size,
 
 	t->width  = w;
 	t->height = h;
+	t->bytes  = size;
 	t->mipCount = mipCount;
 	t->valid  = true;
 	GXM_TextureSetFilter( t, true, false );
@@ -155,6 +179,7 @@ void GXM_TextureFree( gxmTexture_t *t )
 	if ( !t->valid ) {
 		return;
 	}
+	gxm_texBytes -= t->bytes;
 	GXM_Free( t->uid );
 	memset( t, 0, sizeof(*t) );
 }

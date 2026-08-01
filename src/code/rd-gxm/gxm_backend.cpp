@@ -617,9 +617,10 @@ void GXM_DrawStaticBuffer( const void *vertexBuffer, const unsigned short *index
 void GXM_ReportStats( char *out, int outSize )
 {
 	extern int gxm_texAllocFail, gxm_texInitFail;
+	extern unsigned int gxm_texBytes;
 	const int n = snprintf( out, outSize,
-		"GXM: uploads=%d allocfail=%d initfail=%d | draws=%d textured=%d notex=%d ringfail=%d ring=%uKB/%uKB\n",
-		gxm_statUploads, gxm_texAllocFail, gxm_texInitFail,
+		"GXM: uploads=%d allocfail=%d initfail=%d texmem=%uMB | draws=%d textured=%d notex=%d ringfail=%d ring=%uKB/%uKB\n",
+		gxm_statUploads, gxm_texAllocFail, gxm_texInitFail, gxm_texBytes / ( 1024 * 1024 ),
 		gxm_statDraws, gxm_statTextured, gxm_statNoTex,
 		gxm_statRingFail, GXM_RingUsedLastFrame() / 1024, GXM_RingBytesPerFrame() / 1024 );
 
