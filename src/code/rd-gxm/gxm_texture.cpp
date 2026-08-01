@@ -29,7 +29,9 @@ bool GXM_TextureCreateRGBA( gxmTexture_t *t, const void *rgba, unsigned int w, u
 {
 	memset( t, 0, sizeof(*t) );
 
-	const unsigned int size = w * h * 4;
+	// a linear texture's stride is implicit: the width rounded up to 8 texels
+	const unsigned int stride = ALIGN( w, 8 );
+	const unsigned int size   = stride * h * 4;
 	t->data = GXM_Alloc( SCE_KERNEL_MEMBLOCK_TYPE_USER_RW_UNCACHE, size,
 		SCE_GXM_TEXTURE_ALIGNMENT, SCE_GXM_MEMORY_ATTRIB_READ, &t->uid );
 	if ( !t->data ) {
@@ -37,7 +39,14 @@ bool GXM_TextureCreateRGBA( gxmTexture_t *t, const void *rgba, unsigned int w, u
 	}
 
 	if ( rgba ) {
-		memcpy( t->data, rgba, size );
+		if ( stride == w ) {
+			memcpy( t->data, rgba, size );
+		} else {
+			for ( unsigned int y = 0; y < h; y++ ) {
+				memcpy( (unsigned char *)t->data + y * stride * 4,
+						(const unsigned char *)rgba + y * w * 4, w * 4 );
+			}
+		}
 	} else {
 		memset( t->data, 0, size );
 	}
@@ -56,8 +65,33 @@ bool GXM_TextureCreateRGBA( gxmTexture_t *t, const void *rgba, unsigned int w, u
 	return true;
 }
 
-// DXT1/DXT5 are GXM's UBC1/UBC3 exactly, so the cached blob is uploaded as-is:
-// no decode, no re-encode, and a quarter the memory of RGBA
+/*
+================
+SwizzledIndex
+
+Morton order: the low bits of u and v interleave, v first, and whichever
+dimension has bits left over appends them above the interleaved field.
+================
+*/
+static unsigned int SwizzledIndex( unsigned int u, unsigned int v,
+								   unsigned int w, unsigned int h )
+{
+	unsigned int idx = 0, bit = 1, shift = 0;
+
+	while ( bit < w && bit < h ) {
+		if ( v & bit ) idx |= 1u << shift;
+		shift++;
+		if ( u & bit ) idx |= 1u << shift;
+		shift++;
+		bit <<= 1;
+	}
+	idx |= ( ( w > h ) ? ( u / bit ) : ( v / bit ) ) << shift;
+	return idx;
+}
+
+// DXT1/DXT5 are GXM's UBC1/UBC3 block-for-block, but libgxm only accepts block
+// compressed data in swizzled layout, so the raster-ordered blocks get shuffled
+// into Morton order on the way in. The block contents are untouched.
 bool GXM_TextureCreateDxt( gxmTexture_t *t, const void *blob, unsigned int size,
 						   unsigned int w, unsigned int h, unsigned int mipCount, bool isDxt5 )
 {
@@ -68,11 +102,32 @@ bool GXM_TextureCreateDxt( gxmTexture_t *t, const void *blob, unsigned int size,
 	if ( !t->data ) {
 		return false;
 	}
-	memcpy( t->data, blob, size );
+
+	const unsigned int blockBytes = isDxt5 ? 16 : 8;
+	const unsigned char *src = (const unsigned char *)blob;
+	unsigned char *dst = (unsigned char *)t->data;
+	unsigned int mw = w, mh = h, ofs = 0;
+
+	for ( unsigned int level = 0; level < ( mipCount ? mipCount : 1 ); level++ ) {
+		const unsigned int bw = ( mw + 3 ) / 4, bh = ( mh + 3 ) / 4;
+		const unsigned int levelSize = bw * bh * blockBytes;
+		if ( ofs + levelSize > size ) {
+			break;	// the cached blob ran out; keep what decoded cleanly
+		}
+		for ( unsigned int by = 0; by < bh; by++ ) {
+			for ( unsigned int bx = 0; bx < bw; bx++ ) {
+				memcpy( dst + ofs + SwizzledIndex( bx, by, bw, bh ) * blockBytes,
+						src + ofs + ( by * bw + bx ) * blockBytes, blockBytes );
+			}
+		}
+		ofs += levelSize;
+		if ( mw > 1 ) mw >>= 1;
+		if ( mh > 1 ) mh >>= 1;
+	}
 
 	const SceGxmTextureFormat fmt = isDxt5
 		? SCE_GXM_TEXTURE_FORMAT_UBC3_ABGR : SCE_GXM_TEXTURE_FORMAT_UBC1_ABGR;
-	if ( sceGxmTextureInitLinear( &t->tex, t->data, fmt, w, h, mipCount ) < 0 ) {
+	if ( sceGxmTextureInitSwizzled( &t->tex, t->data, fmt, w, h, mipCount ) < 0 ) {
 		GXM_Free( t->uid );
 		t->data = NULL;
 		return false;

@@ -330,7 +330,7 @@ static SceGxmFragmentProgram *ResolveFragment( int ntex, const gxmProgramKey_t *
 			gxm_fragIds[ntex][key->alphaTest],
 			SCE_GXM_OUTPUT_REGISTER_FORMAT_UCHAR4, SCE_GXM_MULTISAMPLE_NONE,
 			key->blended ? &key->blend : NULL,
-			gxm_vertBlobs[0], &prog ) < 0 ) {
+			gxm_vertBlobs[ntex], &prog ) < 0 ) {	// links the fragment texcoords to the program that will be bound
 		return NULL;
 	}
 
