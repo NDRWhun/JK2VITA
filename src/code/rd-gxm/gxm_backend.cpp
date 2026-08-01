@@ -300,6 +300,26 @@ void GXM_SetTexUnitCount( int count )			{ gxm_texUnits = count; }
 void GXM_SetVertexColorEnabled( int enabled )	{ gxm_vertexColor = enabled; }
 void GXM_SetTexEnv( int env )					{ gxm_texEnv = env; }
 
+/*
+================
+GXM_SetDepthBias
+
+There is no enable to toggle: libgxm-Reference documents "Depth bias is always
+enabled", so the off state is a bias of zero and it has to be set back explicitly.
+GL's factor/units are floats but GXM takes integer steps in [-16,15], which covers
+every value the renderer actually asks for.
+================
+*/
+void GXM_SetDepthBias( float factor, float units )
+{
+	int f = (int)factor, u = (int)units;
+	if ( f < -16 ) f = -16; else if ( f > 15 ) f = 15;
+	if ( u < -16 ) u = -16; else if ( u > 15 ) u = 15;
+
+	sceGxmSetFrontDepthBias( GXM_Context(), f, u );
+	sceGxmSetBackDepthBias( GXM_Context(), f, u );
+}
+
 void GXM_SetConstantColor( float r, float g, float b, float a )
 {
 	gxm_constColor[0] = r; gxm_constColor[1] = g;

@@ -54,6 +54,7 @@ void GXM_SetConstantColor( float r, float g, float b, float a );
 void GXM_SetCull( int glCullMode, int enabled );
 void GXM_SetViewport( int x, int y, int w, int h );	// GL rectangle, origin bottom-left
 void GXM_SetDepthRange( float zNear, float zFar );
+void GXM_SetDepthBias( float factor, float units );	// zero is the off state
 
 // one line describing what the backend actually did; also appended to
 // ux0:data/JK2VITA/gxm_stats.log

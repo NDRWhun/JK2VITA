@@ -49,6 +49,7 @@ typedef struct {
 typedef struct {
 	SceGxmDepthFunc	depthFunc;
 	bool			depthWrite;
+	bool			wireframe;
 } gxmDepthState_t;
 
 // split a GLS_ mask; returns false if the mask contains a bit with no GXM equivalent

@@ -131,8 +131,9 @@ bool GXM_TranslateState( unsigned int stateBits, gxmProgramKey_t *key, gxmDepthS
 		depth->depthFunc = SCE_GXM_DEPTH_FUNC_LESS_EQUAL;
 	}
 
-	// wireframe would need line primitives and its own index expansion
-	return ( stateBits & GLS_POLYMODE_LINE ) == 0;
+	// TRIANGLE_LINE shades triangle edges only, which is what glPolygonMode(GL_LINE) does
+	depth->wireframe = ( stateBits & GLS_POLYMODE_LINE ) != 0;
+	return true;
 }
 
 void GXM_ApplyDepthState( const gxmDepthState_t *depth )
@@ -143,6 +144,12 @@ void GXM_ApplyDepthState( const gxmDepthState_t *depth )
 	sceGxmSetBackDepthFunc( GXM_Context(), depth->depthFunc );
 	sceGxmSetBackDepthWriteEnable( GXM_Context(),
 		depth->depthWrite ? SCE_GXM_DEPTH_WRITE_ENABLED : SCE_GXM_DEPTH_WRITE_DISABLED );
+
+	// polygon mode persists across draws and scenes, so it is set both ways
+	sceGxmSetFrontPolygonMode( GXM_Context(), depth->wireframe
+		? SCE_GXM_POLYGON_MODE_TRIANGLE_LINE : SCE_GXM_POLYGON_MODE_TRIANGLE_FILL );
+	sceGxmSetBackPolygonMode( GXM_Context(), depth->wireframe
+		? SCE_GXM_POLYGON_MODE_TRIANGLE_LINE : SCE_GXM_POLYGON_MODE_TRIANGLE_FILL );
 }
 
 unsigned int GXM_ProgramKeyHash( const gxmProgramKey_t *key )
