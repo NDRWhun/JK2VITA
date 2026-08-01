@@ -174,7 +174,10 @@ const unsigned char *GXM_GlGetString( unsigned int name )
 	case 0x1F00:	return (const unsigned char *)"Sony";			// GL_VENDOR
 	case 0x1F01:	return (const unsigned char *)"SGX543MP4+";		// GL_RENDERER
 	case 0x1F02:	return (const unsigned char *)"GXM native";		// GL_VERSION
-	case 0x1F03:	return (const unsigned char *)"";				// GL_EXTENSIONS
+	// GL_EXTENSIONS: kept in step with WIN_GL_ExtensionSupported, which is what the
+	// renderer actually queries; this string is for the console dump
+	case 0x1F03:	return (const unsigned char *)
+						"GL_ARB_texture_compression GL_EXT_texture_compression_s3tc";
 	default:		return (const unsigned char *)"";
 	}
 }

@@ -1091,5 +1091,23 @@ void *WIN_GL_GetProcAddress( const char *proc )
 
 qboolean WIN_GL_ExtensionSupported( const char *extension )
 {
+#ifdef USE_GXM_NATIVE
+	// There is no GL context to ask, so the answer is whatever the GXM backend can
+	// really honour. S3TC is genuine rather than a convenience: GXM's UBC1 and UBC3
+	// are DXT1 and DXT5 block for block, so the engine's compressed uploads land on
+	// the hardware unchanged. Claiming it is what turns the texture cache back on,
+	// and a texture cache is the difference between 8 bits a texel and 32.
+	static const char *supported[] = {
+		"GL_ARB_texture_compression",
+		"GL_EXT_texture_compression_s3tc",
+	};
+	for ( size_t i = 0; i < ARRAY_LEN( supported ); i++ ) {
+		if ( !Q_stricmp( extension, supported[i] ) ) {
+			return qtrue;
+		}
+	}
+	return qfalse;
+#else
 	return SDL_GL_ExtensionSupported( extension ) == SDL_TRUE ? qtrue : qfalse;
+#endif
 }

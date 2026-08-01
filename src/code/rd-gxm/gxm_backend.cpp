@@ -82,6 +82,7 @@ static int			gxm_viewX, gxm_viewY, gxm_viewW, gxm_viewH;
 static float		gxm_depthScale = 0.5f, gxm_depthOffset = 0.5f;
 // what the backend actually did this run, reported by r_gxmStats
 static int	gxm_statUploads, gxm_statDraws, gxm_statTextured, gxm_statNoTex, gxm_statRingFail;
+static int	gxm_statDxtUploads;	// how many took the compressed path
 
 static const SceGxmProgram *VertBlob( int nuv, int vcol )
 {
@@ -241,6 +242,7 @@ void GXM_TexUploadDxt( unsigned int texnum, const void *blob, unsigned int size,
 	if ( GXM_TextureCreateDxt( &gxm_textures[texnum], blob, size, width, height,
 			mipCount, isDxt5 != 0 ) ) {
 		gxm_statUploads++;
+		gxm_statDxtUploads++;
 	}
 }
 
@@ -619,8 +621,8 @@ void GXM_ReportStats( char *out, int outSize )
 	extern int gxm_texAllocFail, gxm_texInitFail;
 	extern unsigned int gxm_texBytes;
 	const int n = snprintf( out, outSize,
-		"GXM: uploads=%d allocfail=%d initfail=%d texmem=%uMB | draws=%d textured=%d notex=%d ringfail=%d ring=%uKB/%uKB\n",
-		gxm_statUploads, gxm_texAllocFail, gxm_texInitFail, gxm_texBytes / ( 1024 * 1024 ),
+		"GXM: uploads=%d dxt=%d allocfail=%d initfail=%d texmem=%uMB | draws=%d textured=%d notex=%d ringfail=%d ring=%uKB/%uKB\n",
+		gxm_statUploads, gxm_statDxtUploads, gxm_texAllocFail, gxm_texInitFail, gxm_texBytes / ( 1024 * 1024 ),
 		gxm_statDraws, gxm_statTextured, gxm_statNoTex,
 		gxm_statRingFail, GXM_RingUsedLastFrame() / 1024, GXM_RingBytesPerFrame() / 1024 );
 
