@@ -1,0 +1,38 @@
+// generic world/2D vertex program.
+//   NUV     0..2  texcoord sets consumed
+//   VCOLOR  0/1   per-vertex colour, else the uniform tint alone
+
+uniform float4x4 uMVP;
+uniform float4   uColor;	// GXM has no constant vertex attribute
+
+void main(
+	float3 aPosition : POSITION,
+#if VCOLOR
+	float4 aColor    : COLOR0,
+#endif
+#if NUV >= 1
+	float2 aTexCoord0 : TEXCOORD0,
+	out float2 vTexCoord0 : TEXCOORD0,
+#endif
+#if NUV >= 2
+	float2 aTexCoord1 : TEXCOORD1,
+	out float2 vTexCoord1 : TEXCOORD1,
+#endif
+	out float4 vColor    : COLOR0,
+	out float4 vPosition : POSITION )
+{
+	vPosition = mul( float4( aPosition, 1.0f ), uMVP );
+
+#if VCOLOR
+	vColor = aColor * uColor;
+#else
+	vColor = uColor;
+#endif
+
+#if NUV >= 1
+	vTexCoord0 = aTexCoord0;
+#endif
+#if NUV >= 2
+	vTexCoord1 = aTexCoord1;
+#endif
+}

@@ -184,6 +184,8 @@ vita_create_self(companion.bin companion.elf UNSAFE)
 #----------------------------------------------------------------------------
 add_executable(gxm_probe.elf
   ${CMAKE_SOURCE_DIR}/src/code/rd-gxm/gxm_device.cpp
+  ${CMAKE_SOURCE_DIR}/src/code/rd-gxm/gxm_texture.cpp
+  ${CMAKE_SOURCE_DIR}/src/code/rd-gxm/gxm_testscene.cpp
   ${CMAKE_SOURCE_DIR}/src/code/rd-gxm/gxm_probe.cpp
 )
 target_compile_definitions(gxm_probe.elf PRIVATE VITA)

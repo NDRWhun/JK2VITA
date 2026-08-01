@@ -1,0 +1,56 @@
+/*
+===========================================================================
+Copyright (C) 2026 JK2VITA contributors
+
+This file is part of the OpenJK source code.
+
+OpenJK is free software; you can redistribute it and/or modify it
+under the terms of the GNU General Public License version 2 as
+published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, see <http://www.gnu.org/licenses/>.
+===========================================================================
+*/
+
+// gxm_texture.h -- GXM textures and the per-frame vertex ring
+
+#ifndef GXM_TEXTURE_H
+#define GXM_TEXTURE_H
+
+#include "gxm_device.h"
+
+typedef struct {
+	SceGxmTexture	tex;
+	SceUID			uid;
+	void			*data;
+	unsigned int	width, height;
+	bool			valid;
+} gxmTexture_t;
+
+// linear RGBA upload; swizzling is the GPU's preferred layout but linear is
+// legal and keeps the first bring-up honest
+bool	GXM_TextureCreateRGBA( gxmTexture_t *t, const void *rgba, unsigned int w, unsigned int h );
+void	GXM_TextureFree( gxmTexture_t *t );
+void	GXM_TextureBind( unsigned int unit, const gxmTexture_t *t );
+void	GXM_TextureSetFilter( gxmTexture_t *t, bool linear, bool clamp );
+
+// Per-frame ring. GXM defers execution, so anything a draw references must stay
+// untouched until the GPU consumes the scene; tess buffers get copied in here.
+bool	GXM_RingInit( unsigned int bytesPerFrame );
+void	GXM_RingShutdown( void );
+void	GXM_RingBeginFrame( void );
+void   *GXM_RingAlloc( unsigned int size, unsigned int alignment );
+unsigned int GXM_RingUsedLastFrame( void );
+
+// probe-only test scene
+bool	GXM_TestSceneInit( void );
+void	GXM_DrawTestQuad( float frame );
+void	GXM_TestSceneShutdown( void );
+
+#endif // GXM_TEXTURE_H

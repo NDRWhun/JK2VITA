@@ -1,0 +1,49 @@
+// generic world/2D fragment program.
+//   NTEX   0..2  textures sampled
+//   ENV    0=modulate 1=add   how texture 1 combines onto texture 0
+//   ATEST  0=none 1=>0 2=<0.5 3=>=0.5 4=>=0.75  (GXM has no fixed alpha test)
+
+#if NTEX >= 1
+uniform sampler2D uTex0 : TEXUNIT0;
+#endif
+#if NTEX >= 2
+uniform sampler2D uTex1 : TEXUNIT1;
+#endif
+
+float4 main(
+	float4 vColor : COLOR0
+#if NTEX >= 1
+	, float2 vTexCoord0 : TEXCOORD0
+#endif
+#if NTEX >= 2
+	, float2 vTexCoord1 : TEXCOORD1
+#endif
+	) : COLOR
+{
+	float4 c = vColor;
+
+#if NTEX >= 1
+	c *= tex2D( uTex0, vTexCoord0 );
+#endif
+#if NTEX >= 2
+	float4 t1 = tex2D( uTex1, vTexCoord1 );
+  #if ENV == 1
+	// GL_ADD sums rgb but multiplies alpha; a plain c+t1 is wrong
+	c = float4( c.rgb + t1.rgb, c.a * t1.a );
+  #else
+	c *= t1;
+  #endif
+#endif
+
+#if ATEST == 1
+	if ( c.a <= 0.0f )        discard;
+#elif ATEST == 2
+	if ( c.a >= 0.5f )        discard;
+#elif ATEST == 3
+	if ( c.a < 0.5f )         discard;
+#elif ATEST == 4
+	if ( c.a < 0.75f )        discard;
+#endif
+
+	return c;
+}

@@ -25,6 +25,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 // line to ux0:data/JK2VITA/gxm_probe.log and exits on START.
 
 #include "gxm_device.h"
+#include "gxm_texture.h"
 
 #include <psp2/ctrl.h>
 #include <psp2/io/fcntl.h>
@@ -62,7 +63,14 @@ int main( void )
 		return 1;
 	}
 
-	Probe_Write( "RESULT: device init OK, cycling colour - press START to exit" );
+	if ( !GXM_RingInit( 256 * 1024 ) || !GXM_TestSceneInit() ) {
+		Probe_Write( "RESULT: ring or test scene FAILED" );
+		sceIoClose( probe_log );
+		sceKernelExitProcess( 1 );
+		return 1;
+	}
+
+	Probe_Write( "RESULT: device + texture + ring OK - press START to exit" );
 
 	SceCtrlData pad;
 	unsigned int frame = 0;
@@ -78,14 +86,26 @@ int main( void )
 		GXM_SetClearColor( t, 1.0f - t, 0.25f, 1.0f );
 
 		GXM_BeginFrame();
+		GXM_DrawTestQuad( (float)frame );
 		GXM_EndFrame();
 		frame++;
+
+		// report periodically; closing from the LiveArea skips the exit path
+		if ( ( frame % 300 ) == 0 ) {
+			char tick[128];
+			snprintf( tick, sizeof(tick), "  %u frames, ring %u bytes/frame",
+				frame, GXM_RingUsedLastFrame() );
+			Probe_Write( tick );
+		}
 	}
 
-	char msg[64];
-	snprintf( msg, sizeof(msg), "RESULT: %u frames presented, clean exit", frame );
+	char msg[128];
+	snprintf( msg, sizeof(msg), "RESULT: %u frames presented, ring peak %u bytes/frame, clean exit",
+		frame, GXM_RingUsedLastFrame() );
 	Probe_Write( msg );
 
+	GXM_TestSceneShutdown();
+	GXM_RingShutdown();
 	GXM_DeviceShutdown();
 	sceIoClose( probe_log );
 	sceKernelExitProcess( 0 );
