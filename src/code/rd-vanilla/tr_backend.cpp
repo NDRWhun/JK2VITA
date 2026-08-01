@@ -145,6 +145,9 @@ void GL_Cull( int cullType ) {
 		return;
 	}
 	glState.faceCulling = cullType;
+#ifdef USE_GXM_NATIVE
+	GXM_SetCullFlip( r_gxmCullFlip ? r_gxmCullFlip->integer : 0 );
+#endif
 	if (backEnd.projection2D){	//don't care, we're in 2d when it's always disabled
 		return;
 	}

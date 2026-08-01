@@ -73,6 +73,7 @@ static unsigned int	gxm_stateBits;
 static int			gxm_texUnits = 1;
 static int			gxm_vertexColor = 1;
 static int			gxm_texEnv = GXM_TEXENV_MODULATE;
+static int			gxm_cullFlip;
 static float		gxm_constColor[4] = { 1, 1, 1, 1 };
 static bool			gxm_backendOk;
 
@@ -326,15 +327,36 @@ void GXM_SetConstantColor( float r, float g, float b, float a )
 	gxm_constColor[2] = b; gxm_constColor[3] = a;
 }
 
+void GXM_SetCullFlip( int flip )					{ gxm_cullFlip = flip; }
+
+/*
+================
+GXM_SetCull
+
+GL decides facing from the signed area in window coordinates, which run bottom-up;
+GXM uses screen coordinates, which run top-down. The mirror negates the area, so a
+triangle GL calls front-facing (counter-clockwise, area > 0) is the same triangle
+GXM calls front-facing (clockwise in its space) -- culling GL_FRONT is CULL_CW,
+which libgxm defines as "cull triangles with clockwise window coordinates".
+
+r_gxmCullFlip inverts that, because the sign is the one part of this the docs do
+not pin down well enough to bet a build cycle on.
+================
+*/
 void GXM_SetCull( int glCullMode, int enabled )
 {
 	if ( !enabled ) {
 		sceGxmSetCullMode( GXM_Context(), SCE_GXM_CULL_NONE );
 		return;
 	}
+
 	// GL_FRONT is 0x0404
+	int cullFront = ( glCullMode == 0x0404 );
+	if ( gxm_cullFlip ) {
+		cullFront = !cullFront;
+	}
 	sceGxmSetCullMode( GXM_Context(),
-		( glCullMode == 0x0404 ) ? SCE_GXM_CULL_CW : SCE_GXM_CULL_CCW );
+		cullFront ? SCE_GXM_CULL_CW : SCE_GXM_CULL_CCW );
 }
 
 /*

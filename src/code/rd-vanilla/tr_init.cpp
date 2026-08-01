@@ -1769,6 +1769,7 @@ void R_Register( void )
 	r_worldVBO = ri.Cvar_Get( "r_worldVBO", "1", CVAR_ARCHIVE | CVAR_LATCH );
 #ifdef USE_GXM_NATIVE
 	r_gxmStats = ri.Cvar_Get( "r_gxmStats", "120", CVAR_ARCHIVE );	// frames per stat line
+	r_gxmCullFlip = ri.Cvar_Get( "r_gxmCullFlip", "1", CVAR_ARCHIVE );
 #endif
 #endif
 	ri.Cvar_CheckRange( r_primitives, MIN_PRIMITIVES, MAX_PRIMITIVES, qtrue );

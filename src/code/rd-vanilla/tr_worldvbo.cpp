@@ -37,6 +37,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 cvar_t	*r_worldVBO = NULL;
 #ifdef USE_GXM_NATIVE
 cvar_t	*r_gxmStats = NULL;
+cvar_t	*r_gxmCullFlip = NULL;
 #endif
 
 #define WVBO_MAXGROUPS		64

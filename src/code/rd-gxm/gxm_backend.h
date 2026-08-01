@@ -52,6 +52,7 @@ void GXM_SetVertexColorEnabled( int enabled );
 void GXM_SetTexEnv( int env );				// GXM_TEXENV_*
 void GXM_SetConstantColor( float r, float g, float b, float a );
 void GXM_SetCull( int glCullMode, int enabled );
+void GXM_SetCullFlip( int flip );	// r_gxmCullFlip: invert the winding mapping
 void GXM_SetViewport( int x, int y, int w, int h );	// GL rectangle, origin bottom-left
 void GXM_SetDepthRange( float zNear, float zFar );
 void GXM_SetDepthBias( float factor, float units );	// zero is the off state
