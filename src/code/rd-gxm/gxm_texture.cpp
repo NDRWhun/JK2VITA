@@ -25,6 +25,10 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include <psp2/kernel/sysmem.h>
 #include <string.h>
 
+// a failed texture reads back as white geometry, so the two ways it can fail are
+// counted apart: out of memory vs libgxm rejecting the format
+int gxm_texAllocFail, gxm_texInitFail;
+
 bool GXM_TextureCreateRGBA( gxmTexture_t *t, const void *rgba, unsigned int w, unsigned int h )
 {
 	memset( t, 0, sizeof(*t) );
@@ -35,6 +39,7 @@ bool GXM_TextureCreateRGBA( gxmTexture_t *t, const void *rgba, unsigned int w, u
 	t->data = GXM_Alloc( SCE_KERNEL_MEMBLOCK_TYPE_USER_RW_UNCACHE, size,
 		SCE_GXM_TEXTURE_ALIGNMENT, SCE_GXM_MEMORY_ATTRIB_READ, &t->uid );
 	if ( !t->data ) {
+		gxm_texAllocFail++;
 		return false;
 	}
 
@@ -53,6 +58,7 @@ bool GXM_TextureCreateRGBA( gxmTexture_t *t, const void *rgba, unsigned int w, u
 
 	if ( sceGxmTextureInitLinear( &t->tex, t->data,
 			SCE_GXM_TEXTURE_FORMAT_A8B8G8R8, w, h, 0 ) < 0 ) {
+		gxm_texInitFail++;
 		GXM_Free( t->uid );
 		t->data = NULL;
 		return false;
@@ -101,6 +107,7 @@ bool GXM_TextureCreateDxt( gxmTexture_t *t, const void *blob, unsigned int size,
 	t->data = GXM_Alloc( SCE_KERNEL_MEMBLOCK_TYPE_USER_RW_UNCACHE, size,
 		SCE_GXM_TEXTURE_ALIGNMENT, SCE_GXM_MEMORY_ATTRIB_READ, &t->uid );
 	if ( !t->data ) {
+		gxm_texAllocFail++;
 		return false;
 	}
 
@@ -129,6 +136,7 @@ bool GXM_TextureCreateDxt( gxmTexture_t *t, const void *blob, unsigned int size,
 	const SceGxmTextureFormat fmt = isDxt5
 		? SCE_GXM_TEXTURE_FORMAT_UBC3_ABGR : SCE_GXM_TEXTURE_FORMAT_UBC1_ABGR;
 	if ( sceGxmTextureInitSwizzled( &t->tex, t->data, fmt, w, h, mipCount ) < 0 ) {
+		gxm_texInitFail++;
 		GXM_Free( t->uid );
 		t->data = NULL;
 		return false;

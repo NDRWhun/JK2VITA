@@ -616,9 +616,11 @@ void GXM_DrawStaticBuffer( const void *vertexBuffer, const unsigned short *index
 // a picture of what the backend actually did, for r_gxmStats
 void GXM_ReportStats( char *out, int outSize )
 {
+	extern int gxm_texAllocFail, gxm_texInitFail;
 	const int n = snprintf( out, outSize,
-		"GXM: uploads=%d draws=%d textured=%d notex=%d ringfail=%d ring=%uKB/%uKB\n",
-		gxm_statUploads, gxm_statDraws, gxm_statTextured, gxm_statNoTex,
+		"GXM: uploads=%d allocfail=%d initfail=%d | draws=%d textured=%d notex=%d ringfail=%d ring=%uKB/%uKB\n",
+		gxm_statUploads, gxm_texAllocFail, gxm_texInitFail,
+		gxm_statDraws, gxm_statTextured, gxm_statNoTex,
 		gxm_statRingFail, GXM_RingUsedLastFrame() / 1024, GXM_RingBytesPerFrame() / 1024 );
 
 	// also to its own file: the engine log is not flushed on an abrupt exit
