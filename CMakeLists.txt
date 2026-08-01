@@ -179,6 +179,30 @@ target_link_libraries(companion.elf
 vita_create_self(companion.bin companion.elf UNSAFE)
 
 #----------------------------------------------------------------------------
+# gxm_probe: standalone hardware check for the native GXM renderer. Separate VPK
+# because sceGxmInitialize is process-global and cannot run alongside vitaGL.
+#----------------------------------------------------------------------------
+add_executable(gxm_probe.elf
+  ${CMAKE_SOURCE_DIR}/src/code/rd-gxm/gxm_device.cpp
+  ${CMAKE_SOURCE_DIR}/src/code/rd-gxm/gxm_probe.cpp
+)
+target_compile_definitions(gxm_probe.elf PRIVATE VITA)
+target_link_libraries(gxm_probe.elf
+  SceGxm_stub
+  SceDisplay_stub
+  SceCtrl_stub
+  SceSysmodule_stub
+  SceAppMgr_stub
+  c
+  m
+)
+vita_create_self(gxm_probe.self gxm_probe.elf UNSAFE)
+vita_create_vpk(gxm_probe.vpk GXMPROBE1 gxm_probe.self
+  VERSION 01.00
+  NAME "GXM Probe"
+)
+
+#----------------------------------------------------------------------------
 # Package: ELF -> SELF -> VPK
 #----------------------------------------------------------------------------
 vita_create_self(${GAME_TARGET}.self ${GAME_TARGET}.elf UNSAFE)

@@ -1,0 +1,65 @@
+/*
+===========================================================================
+Copyright (C) 2026 JK2VITA contributors
+
+This file is part of the OpenJK source code.
+
+OpenJK is free software; you can redistribute it and/or modify it
+under the terms of the GNU General Public License version 2 as
+published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, see <http://www.gnu.org/licenses/>.
+===========================================================================
+*/
+
+// gxm_device.h -- native GXM device: context, memory, swap chain, frame
+
+#ifndef GXM_DEVICE_H
+#define GXM_DEVICE_H
+
+#include <psp2/gxm.h>
+#include <psp2/types.h>
+#include <psp2/kernel/sysmem.h>
+#include <stdbool.h>
+
+#ifndef ALIGN
+#define ALIGN(x, a)		(((x) + ((a) - 1)) & ~((a) - 1))
+#endif
+
+typedef void (*gxmLogFn_t)( const char *msg );
+void GXM_SetLogger( gxmLogFn_t fn );
+
+#define GXM_DISPLAY_WIDTH		960
+#define GXM_DISPLAY_HEIGHT		544
+#define GXM_DISPLAY_STRIDE		1024	// framebuffers must be 64-byte aligned in width
+#define GXM_DISPLAY_BUFFERS		3		// two would stall the GPU behind the flip
+
+// GPU-visible allocation; every pointer the GPU reads must come from here
+void	*GXM_Alloc( SceKernelMemBlockType type, unsigned int size, unsigned int alignment,
+					unsigned int gpuAttrib, SceUID *uid );
+void	 GXM_Free( SceUID uid );
+void	*GXM_AllocVertexUsse( unsigned int size, SceUID *uid, unsigned int *usseOffset );
+void	 GXM_FreeVertexUsse( SceUID uid );
+void	*GXM_AllocFragmentUsse( unsigned int size, SceUID *uid, unsigned int *usseOffset );
+void	 GXM_FreeFragmentUsse( SceUID uid );
+
+// call on the thread that will own rendering; every other entry point below
+// must then be called from that same thread
+bool     GXM_DeviceInit( void );
+void	 GXM_DeviceShutdown( void );
+
+// one scene per frame against the swap chain
+void	 GXM_BeginFrame( void );
+void	 GXM_EndFrame( void );
+void	 GXM_SetClearColor( float r, float g, float b, float a );
+
+SceGxmContext		*GXM_Context( void );
+SceGxmShaderPatcher	*GXM_ShaderPatcher( void );
+
+#endif // GXM_DEVICE_H

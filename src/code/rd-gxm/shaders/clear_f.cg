@@ -1,0 +1,6 @@
+uniform float4 uClearColor;
+
+float4 main() : COLOR
+{
+	return uClearColor;
+}
