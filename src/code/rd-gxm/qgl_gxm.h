@@ -10,6 +10,8 @@
 const unsigned char *GXM_GlGetString( unsigned int name );
 void GXM_GlGetIntegerv( unsigned int pname, int *params );
 void GXM_GlGetFloatv( unsigned int pname, float *params );
+void GXM_GlClear( unsigned int mask );
+void GXM_SetClearColor( float r, float g, float b, float a );
 
 #define qglAccum(...) ((void)0)
 #define qglAlphaFunc(...) ((void)0)
@@ -21,9 +23,9 @@ void GXM_GlGetFloatv( unsigned int pname, float *params );
 #define qglBlendFunc(...) ((void)0)
 #define qglCallList(...) ((void)0)
 #define qglCallLists(...) ((void)0)
-#define qglClear(...) ((void)0)
+#define qglClear(mask) GXM_GlClear((unsigned int)(mask))
 #define qglClearAccum(...) ((void)0)
-#define qglClearColor(...) ((void)0)
+#define qglClearColor(r, g, b, a) GXM_SetClearColor((r), (g), (b), (a))
 #define qglClearDepth(...) ((void)0)
 #define qglClearIndex(...) ((void)0)
 #define qglClearStencil(...) ((void)0)

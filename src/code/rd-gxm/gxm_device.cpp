@@ -92,7 +92,8 @@ static SceUID				 gxm_patcherBufUid, gxm_patcherVertUsseUid, gxm_patcherFragUsse
 
 static SceGxmShaderPatcherId gxm_clearVertId, gxm_clearFragId;
 static SceGxmVertexProgram	*gxm_clearVertProgram;
-static SceGxmFragmentProgram *gxm_clearFragProgram;
+static SceGxmFragmentProgram *gxm_clearFragProgram;
+static SceGxmFragmentProgram	*gxm_clearDepthProgram;	// colour writes masked off
 static const SceGxmProgramParameter *gxm_clearColorParam;
 static SceUID				 gxm_clearVertsUid, gxm_clearIndicesUid;
 static float				*gxm_clearVerts;
@@ -418,6 +419,18 @@ static bool GXM_InitClear( void )
 		return false;
 	}
 
+	// the same program with colour writes masked off, for a depth-only clear
+	SceGxmBlendInfo noColor;
+	memset( &noColor, 0, sizeof(noColor) );
+	noColor.colorMask = SCE_GXM_COLOR_MASK_NONE;
+	noColor.colorFunc = SCE_GXM_BLEND_FUNC_NONE;
+	noColor.alphaFunc = SCE_GXM_BLEND_FUNC_NONE;
+	if ( sceGxmShaderPatcherCreateFragmentProgram( gxm_patcher, gxm_clearFragId,
+			SCE_GXM_OUTPUT_REGISTER_FORMAT_UCHAR4, SCE_GXM_MULTISAMPLE_NONE,
+			&noColor, vert, &gxm_clearDepthProgram ) < 0 ) {
+		return false;
+	}
+
 	gxm_clearColorParam = sceGxmProgramFindParameterByName( frag, "uClearColor" );
 
 	gxm_clearVerts = (float *)GXM_Alloc( SCE_KERNEL_MEMBLOCK_TYPE_USER_RW_UNCACHE,
@@ -478,17 +491,45 @@ void GXM_BeginFrame( void )
 		NULL, NULL, gxm_buffers[gxm_backBuffer].sync,
 		&gxm_buffers[gxm_backBuffer].surface, &gxm_depthSurface );
 
+	GXM_ClearBuffers( 1, 1 );
+}
+
+/*
+================
+GXM_ClearBuffers
+
+GXM has no clear operation, so a clear is a fullscreen triangle at z=1 with the
+depth test forced to pass. The engine issues these mid-frame too -- portals, fog
+volumes and r_fastsky all reset one buffer or the other partway through a scene --
+so it takes which buffers to touch rather than assuming a frame boundary.
+
+Colour is masked off through a second fragment-program instance, because the mask
+is compiled into the program on this GPU rather than being context state.
+================
+*/
+void GXM_ClearBuffers( int color, int depth )
+{
+	if ( !gxm_deviceOk || !gxm_sceneOpen || ( !color && !depth ) ) {
+		return;
+	}
+
 	// GXM state survives across scenes, so the clear sets everything it depends on
-	// rather than inheriting whatever the last frame left behind
+	// rather than inheriting whatever the last draw left behind
 	sceGxmSetFrontDepthFunc( gxm_context, SCE_GXM_DEPTH_FUNC_ALWAYS );
-	sceGxmSetFrontDepthWriteEnable( gxm_context, SCE_GXM_DEPTH_WRITE_ENABLED );
+	sceGxmSetBackDepthFunc( gxm_context, SCE_GXM_DEPTH_FUNC_ALWAYS );
+	sceGxmSetFrontDepthWriteEnable( gxm_context,
+		depth ? SCE_GXM_DEPTH_WRITE_ENABLED : SCE_GXM_DEPTH_WRITE_DISABLED );
+	sceGxmSetBackDepthWriteEnable( gxm_context,
+		depth ? SCE_GXM_DEPTH_WRITE_ENABLED : SCE_GXM_DEPTH_WRITE_DISABLED );
 	sceGxmSetCullMode( gxm_context, SCE_GXM_CULL_NONE );
 	sceGxmSetFrontPolygonMode( gxm_context, SCE_GXM_POLYGON_MODE_TRIANGLE_FILL );
+	sceGxmSetBackPolygonMode( gxm_context, SCE_GXM_POLYGON_MODE_TRIANGLE_FILL );
 
 	sceGxmSetVertexProgram( gxm_context, gxm_clearVertProgram );
-	sceGxmSetFragmentProgram( gxm_context, gxm_clearFragProgram );
+	sceGxmSetFragmentProgram( gxm_context,
+		color ? gxm_clearFragProgram : gxm_clearDepthProgram );
 
-	if ( gxm_clearColorParam ) {
+	if ( color && gxm_clearColorParam ) {
 		void *uniforms = NULL;
 		sceGxmReserveFragmentDefaultUniformBuffer( gxm_context, &uniforms );
 		if ( uniforms ) {

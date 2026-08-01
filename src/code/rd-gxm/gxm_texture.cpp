@@ -60,6 +60,7 @@ bool GXM_TextureCreateRGBA( gxmTexture_t *t, const void *rgba, unsigned int w, u
 
 	t->width  = w;
 	t->height = h;
+	t->mipCount = 0;		// RGBA uploads are the top level only
 	t->valid  = true;
 	GXM_TextureSetFilter( t, true, false );
 	return true;
@@ -135,6 +136,7 @@ bool GXM_TextureCreateDxt( gxmTexture_t *t, const void *blob, unsigned int size,
 
 	t->width  = w;
 	t->height = h;
+	t->mipCount = mipCount;
 	t->valid  = true;
 	GXM_TextureSetFilter( t, true, false );
 	return true;
@@ -162,6 +164,11 @@ void GXM_TextureSetFilter( gxmTexture_t *t, bool linear, bool clamp )
 	const SceGxmTextureAddrMode m = clamp ? SCE_GXM_TEXTURE_ADDR_CLAMP : SCE_GXM_TEXTURE_ADDR_REPEAT;
 	sceGxmTextureSetUAddrMode( &t->tex, m );
 	sceGxmTextureSetVAddrMode( &t->tex, m );
+
+	// without this an uploaded mip chain is never sampled, which both aliases and
+	// thrashes the texture cache on anything minified
+	sceGxmTextureSetMipFilter( &t->tex, ( t->mipCount > 1 )
+		? SCE_GXM_TEXTURE_MIP_FILTER_ENABLED : SCE_GXM_TEXTURE_MIP_FILTER_DISABLED );
 }
 
 void GXM_TextureBind( unsigned int unit, const gxmTexture_t *t )

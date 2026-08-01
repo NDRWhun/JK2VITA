@@ -91,6 +91,8 @@ out = [
     "const unsigned char *GXM_GlGetString( unsigned int name );",
     "void GXM_GlGetIntegerv( unsigned int pname, int *params );",
     "void GXM_GlGetFloatv( unsigned int pname, float *params );",
+    "void GXM_GlClear( unsigned int mask );",
+    "void GXM_SetClearColor( float r, float g, float b, float a );",
     "",
 ]
 for n in qgl_names:
@@ -100,6 +102,12 @@ for n in qgl_names:
         out.append("#define %s(p, v) GXM_GlGetIntegerv((unsigned int)(p), (v))" % n)
     elif n == "qglGetFloatv":
         out.append("#define %s(p, v) GXM_GlGetFloatv((unsigned int)(p), (v))" % n)
+    # every clear in the engine routes here rather than being hooked one site at a
+    # time; there are a dozen, spread over portals, fog volumes and r_fastsky
+    elif n == "qglClear":
+        out.append("#define %s(mask) GXM_GlClear((unsigned int)(mask))" % n)
+    elif n == "qglClearColor":
+        out.append("#define %s(r, g, b, a) GXM_SetClearColor((r), (g), (b), (a))" % n)
     elif n in QGL_RETURNS:
         out.append("#define %s(...) (%s)" % (n, QGL_RETURNS[n]))
     else:

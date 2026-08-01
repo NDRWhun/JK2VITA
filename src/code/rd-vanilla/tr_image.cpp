@@ -1285,6 +1285,10 @@ image_t *R_CreateImage( const char *name, const byte *pic, int width, int height
 
 	qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, glWrapClampMode );
 	qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, glWrapClampMode );
+#ifdef USE_GXM_NATIVE
+	// GL_REPEAT is 0x2901; anything else here is one of the clamp modes
+	GXM_TexFilter( image->texnum, 1, glWrapClampMode != GL_REPEAT );
+#endif
 
 	qglBindTexture( GL_TEXTURE_2D, 0 );	//jfm: i don't know why this is here, but it breaks lightmaps when there's only 1
 	glState.currenttextures[glState.currenttmu] = 0;	//mark it not bound
@@ -1424,6 +1428,10 @@ static image_t *R_CreateImageFromDxtCache( const char *name, qboolean mipmap, qb
 	}
 	qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, glWrapClampMode );
 	qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, glWrapClampMode );
+#ifdef USE_GXM_NATIVE
+	// GL_REPEAT is 0x2901; anything else here is one of the clamp modes
+	GXM_TexFilter( image->texnum, 1, glWrapClampMode != GL_REPEAT );
+#endif
 
 	qglBindTexture( GL_TEXTURE_2D, 0 );
 	glState.currenttextures[glState.currenttmu] = 0;

@@ -21,6 +21,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 // gxm_state.cpp -- GLS_ bitmask -> GXM
 
 #include "gxm_state.h"
+#include "gxm_device.h"
 
 #include <string.h>
 
@@ -200,6 +201,13 @@ void GXM_GlGetIntegerv( unsigned int pname, int *params )
 	case 0x0B44:	*params = 0;	break;	// GL_CULL_FACE
 	default:		*params = 0;	break;
 	}
+}
+
+// GL_COLOR_BUFFER_BIT 0x4000, GL_DEPTH_BUFFER_BIT 0x100. Stencil has no separate
+// clear here: the depth/stencil surface is S8D24 and nothing programs stencil yet.
+void GXM_GlClear( unsigned int mask )
+{
+	GXM_ClearBuffers( ( mask & 0x4000 ) != 0, ( mask & 0x0100 ) != 0 );
 }
 
 void GXM_GlGetFloatv( unsigned int pname, float *params )

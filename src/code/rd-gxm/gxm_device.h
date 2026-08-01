@@ -58,6 +58,7 @@ void	 GXM_DeviceShutdown( void );
 void	 GXM_BeginFrame( void );
 void	 GXM_EndFrame( void );
 void	 GXM_SetClearColor( float r, float g, float b, float a );
+void	 GXM_ClearBuffers( int color, int depth );	// a fullscreen triangle; GXM has no clear op
 
 SceGxmContext		*GXM_Context( void );
 SceGxmShaderPatcher	*GXM_ShaderPatcher( void );
