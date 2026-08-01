@@ -24,13 +24,10 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #pragma once
 
 #ifdef VITA
-#ifdef USE_GXM_NATIVE
-// native GXM build: no GL headers, no vitaGL; the qgl entry points become holes
-#include "../rd-gxm/qgl_gxm.h"
-#define QGL_NATIVE_HOLES
-#else
+// vitaGL.h supplies the GL type and constant vocabulary the renderer is written
+// in. The holes come after it so its declarations parse before the entry point
+// names become macros.
 #include <vitaGL.h>
-#endif
 #else
 #if defined( __LINT__ )
 #	include <GL/gl.h>
@@ -493,4 +490,11 @@ extern PFNGLISPROGRAMARBPROC qglIsProgramARB;
 
 extern PFNGLLOCKARRAYSEXTPROC qglLockArraysEXT;
 extern PFNGLUNLOCKARRAYSEXTPROC qglUnlockArraysEXT;
+#endif
+
+// Native GXM build: override every entry point above. This must be last -- the
+// #define qglX glX block would otherwise undo it.
+#ifdef USE_GXM_NATIVE
+#include "../rd-gxm/qgl_gxm.h"
+#define QGL_NATIVE_HOLES
 #endif

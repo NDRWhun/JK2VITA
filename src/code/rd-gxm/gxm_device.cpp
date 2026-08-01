@@ -100,6 +100,7 @@ static uint16_t				*gxm_clearIndices;
 static float				 gxm_clearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
 
 static bool				 gxm_deviceOk;
+static bool				 gxm_sceneOpen;	// sceGxmEndScene without a matching begin is a data abort
 
 /*
 ================
@@ -450,6 +451,10 @@ bool GXM_DeviceInit( void )
 	gxm_frontBuffer = 0;
 	gxm_deviceOk    = true;
 
+	// the renderer expects a scene to already be open; the first Present would
+	// otherwise end one that was never begun
+	GXM_BeginFrame();
+
 	GXM_Log( "GXM device: %dx%d, %d buffers, %d MiB parameter buffer",
 		GXM_DISPLAY_WIDTH, GXM_DISPLAY_HEIGHT, GXM_DISPLAY_BUFFERS,
 		GXM_PARAM_BUFFER_SIZE / (1024 * 1024) );
@@ -464,9 +469,10 @@ void GXM_SetClearColor( float r, float g, float b, float a )
 
 void GXM_BeginFrame( void )
 {
-	if ( !gxm_deviceOk ) {
+	if ( !gxm_deviceOk || gxm_sceneOpen ) {
 		return;
 	}
+	gxm_sceneOpen = true;
 
 	sceGxmBeginScene( gxm_context, 0, gxm_renderTarget,
 		NULL, NULL, gxm_buffers[gxm_backBuffer].sync,
@@ -497,9 +503,10 @@ void GXM_BeginFrame( void )
 
 void GXM_EndFrame( void )
 {
-	if ( !gxm_deviceOk ) {
+	if ( !gxm_deviceOk || !gxm_sceneOpen ) {
 		return;
 	}
+	gxm_sceneOpen = false;
 
 	sceGxmEndScene( gxm_context, NULL, NULL );
 	sceGxmPadHeartbeat( &gxm_buffers[gxm_backBuffer].surface, gxm_buffers[gxm_backBuffer].sync );
@@ -520,6 +527,10 @@ void GXM_DeviceShutdown( void )
 		return;
 	}
 
+	if ( gxm_sceneOpen ) {
+		sceGxmEndScene( gxm_context, NULL, NULL );
+		gxm_sceneOpen = false;
+	}
 	sceGxmFinish( gxm_context );
 	sceGxmDisplayQueueFinish();
 

@@ -172,3 +172,9 @@ const unsigned char *GXM_GlGetString( unsigned int name )
 	default:		return (const unsigned char *)"";
 	}
 }
+
+// referenced both as calls and as bare pointer tests by the renderer's
+// multitexture gates, so they need real symbols rather than macros
+void GXM_NoOpTexUnit( unsigned int ) {}
+void GXM_NoOpMultiTexCoord2f( unsigned int, float, float ) {}
+void GXM_NoOpStencilOpSeparate( unsigned int, unsigned int, unsigned int, unsigned int ) {}
