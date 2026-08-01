@@ -3,9 +3,8 @@
 #if defined( SP_GAME )
 # define GAME_INCLUDE // so centity_t is defined in g_shared.h (alternatively include g_public.h?)
 # include "game/g_shared.h" // gi
-#else
-# include "qcommon/qcommon.h"
 #endif
+#include "qcommon/qcommon.h"
 
 namespace FS
 {
@@ -15,11 +14,7 @@ namespace FS
 	{
 		if( buffer )
 		{
-#if defined( SP_GAME )
-			gi.FS_FreeFile( buffer );
-#else
 			FS_FreeFile( buffer );
-#endif
 		}
 	}
 
@@ -60,11 +55,8 @@ namespace FS
 	FileBuffer ReadFile( gsl::czstring path )
 	{
 		void* buffer;
-#if defined( SP_GAME )
-		const long size = gi.FS_ReadFile( path, &buffer );
-#else
+		// gi is empty outside a level; engine and game are one binary here
 		const long size = FS_ReadFile( path, &buffer );
-#endif
 		return size >= 0 ? FileBuffer{ buffer, size } : FileBuffer{};
 	}
 
