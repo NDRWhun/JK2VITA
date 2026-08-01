@@ -104,7 +104,20 @@ add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-D__GNU_VISIBLE>)
 #----------------------------------------------------------------------------
 include(${CMAKE_SOURCE_DIR}/cmake/jk2_sources.cmake)
 
-add_executable(${GAME_TARGET}.elf ${JK2_SOURCES})
+option(GXM_NATIVE "Render through the native GXM backend instead of vitaGL" OFF)
+
+set(GXM_SOURCES
+  ${CMAKE_SOURCE_DIR}/src/code/rd-gxm/gxm_device.cpp
+  ${CMAKE_SOURCE_DIR}/src/code/rd-gxm/gxm_texture.cpp
+  ${CMAKE_SOURCE_DIR}/src/code/rd-gxm/gxm_state.cpp
+)
+
+if(GXM_NATIVE)
+  add_executable(${GAME_TARGET}.elf ${JK2_SOURCES} ${GXM_SOURCES})
+  target_compile_definitions(${GAME_TARGET}.elf PRIVATE USE_GXM_NATIVE)
+else()
+  add_executable(${GAME_TARGET}.elf ${JK2_SOURCES})
+endif()
 
 # mp3code's global `window` (float decode table) collides with rd-vanilla's
 # `window_t window`. Rename it consistently across the (self-contained) mp3

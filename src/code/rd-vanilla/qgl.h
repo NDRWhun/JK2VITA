@@ -24,7 +24,13 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #pragma once
 
 #ifdef VITA
+#ifdef USE_GXM_NATIVE
+// native GXM build: no GL headers, no vitaGL; the qgl entry points become holes
+#include "../rd-gxm/qgl_gxm.h"
+#define QGL_NATIVE_HOLES
+#else
 #include <vitaGL.h>
+#endif
 #else
 #if defined( __LINT__ )
 #	include <GL/gl.h>

@@ -769,7 +769,12 @@ static void InitOpenGL( void )
 
 	if ( glConfig.vidWidth == 0 )
 	{
+#ifdef USE_GXM_NATIVE
+		// GRAPHICS_API_OPENGL is what makes SDL set SDL_WINDOW_OPENGL and call vglInit
+		windowDesc_t windowDesc = { GRAPHICS_API_GENERIC };
+#else
 		windowDesc_t windowDesc = { GRAPHICS_API_OPENGL };
+#endif
 		memset(&glConfig, 0, sizeof(glConfig));
 
 #ifdef VITA

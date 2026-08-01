@@ -25,6 +25,10 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "rd-common/tr_types.h"
 #include "sys/sys_local.h"
 #include "sdl_icon.h"
+#ifdef USE_GXM_NATIVE
+#include "../../code/rd-gxm/gxm_device.h"
+#include "../../code/rd-gxm/gxm_texture.h"
+#endif
 
 enum rserr_t
 {
@@ -144,6 +148,15 @@ void GLimp_Minimize(void)
 
 void WIN_Present( window_t *window )
 {
+#ifdef USE_GXM_NATIVE
+	// end the frame's scene, queue the flip, and open the next one so the
+	// renderer always has a scene to draw into
+	GXM_EndFrame();
+	GXM_BeginFrame();
+	GXM_RingBeginFrame();
+	(void)window;
+	return;
+#endif
 	if ( window->api == GRAPHICS_API_OPENGL )
 	{
 		SDL_GL_SwapWindow(screen);
@@ -914,11 +927,18 @@ so the GXM context is owned here
 */
 void WIN_LoadGL( void )
 {
+#ifdef USE_GXM_NATIVE
+	if ( !GXM_DeviceInit() || !GXM_RingInit( 2 * 1024 * 1024 ) )
+	{
+		Com_Error( ERR_FATAL, "WIN_LoadGL: native GXM device init failed" );
+	}
+#else
 	WIN_SetupVglMem( "vgl mem setup (render thread)" );
 	if ( SDL_GL_LoadLibrary( NULL ) < 0 )
 	{
 		Com_Error( ERR_FATAL, "WIN_LoadGL: SDL_GL_LoadLibrary failed (%s)", SDL_GetError() );
 	}
+#endif
 }
 
 /*

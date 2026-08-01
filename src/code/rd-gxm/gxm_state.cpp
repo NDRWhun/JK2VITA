@@ -160,3 +160,15 @@ unsigned int GXM_ProgramKeyHash( const gxmProgramKey_t *key )
 	h |= (unsigned int)key->alphaTest      << 20;
 	return h;
 }
+
+// the engine parses these at boot for its extension/vendor strings
+const unsigned char *GXM_GlGetString( unsigned int name )
+{
+	switch ( name ) {
+	case 0x1F00:	return (const unsigned char *)"Sony";			// GL_VENDOR
+	case 0x1F01:	return (const unsigned char *)"SGX543MP4+";		// GL_RENDERER
+	case 0x1F02:	return (const unsigned char *)"GXM native";		// GL_VERSION
+	case 0x1F03:	return (const unsigned char *)"";				// GL_EXTENSIONS
+	default:		return (const unsigned char *)"";
+	}
+}
