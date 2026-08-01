@@ -7,11 +7,19 @@
 #ifndef QGL_GXM_H
 #define QGL_GXM_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 const unsigned char *GXM_GlGetString( unsigned int name );
 void GXM_GlGetIntegerv( unsigned int pname, int *params );
 void GXM_GlGetFloatv( unsigned int pname, float *params );
 void GXM_GlClear( unsigned int mask );
 void GXM_SetClearColor( float r, float g, float b, float a );
+void GXM_SetDepthRange( float zNear, float zFar );
+void GXM_SetDepthBias( float factor, float units );
+#ifdef __cplusplus
+}
+#endif
 
 #define qglAccum(...) ((void)0)
 #define qglAlphaFunc(...) ((void)0)
@@ -83,7 +91,7 @@ void GXM_SetClearColor( float r, float g, float b, float a );
 #define qglDeleteTextures(...) ((void)0)
 #define qglDepthFunc(...) ((void)0)
 #define qglDepthMask(...) ((void)0)
-#define qglDepthRange(...) ((void)0)
+#define qglDepthRange(n, f) GXM_SetDepthRange((float)(n), (float)(f))
 #define qglDisable(...) ((void)0)
 #define qglDisableClientState(...) ((void)0)
 #define qglDrawArrays(...) ((void)0)
@@ -236,7 +244,7 @@ void GXM_SetClearColor( float r, float g, float b, float a );
 #define qglPixelZoom(...) ((void)0)
 #define qglPointSize(...) ((void)0)
 #define qglPolygonMode(...) ((void)0)
-#define qglPolygonOffset(...) ((void)0)
+#define qglPolygonOffset(f, u) GXM_SetDepthBias((f), (u))
 #define qglPolygonStipple(...) ((void)0)
 #define qglPopAttrib(...) ((void)0)
 #define qglPopClientAttrib(...) ((void)0)

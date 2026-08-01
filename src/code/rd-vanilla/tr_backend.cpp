@@ -901,23 +901,14 @@ void RB_RenderDrawSurfList( drawSurf_t *drawSurfs, int numDrawSurfs ) {
 					default:
 					case 0:
 						qglDepthRange (0, 1);
-#ifdef USE_GXM_NATIVE
-						GXM_SetDepthRange( 0.0f, 1.0f );
-#endif
 						break;
 
 					case 1:
 						qglDepthRange (0, .3);
-#ifdef USE_GXM_NATIVE
-						GXM_SetDepthRange( 0.0f, 0.3f );
-#endif
 						break;
 
 					case 2:
 						qglDepthRange (0, 0);
-#ifdef USE_GXM_NATIVE
-						GXM_SetDepthRange( 0.0f, 0.0f );
-#endif
 						break;
 				}
 
@@ -987,23 +978,14 @@ void RB_RenderDrawSurfList( drawSurf_t *drawSurfs, int numDrawSurfs ) {
 				default:
 				case 0:
 					qglDepthRange (0, 1);
-#ifdef USE_GXM_NATIVE
-					GXM_SetDepthRange( 0.0f, 1.0f );
-#endif
 					break;
 
 				case 1:
 					qglDepthRange (0, .3);
-#ifdef USE_GXM_NATIVE
-					GXM_SetDepthRange( 0.0f, 0.3f );
-#endif
 					break;
 
 				case 2:
 					qglDepthRange (0, 0);
-#ifdef USE_GXM_NATIVE
-					GXM_SetDepthRange( 0.0f, 0.0f );
-#endif
 					break;
 			}
 
@@ -1059,9 +1041,6 @@ void RB_RenderDrawSurfList( drawSurf_t *drawSurfs, int numDrawSurfs ) {
 #endif
 	if ( depthRange ) {
 		qglDepthRange (0, 1);
-#ifdef USE_GXM_NATIVE
-		GXM_SetDepthRange( 0.0f, 1.0f );
-#endif
 	}
 
 #if 0

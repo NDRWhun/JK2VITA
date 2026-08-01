@@ -29,6 +29,10 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 #include "gxm_device.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // the alpha-test variants the fragment blobs were built with
 typedef enum {
 	GXM_ATEST_NONE = 0,
@@ -58,7 +62,18 @@ bool GXM_TranslateState( unsigned int stateBits, gxmProgramKey_t *key, gxmDepthS
 // apply the context half; the program half is resolved by the draw path
 void GXM_ApplyDepthState( const gxmDepthState_t *depth );
 
+// the GL entry points the renderer still reads back through; qgl_gxm.h routes
+// the qgl macros here, and these declarations are what give them C linkage
+const unsigned char *GXM_GlGetString( unsigned int name );
+void GXM_GlGetIntegerv( unsigned int pname, int *params );
+void GXM_GlGetFloatv( unsigned int pname, float *params );
+void GXM_GlClear( unsigned int mask );
+
 // packs a key into a value usable as a cache index
 unsigned int GXM_ProgramKeyHash( const gxmProgramKey_t *key );
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // GXM_STATE_H

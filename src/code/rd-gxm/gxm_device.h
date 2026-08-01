@@ -28,6 +28,10 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include <psp2/kernel/sysmem.h>
 #include <stdbool.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifndef ALIGN
 #define ALIGN(x, a)		(((x) + ((a) - 1)) & ~((a) - 1))
 #endif
@@ -62,5 +66,9 @@ void	 GXM_ClearBuffers( int color, int depth );	// a fullscreen triangle; GXM ha
 
 SceGxmContext		*GXM_Context( void );
 SceGxmShaderPatcher	*GXM_ShaderPatcher( void );
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // GXM_DEVICE_H

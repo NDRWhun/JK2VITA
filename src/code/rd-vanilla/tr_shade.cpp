@@ -2310,9 +2310,6 @@ void RB_StageIteratorGeneric( void )
 	{
 		qglEnable( GL_POLYGON_OFFSET_FILL );
 		qglPolygonOffset( r_offsetFactor->value, r_offsetUnits->value );
-#ifdef USE_GXM_NATIVE
-		GXM_SetDepthBias( r_offsetFactor->value, r_offsetUnits->value );
-#endif
 	}
 
 	//
@@ -2406,7 +2403,7 @@ void RB_StageIteratorGeneric( void )
 	{
 		qglDisable( GL_POLYGON_OFFSET_FILL );
 #ifdef USE_GXM_NATIVE
-		GXM_SetDepthBias( 0.0f, 0.0f );	// GXM has no enable; zero is the off state
+		GXM_SetDepthBias( 0.0f, 0.0f );	// GXM has no enable, so zero is the off state
 #endif
 	}
 

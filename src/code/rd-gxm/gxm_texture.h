@@ -25,6 +25,10 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 #include "gxm_device.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
 	SceGxmTexture	tex;
 	SceUID			uid;
@@ -56,5 +60,9 @@ unsigned int GXM_RingBytesPerFrame( void );
 bool	GXM_TestSceneInit( void );
 void	GXM_DrawTestQuad( float frame );
 void	GXM_TestSceneShutdown( void );
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // GXM_TEXTURE_H

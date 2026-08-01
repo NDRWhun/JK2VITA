@@ -70,9 +70,7 @@ static SceGxmBlendFactor SrcFactor( unsigned int bits )
 	case GLS_SRCBLEND_ONE_MINUS_SRC_ALPHA:		return SCE_GXM_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 	case GLS_SRCBLEND_DST_ALPHA:				return SCE_GXM_BLEND_FACTOR_DST_ALPHA;
 	case GLS_SRCBLEND_ONE_MINUS_DST_ALPHA:		return SCE_GXM_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
-	// GL_SRC_ALPHA_SATURATE has no GXM factor; SRC_ALPHA is the closest and this
-	// only appears on a couple of effect shaders
-	case GLS_SRCBLEND_ALPHA_SATURATE:			return SCE_GXM_BLEND_FACTOR_SRC_ALPHA;
+	case GLS_SRCBLEND_ALPHA_SATURATE:			return SCE_GXM_BLEND_FACTOR_SRC_ALPHA_SATURATE;
 	default:									return SCE_GXM_BLEND_FACTOR_ONE;
 	}
 }

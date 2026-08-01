@@ -88,11 +88,21 @@ out = [
     "#ifndef QGL_GXM_H",
     "#define QGL_GXM_H",
     "",
+    # some of these are also declared by the rd-gxm headers, which use C linkage,
+    # so these have to agree or the two declarations conflict
+    "#ifdef __cplusplus",
+    'extern "C" {',
+    "#endif",
     "const unsigned char *GXM_GlGetString( unsigned int name );",
     "void GXM_GlGetIntegerv( unsigned int pname, int *params );",
     "void GXM_GlGetFloatv( unsigned int pname, float *params );",
     "void GXM_GlClear( unsigned int mask );",
     "void GXM_SetClearColor( float r, float g, float b, float a );",
+    "void GXM_SetDepthRange( float zNear, float zFar );",
+    "void GXM_SetDepthBias( float factor, float units );",
+    "#ifdef __cplusplus",
+    "}",
+    "#endif",
     "",
 ]
 for n in qgl_names:
@@ -108,6 +118,12 @@ for n in qgl_names:
         out.append("#define %s(mask) GXM_GlClear((unsigned int)(mask))" % n)
     elif n == "qglClearColor":
         out.append("#define %s(r, g, b, a) GXM_SetClearColor((r), (g), (b), (a))" % n)
+    # these have call sites spread over five files; routing them here rather than at
+    # each site is what stops a new one from silently becoming a no-op
+    elif n == "qglDepthRange":
+        out.append("#define %s(n, f) GXM_SetDepthRange((float)(n), (float)(f))" % n)
+    elif n == "qglPolygonOffset":
+        out.append("#define %s(f, u) GXM_SetDepthBias((f), (u))" % n)
     elif n in QGL_RETURNS:
         out.append("#define %s(...) (%s)" % (n, QGL_RETURNS[n]))
     else:
