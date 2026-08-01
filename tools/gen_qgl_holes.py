@@ -89,11 +89,17 @@ out = [
     "#define QGL_GXM_H",
     "",
     "const unsigned char *GXM_GlGetString( unsigned int name );",
+    "void GXM_GlGetIntegerv( unsigned int pname, int *params );",
+    "void GXM_GlGetFloatv( unsigned int pname, float *params );",
     "",
 ]
 for n in qgl_names:
     if n == "qglGetString":
         out.append("#define %s(name) GXM_GlGetString(name)" % n)
+    elif n == "qglGetIntegerv":
+        out.append("#define %s(p, v) GXM_GlGetIntegerv((unsigned int)(p), (v))" % n)
+    elif n == "qglGetFloatv":
+        out.append("#define %s(p, v) GXM_GlGetFloatv((unsigned int)(p), (v))" % n)
     elif n in QGL_RETURNS:
         out.append("#define %s(...) (%s)" % (n, QGL_RETURNS[n]))
     else:

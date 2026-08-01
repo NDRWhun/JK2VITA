@@ -178,3 +178,30 @@ const unsigned char *GXM_GlGetString( unsigned int name )
 void GXM_NoOpTexUnit( unsigned int ) {}
 void GXM_NoOpMultiTexCoord2f( unsigned int, float, float ) {}
 void GXM_NoOpStencilOpSeparate( unsigned int, unsigned int, unsigned int, unsigned int ) {}
+
+// The renderer reads its capability limits back from GL. Left as holes these stay
+// zero, and maxTextureSize == 0 shifts every texture down to 0x0 in Upload32.
+void GXM_GlGetIntegerv( unsigned int pname, int *params )
+{
+	if ( !params ) {
+		return;
+	}
+	switch ( pname ) {
+	case 0x0D33:	*params = 4096;	break;	// GL_MAX_TEXTURE_SIZE
+	case 0x84E2:	*params = 2;	break;	// GL_MAX_TEXTURE_UNITS_ARB
+	case 0x0D05:	*params = 4;	break;	// GL_PACK_ALIGNMENT
+	case 0x0B44:	*params = 0;	break;	// GL_CULL_FACE
+	default:		*params = 0;	break;
+	}
+}
+
+void GXM_GlGetFloatv( unsigned int pname, float *params )
+{
+	if ( !params ) {
+		return;
+	}
+	switch ( pname ) {
+	case 0x84FF:	*params = 1.0f;	break;	// GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT
+	default:		*params = 0.0f;	break;
+	}
+}

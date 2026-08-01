@@ -8,6 +8,8 @@
 #define QGL_GXM_H
 
 const unsigned char *GXM_GlGetString( unsigned int name );
+void GXM_GlGetIntegerv( unsigned int pname, int *params );
+void GXM_GlGetFloatv( unsigned int pname, float *params );
 
 #define qglAccum(...) ((void)0)
 #define qglAlphaFunc(...) ((void)0)
@@ -128,8 +130,8 @@ const unsigned char *GXM_GlGetString( unsigned int name );
 #define qglGetError(...) (0)
 #define qglGetFinalCombinerInputParameterfvNV(...) ((void)0)
 #define qglGetFinalCombinerInputParameterivNV(...) ((void)0)
-#define qglGetFloatv(...) ((void)0)
-#define qglGetIntegerv(...) ((void)0)
+#define qglGetFloatv(p, v) GXM_GlGetFloatv((unsigned int)(p), (v))
+#define qglGetIntegerv(p, v) GXM_GlGetIntegerv((unsigned int)(p), (v))
 #define qglGetLightfv(...) ((void)0)
 #define qglGetLightiv(...) ((void)0)
 #define qglGetMapdv(...) ((void)0)
