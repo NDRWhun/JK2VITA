@@ -379,10 +379,9 @@ const unsigned char *GXM_GlGetString( unsigned int name );
 #define qglX(...) ((void)0)
 
 // used as calls AND as bare pointer tests, so these need real symbols
-void GXM_NoOpTexUnit( unsigned int );
-void GXM_NoOpTexUnit( unsigned int );
 void GXM_NoOpMultiTexCoord2f( unsigned int, float, float );
 void GXM_NoOpStencilOpSeparate( unsigned int, unsigned int, unsigned int, unsigned int );
+void GXM_NoOpTexUnit( unsigned int );
 #define qglActiveTextureARB GXM_NoOpTexUnit
 #define qglClientActiveTextureARB GXM_NoOpTexUnit
 #define qglMultiTexCoord2fARB GXM_NoOpMultiTexCoord2f

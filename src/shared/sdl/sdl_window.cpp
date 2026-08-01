@@ -28,6 +28,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #ifdef USE_GXM_NATIVE
 #include "../../code/rd-gxm/gxm_device.h"
 #include "../../code/rd-gxm/gxm_texture.h"
+#include "../../code/rd-gxm/gxm_backend.h"
 #endif
 
 enum rserr_t
@@ -928,7 +929,7 @@ so the GXM context is owned here
 void WIN_LoadGL( void )
 {
 #ifdef USE_GXM_NATIVE
-	if ( !GXM_DeviceInit() || !GXM_RingInit( 2 * 1024 * 1024 ) )
+	if ( !GXM_DeviceInit() || !GXM_RingInit( 2 * 1024 * 1024 ) || !GXM_BackendInit() )
 	{
 		Com_Error( ERR_FATAL, "WIN_LoadGL: native GXM device init failed" );
 	}

@@ -36,6 +36,8 @@ typedef struct {
 // linear RGBA upload; swizzling is the GPU's preferred layout but linear is
 // legal and keeps the first bring-up honest
 bool	GXM_TextureCreateRGBA( gxmTexture_t *t, const void *rgba, unsigned int w, unsigned int h );
+bool	GXM_TextureCreateDxt( gxmTexture_t *t, const void *blob, unsigned int size,
+							  unsigned int w, unsigned int h, unsigned int mipCount, bool isDxt5 );
 void	GXM_TextureFree( gxmTexture_t *t );
 void	GXM_TextureBind( unsigned int unit, const gxmTexture_t *t );
 void	GXM_TextureSetFilter( gxmTexture_t *t, bool linear, bool clamp );

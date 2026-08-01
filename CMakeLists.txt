@@ -110,6 +110,8 @@ set(GXM_SOURCES
   ${CMAKE_SOURCE_DIR}/src/code/rd-gxm/gxm_device.cpp
   ${CMAKE_SOURCE_DIR}/src/code/rd-gxm/gxm_texture.cpp
   ${CMAKE_SOURCE_DIR}/src/code/rd-gxm/gxm_state.cpp
+  ${CMAKE_SOURCE_DIR}/src/code/rd-gxm/gxm_backend.cpp
+  ${CMAKE_SOURCE_DIR}/src/code/rd-vanilla/tr_gxm_bridge.cpp
 )
 
 if(GXM_NATIVE)

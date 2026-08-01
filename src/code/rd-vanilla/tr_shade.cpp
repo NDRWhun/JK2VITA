@@ -175,6 +175,11 @@ without compiled vertex arrays.
 ==================
 */
 static void R_DrawElements( int numIndexes, const glIndex_t *indexes, int numVertexes ) {
+#ifdef USE_GXM_NATIVE
+	GXM_SetStateBits( glState.glStateBits );
+	GXM_DrawTess( numIndexes, indexes, numVertexes );
+	return;
+#endif
 	int		primitives;
 
 	primitives = r_primitives->integer;

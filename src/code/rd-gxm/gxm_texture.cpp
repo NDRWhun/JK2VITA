@@ -56,6 +56,35 @@ bool GXM_TextureCreateRGBA( gxmTexture_t *t, const void *rgba, unsigned int w, u
 	return true;
 }
 
+// DXT1/DXT5 are GXM's UBC1/UBC3 exactly, so the cached blob is uploaded as-is:
+// no decode, no re-encode, and a quarter the memory of RGBA
+bool GXM_TextureCreateDxt( gxmTexture_t *t, const void *blob, unsigned int size,
+						   unsigned int w, unsigned int h, unsigned int mipCount, bool isDxt5 )
+{
+	memset( t, 0, sizeof(*t) );
+
+	t->data = GXM_Alloc( SCE_KERNEL_MEMBLOCK_TYPE_USER_RW_UNCACHE, size,
+		SCE_GXM_TEXTURE_ALIGNMENT, SCE_GXM_MEMORY_ATTRIB_READ, &t->uid );
+	if ( !t->data ) {
+		return false;
+	}
+	memcpy( t->data, blob, size );
+
+	const SceGxmTextureFormat fmt = isDxt5
+		? SCE_GXM_TEXTURE_FORMAT_UBC3_ABGR : SCE_GXM_TEXTURE_FORMAT_UBC1_ABGR;
+	if ( sceGxmTextureInitLinear( &t->tex, t->data, fmt, w, h, mipCount ) < 0 ) {
+		GXM_Free( t->uid );
+		t->data = NULL;
+		return false;
+	}
+
+	t->width  = w;
+	t->height = h;
+	t->valid  = true;
+	GXM_TextureSetFilter( t, true, false );
+	return true;
+}
+
 void GXM_TextureFree( gxmTexture_t *t )
 {
 	if ( !t->valid ) {

@@ -101,10 +101,7 @@ for n in qgl_names:
 
 out.append("")
 out.append("// used as calls AND as bare pointer tests, so these need real symbols")
-for _seen in sorted(set(v[0] for v in POINTER_NOOPS.values())):
-    pass
-for _k in sorted(POINTER_NOOPS):
-    fn, args = POINTER_NOOPS[_k]
+for fn, args in sorted(set(POINTER_NOOPS.values())):
     out.append("void %s( %s );" % (fn, args))
 for _k in sorted(POINTER_NOOPS):
     out.append("#define %s %s" % (_k, POINTER_NOOPS[_k][0]))
