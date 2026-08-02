@@ -231,10 +231,14 @@ static void Sys_ErrorDialog( const char *error )
 		fclose( fp );
 
 		const char *errorMessage = va( "%s\n\nThe crash log was written to %s", error, crashLogPath );
+#ifdef VITA
+		fprintf( stderr, "%s", errorMessage );
+#else
 		if ( SDL_ShowSimpleMessageBox( SDL_MESSAGEBOX_ERROR, "Error", errorMessage, NULL ) < 0 )
 		{
 			fprintf( stderr, "%s", errorMessage );
 		}
+#endif
 	}
 	else
 	{
@@ -244,11 +248,15 @@ static void Sys_ErrorDialog( const char *error )
 
 		const char *errorMessage = va( "%s\nCould not write the crash log file, but we printed it to stderr.\n"
 										"Try running the game using a command line interface.", error );
+#ifdef VITA
+		fprintf( stderr, "%s", errorMessage );
+#else
 		if ( SDL_ShowSimpleMessageBox( SDL_MESSAGEBOX_ERROR, "Error", errorMessage, NULL ) < 0 )
 		{
 			// We really have hit rock bottom here :(
 			fprintf( stderr, "%s", errorMessage );
 		}
+#endif
 	}
 }
 #endif

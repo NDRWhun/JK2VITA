@@ -51,7 +51,6 @@ include_directories(
   ${CMAKE_SOURCE_DIR}/src/lib/minizip/include
   ${CMAKE_SOURCE_DIR}/src/lib/minizip/include/minizip
   ${CMAKE_BINARY_DIR}/generated
-  $ENV{VITASDK}/arm-vita-eabi/include/SDL2
 )
 
 # Generate qcommon/q_version.h (normally produced by OpenJK's build).
@@ -104,6 +103,19 @@ add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-D__GNU_VISIBLE>)
 #----------------------------------------------------------------------------
 include(${CMAKE_SOURCE_DIR}/cmake/jk2_sources.cmake)
 
+# SDL is built here rather than taken from the SDK: the installed libSDL2.a is
+# compiled with the vitaGL video driver, and its video device table references
+# those entry points whether or not we call them. Building locally also keeps
+# other projects sharing this SDK on the SDL they expect.
+set(VIDEO_VITA_VGL OFF CACHE BOOL "" FORCE)
+set(VIDEO_VITA_PVR OFF CACHE BOOL "" FORCE)
+set(VIDEO_VITA_PIB OFF CACHE BOOL "" FORCE)
+set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+set(SDL_STATIC ON CACHE BOOL "" FORCE)
+set(SDL2_DISABLE_INSTALL ON CACHE BOOL "" FORCE)
+set(SDL2_DISABLE_SDL2MAIN ON CACHE BOOL "" FORCE)
+add_subdirectory(${CMAKE_SOURCE_DIR}/third_party/SDL-vitagl EXCLUDE_FROM_ALL)
+
 
 set(GXM_SOURCES
   ${CMAKE_SOURCE_DIR}/src/code/rd-gxm/gxm_device.cpp
@@ -123,7 +135,7 @@ file(GLOB JK2_MP3_SOURCES ${CMAKE_SOURCE_DIR}/src/code/mp3code/*.c)
 set_source_files_properties(${JK2_MP3_SOURCES} PROPERTIES COMPILE_DEFINITIONS "window=mp3code_window")
 
 target_link_libraries(${GAME_TARGET}.elf
-  SDL2
+  SDL2-static
   # image / compression
   jpeg
   png16
