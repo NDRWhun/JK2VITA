@@ -421,6 +421,10 @@ void GL_State( uint32_t stateBits )
 	}
 
 	glState.glStateBits = stateBits;
+#ifdef USE_GXM_NATIVE
+	// the qgl* emissions above are holes, so this is what actually carries the state
+	GXM_SetStateBits( stateBits );
+#endif
 }
 
 

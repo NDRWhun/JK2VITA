@@ -645,11 +645,19 @@ void GXM_DrawTess( int numIndexes, const unsigned short *indexes, int numVertexe
 	if ( ntex > 2 ) ntex = 2;
 	if ( ntex < 0 ) ntex = 0;
 	gxm_statDraws++;
-	if ( ntex >= 1 && ( gxm_boundTex[0] < 0 || !gxm_textures[ gxm_boundTex[0] ].valid ) ) {
-		ntex = 0;	// an unbacked texture would sample garbage
-		gxm_statNoTex++;
-	} else if ( ntex >= 1 ) {
-		gxm_statTextured++;
+	const int wanted = ntex;
+	for ( int t = 0; t < ntex; t++ ) {
+		if ( gxm_boundTex[t] < 0 || !gxm_textures[ gxm_boundTex[t] ].valid ) {
+			ntex = t;	// an unbacked unit would sample garbage; drop it and any above
+			break;
+		}
+	}
+	if ( wanted >= 1 ) {
+		if ( ntex >= 1 ) {
+			gxm_statTextured++;
+		} else {
+			gxm_statNoTex++;
+		}
 	}
 
 	const int nuv  = ntex;
