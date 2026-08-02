@@ -7227,6 +7227,21 @@ void Item_Model_Paint(itemDef_t *item)
 	VectorCopy( refdef.vieworg, ent.lightingOrigin );
 	ent.renderfx = RF_LIGHTING_ORIGIN | RF_NOSHADOW;
 
+#ifdef VITA
+	// ui_modelDebug 1: one line per model item, to tell a missing handle from a
+	// scene that submits and draws nothing
+	if ( DC->getCVarValue( "ui_modelDebug" ) != 0.0f ) {
+		static int lastPrint = 0;
+		if ( DC->realTime - lastPrint > 1000 ) {
+			lastPrint = DC->realTime;
+			Com_Printf( "uiModel: asset=%d rect %.0f,%.0f %.0fx%.0f refdef %d,%d %dx%d org %.1f %.1f %.1f\n",
+				item->asset, item->window.rect.x, item->window.rect.y,
+				item->window.rect.w, item->window.rect.h,
+				refdef.x, refdef.y, refdef.width, refdef.height,
+				origin[0], origin[1], origin[2] );
+		}
+	}
+#endif
 	DC->addRefEntityToScene( &ent );
 	DC->renderScene( &refdef );
 #else
