@@ -414,6 +414,7 @@ static void DrawSkySideGxm( struct image_s *image, const int mins[2], const int 
 	}
 
 	GL_Bind( image );
+	GXM_SetTexUnitCount( 1 );
 	GXM_SetVertexArrays( &verts[0][0], &uv[0][0], NULL, (const unsigned char *)colors );
 	GXM_SetStateBits( glState.glStateBits );
 	GXM_DrawTess( ni, idx, nv );

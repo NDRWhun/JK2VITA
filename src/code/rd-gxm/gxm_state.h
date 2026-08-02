@@ -56,8 +56,8 @@ typedef struct {
 	bool			wireframe;
 } gxmDepthState_t;
 
-// split a GLS_ mask; returns false if the mask contains a bit with no GXM equivalent
-bool GXM_TranslateState( unsigned int stateBits, gxmProgramKey_t *key, gxmDepthState_t *depth );
+// split a GLS_ mask into the program half and the context half
+void GXM_TranslateState( unsigned int stateBits, gxmProgramKey_t *key, gxmDepthState_t *depth );
 
 // apply the context half; the program half is resolved by the draw path
 void GXM_ApplyDepthState( const gxmDepthState_t *depth );

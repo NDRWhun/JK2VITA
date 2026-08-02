@@ -104,7 +104,7 @@ static gxmAlphaTest_t AlphaTest( unsigned int bits )
 	}
 }
 
-bool GXM_TranslateState( unsigned int stateBits, gxmProgramKey_t *key, gxmDepthState_t *depth )
+void GXM_TranslateState( unsigned int stateBits, gxmProgramKey_t *key, gxmDepthState_t *depth )
 {
 	memset( key, 0, sizeof(*key) );
 
@@ -135,7 +135,6 @@ bool GXM_TranslateState( unsigned int stateBits, gxmProgramKey_t *key, gxmDepthS
 
 	// TRIANGLE_LINE shades triangle edges only, which is what glPolygonMode(GL_LINE) does
 	depth->wireframe = ( stateBits & GLS_POLYMODE_LINE ) != 0;
-	return true;
 }
 
 void GXM_ApplyDepthState( const gxmDepthState_t *depth )
@@ -160,7 +159,7 @@ unsigned int GXM_ProgramKeyHash( const gxmProgramKey_t *key )
 		return (unsigned int)key->alphaTest;	// slot 0..4 are the unblended variants
 	}
 
-	// factors are 0..10, so four of them plus the alpha test pack into 24 bits
+	// factors are 0..11, so four of them plus the alpha test pack into 23 bits
 	unsigned int h = 5;
 	h += (unsigned int)key->blend.colorSrc;
 	h |= (unsigned int)key->blend.colorDst << 5;

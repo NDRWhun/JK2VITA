@@ -508,6 +508,13 @@ static SceGxmFragmentProgram *ResolveFragment( int ntex, int env, int vcol, int 
 
 void GXM_DrawTess( int numIndexes, const unsigned short *indexes, int numVertexes )
 {
+	// the override usually points at caller stack, so it is taken and cleared
+	// before any early return can leave it dangling for the next draw
+	const float *ovXyz = gxm_ovXyz, *ovUv0 = gxm_ovUv0, *ovUv1 = gxm_ovUv1;
+	const unsigned char *ovRgba = gxm_ovRgba;
+	gxm_ovXyz = gxm_ovUv0 = gxm_ovUv1 = NULL;
+	gxm_ovRgba = NULL;
+
 	if ( !gxm_backendOk || numIndexes <= 0 || numVertexes <= 0 ) {
 		return;
 	}
@@ -515,20 +522,16 @@ void GXM_DrawTess( int numIndexes, const unsigned short *indexes, int numVertexe
 	const float *xyz = NULL, *uv0 = NULL, *uv1 = NULL;
 	const unsigned char *rgba = NULL;
 	GXM_GetTessArrays( &xyz, &uv0, &uv1, &rgba );
-	if ( gxm_ovXyz ) {
-		xyz = gxm_ovXyz; uv0 = gxm_ovUv0; uv1 = gxm_ovUv1; rgba = gxm_ovRgba;
+	if ( ovXyz ) {
+		xyz = ovXyz; uv0 = ovUv0; uv1 = ovUv1; rgba = ovRgba;
 	}
-	gxm_ovXyz = gxm_ovUv0 = gxm_ovUv1 = NULL;
-	gxm_ovRgba = NULL;
 	if ( !xyz ) {
 		return;
 	}
 
 	gxmProgramKey_t key;
 	gxmDepthState_t depth;
-	if ( !GXM_TranslateState( gxm_stateBits, &key, &depth ) ) {
-		return;	// wireframe and other modes with no GXM expression
-	}
+	GXM_TranslateState( gxm_stateBits, &key, &depth );
 
 	int ntex = gxm_texUnits;
 	if ( ntex > 2 ) ntex = 2;
@@ -591,7 +594,9 @@ void GXM_DrawTess( int numIndexes, const unsigned short *indexes, int numVertexe
 		gxm_curFragProg = frag;
 		progChanged = true;
 	}
-	if ( !gxm_depthKnown || memcmp( &gxm_curDepth, &depth, sizeof(depth) ) != 0 ) {
+	if ( !gxm_depthKnown || gxm_curDepth.depthFunc != depth.depthFunc
+		|| gxm_curDepth.depthWrite != depth.depthWrite
+		|| gxm_curDepth.wireframe != depth.wireframe ) {
 		GXM_ApplyDepthState( &depth );
 		gxm_curDepth  = depth;
 		gxm_depthKnown = true;
@@ -642,15 +647,16 @@ Draws resident vertices, so only the indices go through the ring.
 void GXM_DrawStaticBuffer( const void *vertexBuffer, const unsigned short *indexes,
 						   int numIndexes )
 {
+	gxm_ovXyz = gxm_ovUv0 = gxm_ovUv1 = NULL;
+	gxm_ovRgba = NULL;
+
 	if ( !gxm_backendOk || !vertexBuffer || numIndexes <= 0 ) {
 		return;
 	}
 
 	gxmProgramKey_t key;
 	gxmDepthState_t depth;
-	if ( !GXM_TranslateState( gxm_stateBits, &key, &depth ) ) {
-		return;
-	}
+	GXM_TranslateState( gxm_stateBits, &key, &depth );
 
 	int ntex = gxm_texUnits;
 	if ( ntex > 2 ) ntex = 2;
@@ -696,7 +702,9 @@ void GXM_DrawStaticBuffer( const void *vertexBuffer, const unsigned short *index
 		gxm_curFragProg = frag;
 		progChanged = true;
 	}
-	if ( !gxm_depthKnown || memcmp( &gxm_curDepth, &depth, sizeof(depth) ) != 0 ) {
+	if ( !gxm_depthKnown || gxm_curDepth.depthFunc != depth.depthFunc
+		|| gxm_curDepth.depthWrite != depth.depthWrite
+		|| gxm_curDepth.wireframe != depth.wireframe ) {
 		GXM_ApplyDepthState( &depth );
 		gxm_curDepth  = depth;
 		gxm_depthKnown = true;
