@@ -26,6 +26,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "sys/sys_local.h"
 #include "sdl_icon.h"
 #ifdef USE_GXM_NATIVE
+#include <psp2/libime.h>
 #include <psp2/sysmodule.h>
 #include "../../code/rd-gxm/gxm_device.h"
 #include "../../code/rd-gxm/gxm_texture.h"
@@ -151,6 +152,12 @@ void GLimp_Minimize(void)
 void WIN_Present( window_t *window )
 {
 #ifdef USE_GXM_NATIVE
+	// the IME draws and reads input only while this is pumped, and SDL only did it
+	// from the GL swap this path replaces
+	if ( SDL_IsScreenKeyboardShown( screen ) ) {
+		sceImeUpdate();
+	}
+
 	// end the frame's scene, queue the flip, and open the next one so the
 	// renderer always has a scene to draw into
 	GXM_EndFrame();
