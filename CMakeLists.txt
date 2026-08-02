@@ -125,6 +125,13 @@ set(GXM_SOURCES
   ${CMAKE_SOURCE_DIR}/src/code/rd-vanilla/tr_gxm_bridge.cpp
 )
 
+set(GXM_SOURCES_NOBRIDGE
+  ${CMAKE_SOURCE_DIR}/src/code/rd-gxm/gxm_device.cpp
+  ${CMAKE_SOURCE_DIR}/src/code/rd-gxm/gxm_texture.cpp
+  ${CMAKE_SOURCE_DIR}/src/code/rd-gxm/gxm_state.cpp
+  ${CMAKE_SOURCE_DIR}/src/code/rd-gxm/gxm_backend.cpp
+)
+
 add_executable(${GAME_TARGET}.elf ${JK2_SOURCES} ${GXM_SOURCES})
 target_compile_definitions(${GAME_TARGET}.elf PRIVATE USE_GXM_NATIVE)
 
@@ -170,7 +177,7 @@ target_link_libraries(${GAME_TARGET}.elf
 # Separate ELF/SELF (its own vitaGL context) bundled into the same VPK as
 # companion.bin; the engine eboot sceAppMgrLoadExec's it when launched with -config.
 #----------------------------------------------------------------------------
-add_executable(companion.elf ${CMAKE_SOURCE_DIR}/src/vita/companion_main.cpp)
+add_executable(companion.elf ${CMAKE_SOURCE_DIR}/src/vita/companion_main.cpp ${GXM_SOURCES_NOBRIDGE})
 target_link_libraries(companion.elf
   mathneon
   stdc++

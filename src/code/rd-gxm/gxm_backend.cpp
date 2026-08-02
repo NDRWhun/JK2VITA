@@ -35,9 +35,14 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include <psp2/io/fcntl.h>
 #include <psp2/io/stat.h>
 
-// supplied by tr_gxm_bridge.cpp, where tess is visible
-extern "C" void GXM_GetTessArrays( const float **xyz, const float **uv0,
-								   const float **uv1, const unsigned char **rgba );
+// tess belongs to the renderer, so the owner installs an accessor; a client that
+// only ever draws from explicit arrays does not need one
+static gxmTessArraysFn_t gxm_tessArrays;
+
+void GXM_SetTessArraysHook( gxmTessArraysFn_t fn )
+{
+	gxm_tessArrays = fn;
+}
 
 // keyed by live texture, not by texnum: the engine's texnums start at 2048 and
 // climb without reuse, so any fixed ceiling is only a question of when
@@ -622,7 +627,9 @@ void GXM_DrawTess( int numIndexes, const unsigned short *indexes, int numVertexe
 
 	const float *xyz = NULL, *uv0 = NULL, *uv1 = NULL;
 	const unsigned char *rgba = NULL;
-	GXM_GetTessArrays( &xyz, &uv0, &uv1, &rgba );
+	if ( gxm_tessArrays ) {
+		gxm_tessArrays( &xyz, &uv0, &uv1, &rgba );
+	}
 	if ( ovXyz ) {
 		xyz = ovXyz; uv0 = ovUv0; uv1 = ovUv1; rgba = ovRgba;
 	}

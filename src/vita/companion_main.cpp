@@ -25,12 +25,12 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
  * JK2VITA - standalone config companion app.
  *
  * Its own Vita eboot, launched from a separate LiveArea entry. Draws a settings
- * menu with vitaGL immediate-mode 2D (no SDL/ImGui/vita2d), edits our Vita cvars
+ * menu drawn on GXM (no SDL/ImGui/vita2d), edits our Vita cvars
  * with the pad, patches them into the game cfg, then sceAppMgrLoadExec's the game.
- * Only vitaGL + psp2 SDK + newlib stdio, nothing else.
+ * Only rd-gxm + psp2 SDK + newlib stdio, nothing else.
  */
 
-#include <vitaGL.h>
+#include "companion_gl.h"
 
 #include <psp2/ctrl.h>
 #include <psp2/appmgr.h>
@@ -665,7 +665,7 @@ static void renderMenu(int selected)
 	drawText(40.0f, 500.0f, 2.0f, 0.70f, 0.75f, 0.85f,
 		"D-pad: navigate / change    X: Save & Play    O: Play    /\\: Reset");
 
-	vglSwapBuffers(GL_FALSE);
+	cgl_Swap();
 }
 
 /* ------------------------------------------------------------------------- */
@@ -677,8 +677,8 @@ int main(int argc, char *argv[])
 	(void)argc;
 	(void)argv;
 
-	/* vitaGL: 2MB legacy pool for immediate-mode 2D, no MSAA. */
-	vglInitExtended(0x200000, SCR_W, SCR_H, 0x1000000, SCE_GXM_MULTISAMPLE_NONE);
+	if (!cgl_Init(SCR_W, SCR_H))
+		return -1;
 
 	buildFontTexture();
 

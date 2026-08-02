@@ -34,6 +34,11 @@ extern "C" {
 #define GXM_TEXENV_MODULATE		0
 #define GXM_TEXENV_ADD			1
 
+// how the owner exposes tess; unset means draws must supply their own arrays
+typedef void (*gxmTessArraysFn_t)( const float **xyz, const float **uv0,
+								   const float **uv1, const unsigned char **rgba );
+void GXM_SetTessArraysHook( gxmTessArraysFn_t fn );
+
 // programs, caches and the texture table; after GXM_DeviceInit
 int  GXM_BackendInit( void );
 void GXM_BackendShutdown( void );

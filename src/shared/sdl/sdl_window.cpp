@@ -31,6 +31,9 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "../../code/rd-gxm/gxm_device.h"
 #include "../../code/rd-gxm/gxm_texture.h"
 #include "../../code/rd-gxm/gxm_backend.h"
+// supplied by tr_gxm_bridge.cpp, which is where tess is visible
+extern "C" void GXM_GetTessArrays( const float **xyz, const float **uv0,
+								   const float **uv1, const unsigned char **rgba );
 #endif
 
 enum rserr_t
@@ -925,6 +928,7 @@ void WIN_LoadGL( void )
 	{
 		Com_Error( ERR_FATAL, "WIN_LoadGL: native GXM device init failed" );
 	}
+	GXM_SetTessArraysHook( GXM_GetTessArrays );
 #else
 	if ( SDL_GL_LoadLibrary( NULL ) < 0 )
 	{
