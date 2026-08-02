@@ -94,7 +94,7 @@ void GXM_DrawTess( int numIndexes, const unsigned short *indexes, int numVertexe
 // draw from a vertex buffer that already lives in GPU memory, laid out as
 // xyz(12) uv0(8) uv1(8) rgba(4); only the indices pass through the ring
 void GXM_DrawStaticBuffer( const void *vertexBuffer, const unsigned short *indexes,
-						   int numIndexes );
+						   int numIndexes, int vertexColor );
 
 #ifdef __cplusplus
 }

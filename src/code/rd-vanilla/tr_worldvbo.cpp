@@ -128,15 +128,31 @@ static qboolean R_WorldVBO_ShaderEligible( const shader_t *shader )
 	if ( shader->numUnfoggedPasses != 1 ) {
 		return qfalse;
 	}
-	if ( shader->lightmapIndex[0] < 0 ) {
-		return qfalse;					// vertex-lit colours fold animating light styles
+	const qboolean vertexLit = (qboolean)( shader->lightmapIndex[0] == LIGHTMAP_BY_VERTEX );
+	if ( shader->lightmapIndex[0] < 0 && !vertexLit ) {
+		return qfalse;
+	}
+	if ( vertexLit ) {
+		// an animating style rewrites the colour every frame
+		if ( shader->styles[0] != LS_NORMAL ) {
+			return qfalse;
+		}
+		for ( int i = 1; i < MAXLIGHTMAPS; i++ ) {
+			if ( shader->styles[i] != LS_UNUSED && shader->styles[i] != LS_NONE ) {
+				return qfalse;
+			}
+		}
 	}
 
 	const shaderStage_t *st = &shader->stages[0];
 	if ( !st->active ) {
 		return qfalse;
 	}
-	if ( st->rgbGen != CGEN_IDENTITY && st->rgbGen != CGEN_IDENTITY_LIGHTING ) {
+	if ( vertexLit ) {
+		if ( st->rgbGen != CGEN_EXACT_VERTEX && st->rgbGen != CGEN_VERTEX ) {
+			return qfalse;
+		}
+	} else if ( st->rgbGen != CGEN_IDENTITY && st->rgbGen != CGEN_IDENTITY_LIGHTING ) {
 		return qfalse;					// only the constant-colour cases need no array
 	}
 	// ParseStage rewrites identity to skip on script-authored stages
@@ -145,6 +161,9 @@ static qboolean R_WorldVBO_ShaderEligible( const shader_t *shader )
 	}
 	if ( st->bundle[0].tcGen != TCGEN_TEXTURE || st->bundle[0].numTexMods ) {
 		return qfalse;
+	}
+	if ( vertexLit ) {
+		return (qboolean)( st->bundle[1].image == NULL );	// one pass, one texture
 	}
 	if ( !st->bundle[1].image || st->bundle[1].tcGen != TCGEN_LIGHTMAP || st->bundle[1].numTexMods ) {
 		return qfalse;					// the collapsed diffuse+lightmap pass
@@ -370,18 +389,22 @@ void R_WorldVBO_Flush( shader_t *shader )
 	GL_Cull( shader->cullType );
 
 #ifdef USE_GXM_NATIVE
+	const qboolean vertexLit = (qboolean)( shader->lightmapIndex[0] == LIGHTMAP_BY_VERTEX );
+
 	GL_SelectTexture( 0 );
 	R_BindAnimatedImage( &st->bundle[0] );
-	GL_SelectTexture( 1 );
-	GL_TexEnv( r_lightmap->integer ? GL_REPLACE : shader->multitextureEnv );
-	R_BindAnimatedImage( &st->bundle[1] );
+	if ( !vertexLit ) {
+		GL_SelectTexture( 1 );
+		GL_TexEnv( r_lightmap->integer ? GL_REPLACE : shader->multitextureEnv );
+		R_BindAnimatedImage( &st->bundle[1] );
+	}
 
-	// the gate only lets constant-colour stages through, so the tint is a uniform
-	const float lit = ( st->rgbGen == CGEN_IDENTITY_LIGHTING ) ? tr.identityLight : 1.0f;
+	const float lit = ( st->rgbGen == CGEN_IDENTITY_LIGHTING || st->rgbGen == CGEN_VERTEX )
+					  ? tr.identityLight : 1.0f;
 	GXM_SetConstantColor( lit, lit, lit, 1.0f );
-	GXM_SetTexUnitCount( 2 );
+	GXM_SetTexUnitCount( vertexLit ? 1 : 2 );
 	GXM_SetStateBits( glState.glStateBits );
-	GXM_DrawStaticBuffer( wvbo_groups[wvbo_curGroup].data, wvbo_idx, wvbo_numIdx );
+	GXM_DrawStaticBuffer( wvbo_groups[wvbo_curGroup].data, wvbo_idx, wvbo_numIdx, vertexLit );
 	GXM_SetTexUnitCount( 1 );
 	GXM_SetConstantColor( 1.0f, 1.0f, 1.0f, 1.0f );
 

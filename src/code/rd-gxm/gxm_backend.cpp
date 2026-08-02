@@ -774,7 +774,7 @@ Draws resident vertices, so only the indices go through the ring.
 ================
 */
 void GXM_DrawStaticBuffer( const void *vertexBuffer, const unsigned short *indexes,
-						   int numIndexes )
+						   int numIndexes, int vertexColor )
 {
 	gxm_ovXyz = gxm_ovUv0 = gxm_ovUv1 = NULL;
 	gxm_ovRgba = NULL;
@@ -797,10 +797,11 @@ void GXM_DrawStaticBuffer( const void *vertexBuffer, const unsigned short *index
 		}
 	}
 
-	// the batch gate admits only constant-colour stages, so the tint is a uniform
+	// a lightmapped batch tints from a uniform; a vertex-lit one reads the stream
+	const int vcol = ( vertexColor && gxm_vertexColor ) ? 1 : 0;
 	const int env = ( ntex >= 2 ) ? gxm_texEnv : 0;
 	const int fog = gxm_fogOn ? 1 : 0;
-	SceGxmFragmentProgram *frag = ResolveFragment( ntex, env, 0, fog, &key );
+	SceGxmFragmentProgram *frag = ResolveFragment( ntex, env, vcol, fog, &key );
 	if ( !frag ) {
 		return;
 	}
@@ -819,7 +820,7 @@ void GXM_DrawStaticBuffer( const void *vertexBuffer, const unsigned short *index
 		gxm_uniformsDirty = true;
 	}
 
-	SceGxmVertexProgram *vp = gxm_vertProgs[ntex][0][fog];
+	SceGxmVertexProgram *vp = gxm_vertProgs[ntex][vcol][fog];
 	bool progChanged = false;
 	if ( gxm_curVertProg != vp ) {
 		sceGxmSetVertexProgram( GXM_Context(), vp );
@@ -845,9 +846,9 @@ void GXM_DrawStaticBuffer( const void *vertexBuffer, const unsigned short *index
 		void *uniforms = NULL;
 		sceGxmReserveVertexDefaultUniformBuffer( GXM_Context(), &uniforms );
 		if ( uniforms ) {
-			const SceGxmProgramParameter *pm = gxm_pMVP[ntex][0][fog];
-			const SceGxmProgramParameter *pc = gxm_pColor[ntex][0][fog];
-			const SceGxmProgramParameter *pf = gxm_pFogParams[ntex][0][fog];
+			const SceGxmProgramParameter *pm = gxm_pMVP[ntex][vcol][fog];
+			const SceGxmProgramParameter *pc = gxm_pColor[ntex][vcol][fog];
+			const SceGxmProgramParameter *pf = gxm_pFogParams[ntex][vcol][fog];
 			if ( pm ) sceGxmSetUniformDataF( uniforms, pm, 0, 16, gxm_mvp );
 			if ( pc ) sceGxmSetUniformDataF( uniforms, pc, 0, 4, gxm_constColor );
 			if ( pf ) sceGxmSetUniformDataF( uniforms, pf, 0, 4, gxm_fogParams );
