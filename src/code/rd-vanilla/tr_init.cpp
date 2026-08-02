@@ -1758,7 +1758,7 @@ void R_Register( void )
 	r_dropTexturesOnLoad = ri.Cvar_Get( "r_dropTexturesOnLoad", "1", CVAR_ARCHIVE );
 	r_worldVBO = ri.Cvar_Get( "r_worldVBO", "1", CVAR_ARCHIVE | CVAR_LATCH );
 #ifdef USE_GXM_NATIVE
-	r_gxmStats = ri.Cvar_Get( "r_gxmStats", "120", CVAR_ARCHIVE );	// frames per stat line
+	r_gxmStats = ri.Cvar_Get( "r_gxmStats", "0", CVAR_ARCHIVE );	// frames per stat line, 0 = off
 	r_gxmCullFlip = ri.Cvar_Get( "r_gxmCullFlip", "1", CVAR_ARCHIVE );
 #endif
 #endif

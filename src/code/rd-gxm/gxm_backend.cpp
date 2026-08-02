@@ -973,9 +973,11 @@ void GXM_ImmEnd( void )
 // the engine log is not flushed on an abrupt exit, so stats get their own file
 void GXM_LogStatsLine( const char *line )
 {
+	static int opened;	// one run per file, or it grows without bound
 	sceIoMkdir( "ux0:data/JK2VITA", 0777 );
 	SceUID f = sceIoOpen( "ux0:data/JK2VITA/gxm_stats.log",
-		SCE_O_WRONLY | SCE_O_CREAT | SCE_O_APPEND, 0777 );
+		SCE_O_WRONLY | SCE_O_CREAT | ( opened ? SCE_O_APPEND : SCE_O_TRUNC ), 0777 );
+	opened = 1;
 	if ( f >= 0 ) {
 		sceIoWrite( f, line, strlen( line ) );
 		sceIoClose( f );
