@@ -76,6 +76,10 @@ static int			gxm_texUnits = 1;
 static int			gxm_vertexColor = 1;
 static int			gxm_texEnv = GXM_TEXENV_MODULATE;
 static int			gxm_cullFlip;
+
+// a pass that stages its own de-indexed arrays draws from these instead of tess
+static const float			*gxm_ovXyz, *gxm_ovUv0, *gxm_ovUv1;
+static const unsigned char	*gxm_ovRgba;
 static float		gxm_constColor[4] = { 1, 1, 1, 1 };
 static bool			gxm_backendOk;
 
@@ -339,6 +343,13 @@ void GXM_SetTexUnitCount( int count )			{ gxm_texUnits = count; }
 void GXM_SetVertexColorEnabled( int enabled )	{ gxm_vertexColor = enabled; }
 void GXM_SetTexEnv( int env )					{ gxm_texEnv = env; }
 
+// xyz is 4 floats per vertex, uv 2, rgba 4 bytes; cleared by the next draw
+void GXM_SetVertexArrays( const float *xyz, const float *uv0, const float *uv1,
+						  const unsigned char *rgba )
+{
+	gxm_ovXyz = xyz; gxm_ovUv0 = uv0; gxm_ovUv1 = uv1; gxm_ovRgba = rgba;
+}
+
 /*
 ================
 GXM_SetDepthBias
@@ -480,6 +491,11 @@ void GXM_DrawTess( int numIndexes, const unsigned short *indexes, int numVertexe
 	const float *xyz = NULL, *uv0 = NULL, *uv1 = NULL;
 	const unsigned char *rgba = NULL;
 	GXM_GetTessArrays( &xyz, &uv0, &uv1, &rgba );
+	if ( gxm_ovXyz ) {
+		xyz = gxm_ovXyz; uv0 = gxm_ovUv0; uv1 = gxm_ovUv1; rgba = gxm_ovRgba;
+	}
+	gxm_ovXyz = gxm_ovUv0 = gxm_ovUv1 = NULL;
+	gxm_ovRgba = NULL;
 	if ( !xyz ) {
 		return;
 	}

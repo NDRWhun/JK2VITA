@@ -56,6 +56,9 @@ void GXM_SetStateBits( unsigned int stateBits );
 void GXM_SetTexUnitCount( int count );
 void GXM_SetVertexColorEnabled( int enabled );
 void GXM_SetTexEnv( int env );				// GXM_TEXENV_*
+// draw the next tess from these arrays rather than tess itself
+void GXM_SetVertexArrays( const float *xyz, const float *uv0, const float *uv1,
+						  const unsigned char *rgba );
 void GXM_SetConstantColor( float r, float g, float b, float a );
 void GXM_SetCull( int glCullMode, int enabled );
 void GXM_SetCullFlip( int flip );	// r_gxmCullFlip: invert the winding mapping
