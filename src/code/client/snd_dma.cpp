@@ -551,10 +551,10 @@ static void S_AsyncLoad_Init( void )
 // qfalse = caller should load synchronously (async off / full / unavailable).
 static qboolean S_AsyncLoad_Enqueue( sfx_t *sfx )
 {
+	if ( sfx->bAsyncLoading )
+		return qtrue;	// already in flight, whatever the cvar says now
 	if ( !s_asyncLoad || !s_asyncLoad->integer || s_asyncThread < 0 )
 		return qfalse;
-	if ( sfx->bAsyncLoading )
-		return qtrue;	// already in flight
 	if ( s_asyncOutstanding >= ASYNC_SND_CAP )
 		return qfalse;
 
@@ -592,9 +592,8 @@ static void S_AsyncLoad_Poll( void )
 		s_asyncDoneTail = (s_asyncDoneTail + 1) % ASYNC_SND_QUEUE;
 		sceKernelUnlockMutex( s_asyncMutex, 1 );
 
-		if ( !job.ok || !S_LoadSound_Finish( job.sfx, job.sLoadName, job.data, job.size, qtrue ) )
-			job.sfx->bDefaultSound = true;
-		job.sfx->bInMemory     = true;
+		job.sfx->bInMemory = ( job.ok
+			&& S_LoadSound_Finish( job.sfx, job.sLoadName, job.data, job.size, qtrue ) );
 		job.sfx->bAsyncLoading = qfalse;
 		s_asyncOutstanding--;
 	}
