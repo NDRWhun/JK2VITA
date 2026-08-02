@@ -22,7 +22,8 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 */
 
 // gxm_backend.cpp -- the renderer's draw path on sceGxm.
-// GXM reads draw data at end-of-scene, so every draw copies into the frame ring.
+// A draw may start as soon as sceGxmDraw returns, so its data is complete before
+// the call and stays untouched in the frame ring until the fence retires it.
 
 #include "gxm_backend.h"
 #include "gxm_device.h"
@@ -178,6 +179,7 @@ static const SceGxmTexture		*gxm_curTex[2];
 static gxmDepthState_t			gxm_curDepth;
 static bool						gxm_depthKnown;
 static bool						gxm_uniformsDirty = true;
+static bool						gxm_fragUniformsDirty = true;
 
 // what the backend actually did this run, reported by r_gxmStats
 static int	gxm_statUploads, gxm_statDraws, gxm_statTextured, gxm_statNoTex, gxm_statRingFail;
@@ -333,6 +335,7 @@ void GXM_InvalidateStateShadow( void )
 	gxm_curTex[0] = gxm_curTex[1] = NULL;
 	gxm_depthKnown = false;
 	gxm_uniformsDirty = true;
+	gxm_fragUniformsDirty = true;
 }
 
 void GXM_BackendShutdown( void )
@@ -473,6 +476,7 @@ void GXM_SetFog( int enabled, float start, float end, const float *color )
 	if ( color ) {
 		gxm_fogColor[0] = color[0]; gxm_fogColor[1] = color[1];
 		gxm_fogColor[2] = color[2]; gxm_fogColor[3] = 1.0f;
+		gxm_fragUniformsDirty = true;
 	}
 	gxm_uniformsDirty = true;
 }
@@ -710,10 +714,11 @@ void GXM_DrawTess( int numIndexes, const unsigned short *indexes, int numVertexe
 		gxm_curVertProg = vp;
 		progChanged = true;
 	}
+	bool fragProgChanged = false;
 	if ( gxm_curFragProg != frag ) {
 		sceGxmSetFragmentProgram( GXM_Context(), frag );
 		gxm_curFragProg = frag;
-		progChanged = true;
+		fragProgChanged = true;
 	}
 	if ( !gxm_depthKnown || gxm_curDepth.depthFunc != depth.depthFunc
 		|| gxm_curDepth.depthWrite != depth.depthWrite
@@ -746,11 +751,14 @@ void GXM_DrawTess( int numIndexes, const unsigned short *indexes, int numVertexe
 		}
 	}
 
-	if ( fog ) {
+	if ( fog && ( fragProgChanged || gxm_fragUniformsDirty ) ) {
 		void *funi = NULL;
 		sceGxmReserveFragmentDefaultUniformBuffer( GXM_Context(), &funi );
 		const SceGxmProgramParameter *pfc = gxm_pFogColor[ntex][env][key.alphaTest][fog];
-		if ( funi && pfc ) sceGxmSetUniformDataF( funi, pfc, 0, 4, gxm_fogColor );
+		if ( funi && pfc ) {
+			sceGxmSetUniformDataF( funi, pfc, 0, 4, gxm_fogColor );
+			gxm_fragUniformsDirty = false;
+		}
 	}
 
 	sceGxmSetVertexStream( GXM_Context(), 0, v );
@@ -818,10 +826,11 @@ void GXM_DrawStaticBuffer( const void *vertexBuffer, const unsigned short *index
 		gxm_curVertProg = vp;
 		progChanged = true;
 	}
+	bool fragProgChanged = false;
 	if ( gxm_curFragProg != frag ) {
 		sceGxmSetFragmentProgram( GXM_Context(), frag );
 		gxm_curFragProg = frag;
-		progChanged = true;
+		fragProgChanged = true;
 	}
 	if ( !gxm_depthKnown || gxm_curDepth.depthFunc != depth.depthFunc
 		|| gxm_curDepth.depthWrite != depth.depthWrite
@@ -855,11 +864,14 @@ void GXM_DrawStaticBuffer( const void *vertexBuffer, const unsigned short *index
 	}
 
 	gxm_statDraws++;
-	if ( fog ) {
+	if ( fog && ( fragProgChanged || gxm_fragUniformsDirty ) ) {
 		void *funi = NULL;
 		sceGxmReserveFragmentDefaultUniformBuffer( GXM_Context(), &funi );
 		const SceGxmProgramParameter *pfc = gxm_pFogColor[ntex][env][key.alphaTest][fog];
-		if ( funi && pfc ) sceGxmSetUniformDataF( funi, pfc, 0, 4, gxm_fogColor );
+		if ( funi && pfc ) {
+			sceGxmSetUniformDataF( funi, pfc, 0, 4, gxm_fogColor );
+			gxm_fragUniformsDirty = false;
+		}
 	}
 
 	sceGxmSetVertexStream( GXM_Context(), 0, vertexBuffer );
