@@ -26,6 +26,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "sys/sys_local.h"
 #include "sdl_icon.h"
 #ifdef USE_GXM_NATIVE
+#include <psp2/sysmodule.h>
 #include "../../code/rd-gxm/gxm_device.h"
 #include "../../code/rd-gxm/gxm_texture.h"
 #include "../../code/rd-gxm/gxm_backend.h"
@@ -929,6 +930,9 @@ so the GXM context is owned here
 void WIN_LoadGL( void )
 {
 #ifdef USE_GXM_NATIVE
+	// SDL loads this only from its vitaGL path, which a native device never takes;
+	// without it every sceIme import resolves to zero and the console keyboard faults
+	sceSysmoduleLoadModule( SCE_SYSMODULE_IME );
 	if ( !GXM_DeviceInit() || !GXM_RingInit( 4 * 1024 * 1024 ) || !GXM_BackendInit() )
 	{
 		Com_Error( ERR_FATAL, "WIN_LoadGL: native GXM device init failed" );
