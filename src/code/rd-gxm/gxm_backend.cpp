@@ -1031,5 +1031,7 @@ void GXM_ReportStats( char *out, int outSize )
 		gxm_statDraws, gxm_statTextured, gxm_statNoTex,
 		gxm_statRingFail, GXM_RingUsedLastFrame() / 1024, GXM_RingBytesPerFrame() / 1024 );
 
+	gxm_statDraws = gxm_statTextured = gxm_statNoTex = gxm_statRingFail = 0;
+
 	GXM_LogStatsLine( out );
 }
