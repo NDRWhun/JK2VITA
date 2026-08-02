@@ -864,6 +864,7 @@ static int				gxm_immCount;
 static unsigned int		gxm_immMode;
 static bool				gxm_immActive;
 static float			gxm_immCurUv[2];
+static int				gxm_immSavedUnits = 1;
 static unsigned char	gxm_immCurRgba[4] = { 255, 255, 255, 255 };
 
 void GXM_ImmBegin( unsigned int glMode )
@@ -871,6 +872,11 @@ void GXM_ImmBegin( unsigned int glMode )
 	gxm_immMode   = glMode;
 	gxm_immCount  = 0;
 	gxm_immActive = true;
+
+	// these blocks are single-textured; inheriting a second unit from the last
+	// stage is how the vitaGL build lost its weather particles
+	gxm_immSavedUnits = gxm_texUnits;
+	gxm_texUnits = 1;
 }
 
 void GXM_ImmTexCoord2f( float s, float t )
@@ -910,6 +916,7 @@ void GXM_ImmEnd( void )
 		return;
 	}
 	gxm_immActive = false;
+	gxm_texUnits  = gxm_immSavedUnits;
 
 	int ni = 0;
 	switch ( gxm_immMode ) {
