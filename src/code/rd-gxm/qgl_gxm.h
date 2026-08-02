@@ -26,382 +26,754 @@ void GXM_ImmEnd( void );
 }
 #endif
 
+#undef qglAccum
 #define qglAccum(...) ((void)0)
+#undef qglAlphaFunc
 #define qglAlphaFunc(...) ((void)0)
+#undef qglAreTexturesResident
 #define qglAreTexturesResident(...) ((void)0)
+#undef qglBegin
 #define qglBegin(m) GXM_ImmBegin((unsigned int)(m))
+#undef qglBindProgramARB
 #define qglBindProgramARB(...) ((void)0)
+#undef qglBindTexture
 #define qglBindTexture(...) ((void)0)
+#undef qglBitmap
 #define qglBitmap(...) ((void)0)
+#undef qglBlendFunc
 #define qglBlendFunc(...) ((void)0)
+#undef qglCallList
 #define qglCallList(...) ((void)0)
+#undef qglCallLists
 #define qglCallLists(...) ((void)0)
+#undef qglClear
 #define qglClear(mask) GXM_GlClear((unsigned int)(mask))
+#undef qglClearAccum
 #define qglClearAccum(...) ((void)0)
+#undef qglClearColor
 #define qglClearColor(r, g, b, a) GXM_SetClearColor((r), (g), (b), (a))
+#undef qglClearDepth
 #define qglClearDepth(...) ((void)0)
+#undef qglClearIndex
 #define qglClearIndex(...) ((void)0)
+#undef qglClearStencil
 #define qglClearStencil(...) ((void)0)
+#undef qglClipPlane
 #define qglClipPlane(...) ((void)0)
+#undef qglColor3b
 #define qglColor3b(...) ((void)0)
+#undef qglColor3bv
 #define qglColor3bv(...) ((void)0)
+#undef qglColor3d
 #define qglColor3d(...) ((void)0)
+#undef qglColor3dv
 #define qglColor3dv(...) ((void)0)
+#undef qglColor3f
 #define qglColor3f(r, g, b) GXM_ImmColor4f((r), (g), (b), 1.0f)
+#undef qglColor3fv
 #define qglColor3fv(...) ((void)0)
+#undef qglColor3i
 #define qglColor3i(...) ((void)0)
+#undef qglColor3iv
 #define qglColor3iv(...) ((void)0)
+#undef qglColor3s
 #define qglColor3s(...) ((void)0)
+#undef qglColor3sv
 #define qglColor3sv(...) ((void)0)
+#undef qglColor3ub
 #define qglColor3ub(...) ((void)0)
+#undef qglColor3ubv
 #define qglColor3ubv(...) ((void)0)
+#undef qglColor3ui
 #define qglColor3ui(...) ((void)0)
+#undef qglColor3uiv
 #define qglColor3uiv(...) ((void)0)
+#undef qglColor3us
 #define qglColor3us(...) ((void)0)
+#undef qglColor3usv
 #define qglColor3usv(...) ((void)0)
+#undef qglColor4b
 #define qglColor4b(...) ((void)0)
+#undef qglColor4bv
 #define qglColor4bv(...) ((void)0)
+#undef qglColor4d
 #define qglColor4d(...) ((void)0)
+#undef qglColor4dv
 #define qglColor4dv(...) ((void)0)
+#undef qglColor4f
 #define qglColor4f(r, g, b, a) GXM_ImmColor4f((r), (g), (b), (a))
+#undef qglColor4fv
 #define qglColor4fv(...) ((void)0)
+#undef qglColor4i
 #define qglColor4i(...) ((void)0)
+#undef qglColor4iv
 #define qglColor4iv(...) ((void)0)
+#undef qglColor4s
 #define qglColor4s(...) ((void)0)
+#undef qglColor4sv
 #define qglColor4sv(...) ((void)0)
+#undef qglColor4ub
 #define qglColor4ub(...) ((void)0)
+#undef qglColor4ubv
 #define qglColor4ubv(v) GXM_ImmColor4ubv((const unsigned char *)(v))
+#undef qglColor4ui
 #define qglColor4ui(...) ((void)0)
+#undef qglColor4uiv
 #define qglColor4uiv(...) ((void)0)
+#undef qglColor4us
 #define qglColor4us(...) ((void)0)
+#undef qglColor4usv
 #define qglColor4usv(...) ((void)0)
+#undef qglColorMask
 #define qglColorMask(...) ((void)0)
+#undef qglColorMaterial
 #define qglColorMaterial(...) ((void)0)
+#undef qglColorPointer
 #define qglColorPointer(...) ((void)0)
+#undef qglCombinerInputNV
 #define qglCombinerInputNV(...) ((void)0)
+#undef qglCombinerOutputNV
 #define qglCombinerOutputNV(...) ((void)0)
+#undef qglCombinerParameterfNV
 #define qglCombinerParameterfNV(...) ((void)0)
+#undef qglCombinerParameterfvNV
 #define qglCombinerParameterfvNV(...) ((void)0)
+#undef qglCombinerParameteriNV
 #define qglCombinerParameteriNV(...) ((void)0)
+#undef qglCombinerParameterivNV
 #define qglCombinerParameterivNV(...) ((void)0)
+#undef qglCompressedTexImage2D
 #define qglCompressedTexImage2D(...) ((void)0)
+#undef qglCopyPixels
 #define qglCopyPixels(...) ((void)0)
+#undef qglCopyTexImage1D
 #define qglCopyTexImage1D(...) ((void)0)
+#undef qglCopyTexImage2D
 #define qglCopyTexImage2D(...) ((void)0)
+#undef qglCopyTexSubImage1D
 #define qglCopyTexSubImage1D(...) ((void)0)
+#undef qglCopyTexSubImage2D
 #define qglCopyTexSubImage2D(...) ((void)0)
+#undef qglCullFace
 #define qglCullFace(...) ((void)0)
+#undef qglDeleteLists
 #define qglDeleteLists(...) ((void)0)
+#undef qglDeleteProgramsARB
 #define qglDeleteProgramsARB(...) ((void)0)
+#undef qglDeleteTextures
 #define qglDeleteTextures(...) ((void)0)
+#undef qglDepthFunc
 #define qglDepthFunc(...) ((void)0)
+#undef qglDepthMask
 #define qglDepthMask(...) ((void)0)
+#undef qglDepthRange
 #define qglDepthRange(n, f) GXM_SetDepthRange((float)(n), (float)(f))
+#undef qglDisable
 #define qglDisable(...) ((void)0)
+#undef qglDisableClientState
 #define qglDisableClientState(...) ((void)0)
+#undef qglDrawArrays
 #define qglDrawArrays(...) ((void)0)
+#undef qglDrawElements
 #define qglDrawElements(...) ((void)0)
+#undef qglDrawPixels
 #define qglDrawPixels(...) ((void)0)
+#undef qglDrawRangeElements
 #define qglDrawRangeElements(...) ((void)0)
+#undef qglEdgeFlag
 #define qglEdgeFlag(...) ((void)0)
+#undef qglEdgeFlagPointer
 #define qglEdgeFlagPointer(...) ((void)0)
+#undef qglEdgeFlagv
 #define qglEdgeFlagv(...) ((void)0)
+#undef qglEnable
 #define qglEnable(...) ((void)0)
+#undef qglEnableClientState
 #define qglEnableClientState(...) ((void)0)
+#undef qglEnd
 #define qglEnd() GXM_ImmEnd()
+#undef qglEndList
 #define qglEndList(...) ((void)0)
+#undef qglEvalCoord1d
 #define qglEvalCoord1d(...) ((void)0)
+#undef qglEvalCoord1dv
 #define qglEvalCoord1dv(...) ((void)0)
+#undef qglEvalCoord1f
 #define qglEvalCoord1f(...) ((void)0)
+#undef qglEvalCoord1fv
 #define qglEvalCoord1fv(...) ((void)0)
+#undef qglEvalCoord2d
 #define qglEvalCoord2d(...) ((void)0)
+#undef qglEvalCoord2dv
 #define qglEvalCoord2dv(...) ((void)0)
+#undef qglEvalCoord2f
 #define qglEvalCoord2f(...) ((void)0)
+#undef qglEvalCoord2fv
 #define qglEvalCoord2fv(...) ((void)0)
+#undef qglEvalMesh1
 #define qglEvalMesh1(...) ((void)0)
+#undef qglEvalMesh2
 #define qglEvalMesh2(...) ((void)0)
+#undef qglEvalPoint1
 #define qglEvalPoint1(...) ((void)0)
+#undef qglEvalPoint2
 #define qglEvalPoint2(...) ((void)0)
+#undef qglFeedbackBuffer
 #define qglFeedbackBuffer(...) ((void)0)
+#undef qglFinalCombinerInputNV
 #define qglFinalCombinerInputNV(...) ((void)0)
+#undef qglFinish
 #define qglFinish(...) ((void)0)
+#undef qglFlush
 #define qglFlush(...) ((void)0)
+#undef qglFogf
 #define qglFogf(...) ((void)0)
+#undef qglFogfv
 #define qglFogfv(...) ((void)0)
+#undef qglFogi
 #define qglFogi(...) ((void)0)
+#undef qglFogiv
 #define qglFogiv(...) ((void)0)
+#undef qglFrontFace
 #define qglFrontFace(...) ((void)0)
+#undef qglFrustum
 #define qglFrustum(...) ((void)0)
+#undef qglGenLists
 #define qglGenLists(...) (1)
+#undef qglGenProgramsARB
 #define qglGenProgramsARB(...) ((void)0)
+#undef qglGenTextures
 #define qglGenTextures(...) ((void)0)
+#undef qglGetBooleanv
 #define qglGetBooleanv(...) ((void)0)
+#undef qglGetClipPlane
 #define qglGetClipPlane(...) ((void)0)
+#undef qglGetCombinerInputParameterfvNV
 #define qglGetCombinerInputParameterfvNV(...) ((void)0)
+#undef qglGetCombinerInputParameterivNV
 #define qglGetCombinerInputParameterivNV(...) ((void)0)
+#undef qglGetCombinerOutputParameterfvNV
 #define qglGetCombinerOutputParameterfvNV(...) ((void)0)
+#undef qglGetCombinerOutputParameterivNV
 #define qglGetCombinerOutputParameterivNV(...) ((void)0)
+#undef qglGetDoublev
 #define qglGetDoublev(...) ((void)0)
+#undef qglGetError
 #define qglGetError(...) (0)
+#undef qglGetFinalCombinerInputParameterfvNV
 #define qglGetFinalCombinerInputParameterfvNV(...) ((void)0)
+#undef qglGetFinalCombinerInputParameterivNV
 #define qglGetFinalCombinerInputParameterivNV(...) ((void)0)
+#undef qglGetFloatv
 #define qglGetFloatv(p, v) GXM_GlGetFloatv((unsigned int)(p), (v))
+#undef qglGetIntegerv
 #define qglGetIntegerv(p, v) GXM_GlGetIntegerv((unsigned int)(p), (v))
+#undef qglGetLightfv
 #define qglGetLightfv(...) ((void)0)
+#undef qglGetLightiv
 #define qglGetLightiv(...) ((void)0)
+#undef qglGetMapdv
 #define qglGetMapdv(...) ((void)0)
+#undef qglGetMapfv
 #define qglGetMapfv(...) ((void)0)
+#undef qglGetMapiv
 #define qglGetMapiv(...) ((void)0)
+#undef qglGetMaterialfv
 #define qglGetMaterialfv(...) ((void)0)
+#undef qglGetMaterialiv
 #define qglGetMaterialiv(...) ((void)0)
+#undef qglGetPixelMapfv
 #define qglGetPixelMapfv(...) ((void)0)
+#undef qglGetPixelMapuiv
 #define qglGetPixelMapuiv(...) ((void)0)
+#undef qglGetPixelMapusv
 #define qglGetPixelMapusv(...) ((void)0)
+#undef qglGetPointerv
 #define qglGetPointerv(...) ((void)0)
+#undef qglGetPolygonStipple
 #define qglGetPolygonStipple(...) ((void)0)
+#undef qglGetProgramEnvParameterdvARB
 #define qglGetProgramEnvParameterdvARB(...) ((void)0)
+#undef qglGetProgramEnvParameterfvARB
 #define qglGetProgramEnvParameterfvARB(...) ((void)0)
+#undef qglGetProgramLocalParameterdvARB
 #define qglGetProgramLocalParameterdvARB(...) ((void)0)
+#undef qglGetProgramLocalParameterfvARB
 #define qglGetProgramLocalParameterfvARB(...) ((void)0)
+#undef qglGetProgramStringARB
 #define qglGetProgramStringARB(...) ((void)0)
+#undef qglGetProgramivARB
 #define qglGetProgramivARB(...) ((void)0)
+#undef qglGetString
 #define qglGetString(name) GXM_GlGetString(name)
+#undef qglGetTexGendv
 #define qglGetTexGendv(...) ((void)0)
+#undef qglGetTexGenfv
 #define qglGetTexGenfv(...) ((void)0)
+#undef qglGetTexGeniv
 #define qglGetTexGeniv(...) ((void)0)
+#undef qglGetTexImage
 #define qglGetTexImage(...) ((void)0)
+#undef qglGetTexLevelParameterfv
 #define qglGetTexLevelParameterfv(...) ((void)0)
+#undef qglGetTexLevelParameteriv
 #define qglGetTexLevelParameteriv(...) ((void)0)
+#undef qglGetTexParameterfv
 #define qglGetTexParameterfv(...) ((void)0)
+#undef qglGetTexParameteriv
 #define qglGetTexParameteriv(...) ((void)0)
+#undef qglHint
 #define qglHint(...) ((void)0)
+#undef qglIndexMask
 #define qglIndexMask(...) ((void)0)
+#undef qglIndexPointer
 #define qglIndexPointer(...) ((void)0)
+#undef qglIndexd
 #define qglIndexd(...) ((void)0)
+#undef qglIndexdv
 #define qglIndexdv(...) ((void)0)
+#undef qglIndexf
 #define qglIndexf(...) ((void)0)
+#undef qglIndexfv
 #define qglIndexfv(...) ((void)0)
+#undef qglIndexi
 #define qglIndexi(...) ((void)0)
+#undef qglIndexiv
 #define qglIndexiv(...) ((void)0)
+#undef qglIndexs
 #define qglIndexs(...) ((void)0)
+#undef qglIndexsv
 #define qglIndexsv(...) ((void)0)
+#undef qglIndexub
 #define qglIndexub(...) ((void)0)
+#undef qglIndexubv
 #define qglIndexubv(...) ((void)0)
+#undef qglInitNames
 #define qglInitNames(...) ((void)0)
+#undef qglInterleavedArrays
 #define qglInterleavedArrays(...) ((void)0)
+#undef qglIsEnabled
 #define qglIsEnabled(...) (0)
+#undef qglIsList
 #define qglIsList(...) ((void)0)
+#undef qglIsProgramARB
 #define qglIsProgramARB(...) ((void)0)
+#undef qglIsTexture
 #define qglIsTexture(...) ((void)0)
+#undef qglLightModelf
 #define qglLightModelf(...) ((void)0)
+#undef qglLightModelfv
 #define qglLightModelfv(...) ((void)0)
+#undef qglLightModeli
 #define qglLightModeli(...) ((void)0)
+#undef qglLightModeliv
 #define qglLightModeliv(...) ((void)0)
+#undef qglLightf
 #define qglLightf(...) ((void)0)
+#undef qglLightfv
 #define qglLightfv(...) ((void)0)
+#undef qglLighti
 #define qglLighti(...) ((void)0)
+#undef qglLightiv
 #define qglLightiv(...) ((void)0)
+#undef qglLineStipple
 #define qglLineStipple(...) ((void)0)
+#undef qglLineWidth
 #define qglLineWidth(...) ((void)0)
+#undef qglListBase
 #define qglListBase(...) ((void)0)
+#undef qglLoadIdentity
 #define qglLoadIdentity(...) ((void)0)
+#undef qglLoadMatrixd
 #define qglLoadMatrixd(...) ((void)0)
+#undef qglLoadMatrixf
 #define qglLoadMatrixf(...) ((void)0)
+#undef qglLoadName
 #define qglLoadName(...) ((void)0)
+#undef qglLockArraysEXT
 #define qglLockArraysEXT(...) ((void)0)
+#undef qglLogicOp
 #define qglLogicOp(...) ((void)0)
+#undef qglMap1d
 #define qglMap1d(...) ((void)0)
+#undef qglMap1f
 #define qglMap1f(...) ((void)0)
+#undef qglMap2d
 #define qglMap2d(...) ((void)0)
+#undef qglMap2f
 #define qglMap2f(...) ((void)0)
+#undef qglMapGrid1d
 #define qglMapGrid1d(...) ((void)0)
+#undef qglMapGrid1f
 #define qglMapGrid1f(...) ((void)0)
+#undef qglMapGrid2d
 #define qglMapGrid2d(...) ((void)0)
+#undef qglMapGrid2f
 #define qglMapGrid2f(...) ((void)0)
+#undef qglMaterialf
 #define qglMaterialf(...) ((void)0)
+#undef qglMaterialfv
 #define qglMaterialfv(...) ((void)0)
+#undef qglMateriali
 #define qglMateriali(...) ((void)0)
+#undef qglMaterialiv
 #define qglMaterialiv(...) ((void)0)
+#undef qglMatrixMode
 #define qglMatrixMode(...) ((void)0)
+#undef qglMultMatrixd
 #define qglMultMatrixd(...) ((void)0)
+#undef qglMultMatrixf
 #define qglMultMatrixf(...) ((void)0)
+#undef qglNewList
 #define qglNewList(...) ((void)0)
+#undef qglNormal3b
 #define qglNormal3b(...) ((void)0)
+#undef qglNormal3bv
 #define qglNormal3bv(...) ((void)0)
+#undef qglNormal3d
 #define qglNormal3d(...) ((void)0)
+#undef qglNormal3dv
 #define qglNormal3dv(...) ((void)0)
+#undef qglNormal3f
 #define qglNormal3f(...) ((void)0)
+#undef qglNormal3fv
 #define qglNormal3fv(...) ((void)0)
+#undef qglNormal3i
 #define qglNormal3i(...) ((void)0)
+#undef qglNormal3iv
 #define qglNormal3iv(...) ((void)0)
+#undef qglNormal3s
 #define qglNormal3s(...) ((void)0)
+#undef qglNormal3sv
 #define qglNormal3sv(...) ((void)0)
+#undef qglNormalPointer
 #define qglNormalPointer(...) ((void)0)
+#undef qglOrtho
 #define qglOrtho(...) ((void)0)
+#undef qglPassThrough
 #define qglPassThrough(...) ((void)0)
+#undef qglPixelMapfv
 #define qglPixelMapfv(...) ((void)0)
+#undef qglPixelMapuiv
 #define qglPixelMapuiv(...) ((void)0)
+#undef qglPixelMapusv
 #define qglPixelMapusv(...) ((void)0)
+#undef qglPixelStoref
 #define qglPixelStoref(...) ((void)0)
+#undef qglPixelStorei
 #define qglPixelStorei(...) ((void)0)
+#undef qglPixelTransferf
 #define qglPixelTransferf(...) ((void)0)
+#undef qglPixelTransferi
 #define qglPixelTransferi(...) ((void)0)
+#undef qglPixelZoom
 #define qglPixelZoom(...) ((void)0)
+#undef qglPointSize
 #define qglPointSize(...) ((void)0)
+#undef qglPolygonMode
 #define qglPolygonMode(...) ((void)0)
+#undef qglPolygonOffset
 #define qglPolygonOffset(f, u) GXM_SetDepthBias((f), (u))
+#undef qglPolygonStipple
 #define qglPolygonStipple(...) ((void)0)
+#undef qglPopAttrib
 #define qglPopAttrib(...) ((void)0)
+#undef qglPopClientAttrib
 #define qglPopClientAttrib(...) ((void)0)
+#undef qglPopMatrix
 #define qglPopMatrix(...) ((void)0)
+#undef qglPopName
 #define qglPopName(...) ((void)0)
+#undef qglPrioritizeTextures
 #define qglPrioritizeTextures(...) ((void)0)
+#undef qglProgramEnvParameter4dARB
 #define qglProgramEnvParameter4dARB(...) ((void)0)
+#undef qglProgramEnvParameter4dvARB
 #define qglProgramEnvParameter4dvARB(...) ((void)0)
+#undef qglProgramEnvParameter4fARB
 #define qglProgramEnvParameter4fARB(...) ((void)0)
+#undef qglProgramEnvParameter4fvARB
 #define qglProgramEnvParameter4fvARB(...) ((void)0)
+#undef qglProgramLocalParameter4dARB
 #define qglProgramLocalParameter4dARB(...) ((void)0)
+#undef qglProgramLocalParameter4dvARB
 #define qglProgramLocalParameter4dvARB(...) ((void)0)
+#undef qglProgramLocalParameter4fARB
 #define qglProgramLocalParameter4fARB(...) ((void)0)
+#undef qglProgramLocalParameter4fvARB
 #define qglProgramLocalParameter4fvARB(...) ((void)0)
+#undef qglProgramStringARB
 #define qglProgramStringARB(...) ((void)0)
+#undef qglPushAttrib
 #define qglPushAttrib(...) ((void)0)
+#undef qglPushClientAttrib
 #define qglPushClientAttrib(...) ((void)0)
+#undef qglPushMatrix
 #define qglPushMatrix(...) ((void)0)
+#undef qglPushName
 #define qglPushName(...) ((void)0)
+#undef qglRasterPos2d
 #define qglRasterPos2d(...) ((void)0)
+#undef qglRasterPos2dv
 #define qglRasterPos2dv(...) ((void)0)
+#undef qglRasterPos2f
 #define qglRasterPos2f(...) ((void)0)
+#undef qglRasterPos2fv
 #define qglRasterPos2fv(...) ((void)0)
+#undef qglRasterPos2i
 #define qglRasterPos2i(...) ((void)0)
+#undef qglRasterPos2iv
 #define qglRasterPos2iv(...) ((void)0)
+#undef qglRasterPos2s
 #define qglRasterPos2s(...) ((void)0)
+#undef qglRasterPos2sv
 #define qglRasterPos2sv(...) ((void)0)
+#undef qglRasterPos3d
 #define qglRasterPos3d(...) ((void)0)
+#undef qglRasterPos3dv
 #define qglRasterPos3dv(...) ((void)0)
+#undef qglRasterPos3f
 #define qglRasterPos3f(...) ((void)0)
+#undef qglRasterPos3fv
 #define qglRasterPos3fv(...) ((void)0)
+#undef qglRasterPos3i
 #define qglRasterPos3i(...) ((void)0)
+#undef qglRasterPos3iv
 #define qglRasterPos3iv(...) ((void)0)
+#undef qglRasterPos3s
 #define qglRasterPos3s(...) ((void)0)
+#undef qglRasterPos3sv
 #define qglRasterPos3sv(...) ((void)0)
+#undef qglRasterPos4d
 #define qglRasterPos4d(...) ((void)0)
+#undef qglRasterPos4dv
 #define qglRasterPos4dv(...) ((void)0)
+#undef qglRasterPos4f
 #define qglRasterPos4f(...) ((void)0)
+#undef qglRasterPos4fv
 #define qglRasterPos4fv(...) ((void)0)
+#undef qglRasterPos4i
 #define qglRasterPos4i(...) ((void)0)
+#undef qglRasterPos4iv
 #define qglRasterPos4iv(...) ((void)0)
+#undef qglRasterPos4s
 #define qglRasterPos4s(...) ((void)0)
+#undef qglRasterPos4sv
 #define qglRasterPos4sv(...) ((void)0)
+#undef qglReadBuffer
 #define qglReadBuffer(...) ((void)0)
+#undef qglReadPixels
 #define qglReadPixels(...) ((void)0)
+#undef qglRectd
 #define qglRectd(...) ((void)0)
+#undef qglRectdv
 #define qglRectdv(...) ((void)0)
+#undef qglRectf
 #define qglRectf(...) ((void)0)
+#undef qglRectfv
 #define qglRectfv(...) ((void)0)
+#undef qglRecti
 #define qglRecti(...) ((void)0)
+#undef qglRectiv
 #define qglRectiv(...) ((void)0)
+#undef qglRects
 #define qglRects(...) ((void)0)
+#undef qglRectsv
 #define qglRectsv(...) ((void)0)
+#undef qglRenderMode
 #define qglRenderMode(...) ((void)0)
+#undef qglRotated
 #define qglRotated(...) ((void)0)
+#undef qglRotatef
 #define qglRotatef(...) ((void)0)
+#undef qglScaled
 #define qglScaled(...) ((void)0)
+#undef qglScalef
 #define qglScalef(...) ((void)0)
+#undef qglScissor
 #define qglScissor(...) ((void)0)
+#undef qglSelectBuffer
 #define qglSelectBuffer(...) ((void)0)
+#undef qglShadeModel
 #define qglShadeModel(...) ((void)0)
+#undef qglStencilFunc
 #define qglStencilFunc(...) ((void)0)
+#undef qglStencilMask
 #define qglStencilMask(...) ((void)0)
+#undef qglStencilOp
 #define qglStencilOp(...) ((void)0)
+#undef qglTexCoord1d
 #define qglTexCoord1d(...) ((void)0)
+#undef qglTexCoord1dv
 #define qglTexCoord1dv(...) ((void)0)
+#undef qglTexCoord1f
 #define qglTexCoord1f(...) ((void)0)
+#undef qglTexCoord1fv
 #define qglTexCoord1fv(...) ((void)0)
+#undef qglTexCoord1i
 #define qglTexCoord1i(...) ((void)0)
+#undef qglTexCoord1iv
 #define qglTexCoord1iv(...) ((void)0)
+#undef qglTexCoord1s
 #define qglTexCoord1s(...) ((void)0)
+#undef qglTexCoord1sv
 #define qglTexCoord1sv(...) ((void)0)
+#undef qglTexCoord2d
 #define qglTexCoord2d(...) ((void)0)
+#undef qglTexCoord2dv
 #define qglTexCoord2dv(...) ((void)0)
+#undef qglTexCoord2f
 #define qglTexCoord2f(s, t) GXM_ImmTexCoord2f((s), (t))
+#undef qglTexCoord2fv
 #define qglTexCoord2fv(v) GXM_ImmTexCoord2f((v)[0], (v)[1])
+#undef qglTexCoord2i
 #define qglTexCoord2i(...) ((void)0)
+#undef qglTexCoord2iv
 #define qglTexCoord2iv(...) ((void)0)
+#undef qglTexCoord2s
 #define qglTexCoord2s(...) ((void)0)
+#undef qglTexCoord2sv
 #define qglTexCoord2sv(...) ((void)0)
+#undef qglTexCoord3d
 #define qglTexCoord3d(...) ((void)0)
+#undef qglTexCoord3dv
 #define qglTexCoord3dv(...) ((void)0)
+#undef qglTexCoord3f
 #define qglTexCoord3f(...) ((void)0)
+#undef qglTexCoord3fv
 #define qglTexCoord3fv(...) ((void)0)
+#undef qglTexCoord3i
 #define qglTexCoord3i(...) ((void)0)
+#undef qglTexCoord3iv
 #define qglTexCoord3iv(...) ((void)0)
+#undef qglTexCoord3s
 #define qglTexCoord3s(...) ((void)0)
+#undef qglTexCoord3sv
 #define qglTexCoord3sv(...) ((void)0)
+#undef qglTexCoord4d
 #define qglTexCoord4d(...) ((void)0)
+#undef qglTexCoord4dv
 #define qglTexCoord4dv(...) ((void)0)
+#undef qglTexCoord4f
 #define qglTexCoord4f(...) ((void)0)
+#undef qglTexCoord4fv
 #define qglTexCoord4fv(...) ((void)0)
+#undef qglTexCoord4i
 #define qglTexCoord4i(...) ((void)0)
+#undef qglTexCoord4iv
 #define qglTexCoord4iv(...) ((void)0)
+#undef qglTexCoord4s
 #define qglTexCoord4s(...) ((void)0)
+#undef qglTexCoord4sv
 #define qglTexCoord4sv(...) ((void)0)
+#undef qglTexCoordPointer
 #define qglTexCoordPointer(...) ((void)0)
+#undef qglTexEnvf
 #define qglTexEnvf(...) ((void)0)
+#undef qglTexEnvfv
 #define qglTexEnvfv(...) ((void)0)
+#undef qglTexEnvi
 #define qglTexEnvi(...) ((void)0)
+#undef qglTexEnviv
 #define qglTexEnviv(...) ((void)0)
+#undef qglTexGend
 #define qglTexGend(...) ((void)0)
+#undef qglTexGendv
 #define qglTexGendv(...) ((void)0)
+#undef qglTexGenf
 #define qglTexGenf(...) ((void)0)
+#undef qglTexGenfv
 #define qglTexGenfv(...) ((void)0)
+#undef qglTexGeni
 #define qglTexGeni(...) ((void)0)
+#undef qglTexGeniv
 #define qglTexGeniv(...) ((void)0)
+#undef qglTexImage1D
 #define qglTexImage1D(...) ((void)0)
+#undef qglTexImage2D
 #define qglTexImage2D(...) ((void)0)
+#undef qglTexParameterf
 #define qglTexParameterf(...) ((void)0)
+#undef qglTexParameteri
 #define qglTexParameteri(...) ((void)0)
+#undef qglTexParameteriv
 #define qglTexParameteriv(...) ((void)0)
+#undef qglTexSubImage1D
 #define qglTexSubImage1D(...) ((void)0)
+#undef qglTexSubImage2D
 #define qglTexSubImage2D(...) ((void)0)
+#undef qglTranslated
 #define qglTranslated(...) ((void)0)
+#undef qglTranslatef
 #define qglTranslatef(...) ((void)0)
+#undef qglUnlockArraysEXT
 #define qglUnlockArraysEXT(...) ((void)0)
+#undef qglVertex2d
 #define qglVertex2d(...) ((void)0)
+#undef qglVertex2dv
 #define qglVertex2dv(...) ((void)0)
+#undef qglVertex2f
 #define qglVertex2f(x, y) GXM_ImmVertex3f((x), (y), 0.0f)
+#undef qglVertex2fv
 #define qglVertex2fv(...) ((void)0)
+#undef qglVertex2i
 #define qglVertex2i(...) ((void)0)
+#undef qglVertex2iv
 #define qglVertex2iv(...) ((void)0)
+#undef qglVertex2s
 #define qglVertex2s(...) ((void)0)
+#undef qglVertex2sv
 #define qglVertex2sv(...) ((void)0)
+#undef qglVertex3d
 #define qglVertex3d(...) ((void)0)
+#undef qglVertex3dv
 #define qglVertex3dv(...) ((void)0)
+#undef qglVertex3f
 #define qglVertex3f(x, y, z) GXM_ImmVertex3f((x), (y), (z))
+#undef qglVertex3fv
 #define qglVertex3fv(v) GXM_ImmVertex3f((v)[0], (v)[1], (v)[2])
+#undef qglVertex3i
 #define qglVertex3i(...) ((void)0)
+#undef qglVertex3iv
 #define qglVertex3iv(...) ((void)0)
+#undef qglVertex3s
 #define qglVertex3s(...) ((void)0)
+#undef qglVertex3sv
 #define qglVertex3sv(...) ((void)0)
+#undef qglVertex4d
 #define qglVertex4d(...) ((void)0)
+#undef qglVertex4dv
 #define qglVertex4dv(...) ((void)0)
+#undef qglVertex4f
 #define qglVertex4f(...) ((void)0)
+#undef qglVertex4fv
 #define qglVertex4fv(...) ((void)0)
+#undef qglVertex4i
 #define qglVertex4i(...) ((void)0)
+#undef qglVertex4iv
 #define qglVertex4iv(...) ((void)0)
+#undef qglVertex4s
 #define qglVertex4s(...) ((void)0)
+#undef qglVertex4sv
 #define qglVertex4sv(...) ((void)0)
+#undef qglVertexPointer
 #define qglVertexPointer(...) ((void)0)
+#undef qglViewport
 #define qglViewport(...) ((void)0)
+#undef qglX
 #define qglX(...) ((void)0)
 
 // used as calls AND as bare pointer tests, so these need real symbols
 void GXM_NoOpMultiTexCoord2f( unsigned int, float, float );
 void GXM_NoOpStencilOpSeparate( unsigned int, unsigned int, unsigned int, unsigned int );
 void GXM_NoOpTexUnit( unsigned int );
+#undef qglActiveTextureARB
 #define qglActiveTextureARB GXM_NoOpTexUnit
+#undef qglClientActiveTextureARB
 #define qglClientActiveTextureARB GXM_NoOpTexUnit
+#undef qglMultiTexCoord2fARB
 #define qglMultiTexCoord2fARB GXM_NoOpMultiTexCoord2f
+#undef qglStencilOpSeparate
 #define qglStencilOpSeparate GXM_NoOpStencilOpSeparate
 
 // called directly, never through a qgl macro
@@ -413,7 +785,7 @@ void GXM_NoOpTexUnit( unsigned int );
 #define glBindRenderbuffer(...) ((void)0)
 #define glBindTexture(...) ((void)0)
 #define glBufferData(...) ((void)0)
-#define glCheckFramebufferStatus(...) (0x8CD5)
+#define glCheckFramebufferStatus(...) (0)
 #define glClientActiveTextureARB(...) ((void)0)
 #define glCompileShader(...) ((void)0)
 #define glCreateProgram(...) (0)
@@ -437,7 +809,6 @@ void GXM_NoOpTexUnit( unsigned int );
 #define glLinkProgram(...) ((void)0)
 #define glRenderbufferStorage(...) ((void)0)
 #define glShaderSource(...) ((void)0)
-#define glStencilOpSeparate(...) ((void)0)
 #define glTexImage2D(...) ((void)0)
 #define glTexParameteri(...) ((void)0)
 #define glUniform1i(...) ((void)0)
@@ -445,7 +816,5 @@ void GXM_NoOpTexUnit( unsigned int );
 #define glUniformMatrix4fv(...) ((void)0)
 #define glUseProgram(...) ((void)0)
 #define glVertexAttribPointer(...) ((void)0)
-#define vglMemFree(...) (0)
-#define vglMemTotal(...) (0)
 
 #endif // QGL_GXM_H

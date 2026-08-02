@@ -21,15 +21,13 @@ QGL_RETURNS = {
     "qglGenLists": "1",
 }
 
-# gl*/vgl* called directly rather than through a qgl macro, whose result is read
+# gl* called directly rather than through a qgl macro, whose result is read
 DIRECT_RETURNS = {
     "glGetError": "0",
-    "glCheckFramebufferStatus": "0x8CD5",   # GL_FRAMEBUFFER_COMPLETE
+    "glCheckFramebufferStatus": "0",     # incomplete: there is no offscreen target
     "glCreateProgram": "0",
     "glCreateShader": "0",
     "glGetUniformLocation": "(-1)",
-    "vglMemFree": "0",
-    "vglMemTotal": "0",
 }
 
 # the immediate-mode entry points still used, mapped onto the accumulator
@@ -50,15 +48,14 @@ IMMEDIATE = {
 DEFINED_LOCALLY = {"glTexParameterfv", "glDrawBuffer", "glArrayElement"}
 
 qgl_re = re.compile(r"#define\s+(qgl[A-Za-z0-9_]+)\s")
-direct_re = re.compile(r"\b((?:vgl|gl)[A-Z][A-Za-z0-9_]*)\s*\(")
+direct_re = re.compile(r"\b(gl[A-Z][A-Za-z0-9_]*)\s*\(")
 
 qgl_h_text = io.open(QGL_H, encoding="latin1").read()
 qgl_names = sorted(set(qgl_re.findall(qgl_h_text)))
 
 # qgl.h also declares extension entry points as extern function pointers. Most are
 # defined NULL by gl_vita_ext.cpp and their call sites are already guarded by
-# `if (qgl...)`, so those stay inert on their own; only the ones vitaGL really
-# provides need holing.
+# `if (qgl...)`, so those stay inert on their own; only the rest need holing.
 ext_re = re.compile(r"^extern\s+PFN\w+\s+(qgl\w+)\s*;", re.M)
 ext_all = set(ext_re.findall(qgl_h_text))
 ext_local = set(re.findall(r"(qgl[A-Za-z0-9_]+)\s*=",
@@ -124,6 +121,7 @@ out = [
     "",
 ]
 for n in qgl_names:
+    out.append("#undef %s" % n)   # qgl.h aliased it to the GL name first
     if n == "qglGetString":
         out.append("#define %s(name) GXM_GlGetString(name)" % n)
     elif n == "qglGetIntegerv":
@@ -153,6 +151,7 @@ out.append("// used as calls AND as bare pointer tests, so these need real symbo
 for fn, args in sorted(set(POINTER_NOOPS.values())):
     out.append("void %s( %s );" % (fn, args))
 for _k in sorted(POINTER_NOOPS):
+    out.append("#undef %s" % _k)
     out.append("#define %s %s" % (_k, POINTER_NOOPS[_k][0]))
 out.append("")
 out.append("// called directly, never through a qgl macro")

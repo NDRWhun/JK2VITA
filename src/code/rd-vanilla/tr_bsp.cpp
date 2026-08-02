@@ -1537,14 +1537,13 @@ void RE_LoadWorldMap_Actual( const char *name, world_t &worldData, int index ) {
 #ifdef VITA
 		// per-map memory watermark (world geometry + shader textures are resident here)
 		{
+			extern unsigned int gxm_texBytes;
 			SceKernelFreeMemorySizeInfo fmi;
 			fmi.size = sizeof( fmi );
 			int fr = sceKernelGetFreeMemorySize( &fmi );
-			ri.Printf( PRINT_ALL, "MapMem %s: vgl VRAM %u/%u KiB, RAM %u/%u KiB, SLOW %u/%u KiB | kernel USER %d KiB, CDRAM %d KiB\n",
+			ri.Printf( PRINT_ALL, "MapMem %s: textures %u KiB | kernel USER %d KiB, CDRAM %d KiB\n",
 				worldData.baseName,
-				(unsigned)( vglMemFree( VGL_MEM_VRAM ) / 1024 ), (unsigned)( vglMemTotal( VGL_MEM_VRAM ) / 1024 ),
-				(unsigned)( vglMemFree( VGL_MEM_RAM ) / 1024 ), (unsigned)( vglMemTotal( VGL_MEM_RAM ) / 1024 ),
-				(unsigned)( vglMemFree( VGL_MEM_SLOW ) / 1024 ), (unsigned)( vglMemTotal( VGL_MEM_SLOW ) / 1024 ),
+				(unsigned)( gxm_texBytes / 1024 ),
 				fr == 0 ? fmi.size_user / 1024 : -1,
 				fr == 0 ? fmi.size_cdram / 1024 : -1 );
 		}
