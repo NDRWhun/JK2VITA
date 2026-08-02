@@ -650,7 +650,7 @@ void IN_Init( void *windowData )
 	in_nograb = Cvar_Get( "in_nograb", "0", CVAR_ARCHIVE_ND );
 
 #ifndef VITA
-	// On the Vita, SDL2-vitagl responds to SDL_StartTextInput by popping up the
+	// On the Vita, SDL responds to SDL_StartTextInput by popping up the
 	// modal IME keyboard dialog. OpenJK keeps text input globally enabled (for
 	// the console/chat), which would show the IME at boot. The Vita uses the
 	// controller for menu navigation; text entry will use the IME on demand.
@@ -677,7 +677,7 @@ void IN_Init( void *windowData )
 #ifdef VITA
 	// Default PS Vita control bindings. Sticks are analog (CL_JoystickMove). The rear
 	// touch panel adds a held-MODIFIER (top-left) + 3 extra "buttons" via A_AUX zones
-	// (IN_VitaRearTouch -> CL_KeyEvent). SDL button order from Northfear SDL2-vitagl:
+	// (IN_VitaRearTouch -> CL_KeyEvent). SDL button order from the Vita SDL2 port:
 	//   Triangle=JOY1 Circle=JOY2 Cross=JOY3 Square=JOY4 L=JOY5 R=JOY6
 	//   Down=JOY7 Left=JOY8 Up=JOY9 Right=JOY10 Select=JOY11 Start=JOY12
 	vita_rearTouch = Cvar_Get( "vita_rearTouch", "1", CVAR_ARCHIVE );	// rear-panel zones on/off

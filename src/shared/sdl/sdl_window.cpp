@@ -344,7 +344,7 @@ static bool GLimp_DetectAvailableModes(void)
 #ifdef VITA
 #include <psp2/kernel/sysmem.h>
 
-// pre-vglInit config; heap spill off - GC-freed GXM blocks in the newlib arena
+// pre-device config; heap spill off - GC-freed GXM blocks in the newlib arena
 // corrupt the allocator, and with the 144 MB heap the pools never need it
 #endif
 
@@ -375,7 +375,7 @@ static rserr_t GLimp_SetMode(glconfig_t *glConfig, const windowDesc_t *windowDes
 	Com_Printf( "Initializing display\n");
 
 #ifdef VITA
-	// r_renderThread 0 fallback: vglInit fires later in SDL_CreateWindow on this thread.
+	// r_renderThread 0 fallback: the device comes up later on this thread.
 	if ( doParamBufferSize ) {
 	}
 #endif
@@ -914,14 +914,14 @@ void WIN_InitSDLVideo( void )
 ===============
 WIN_LoadGL
 
-render thread: pool sizes + vglInit (fires inside SDL_GL_LoadLibrary),
+render thread: pool sizes + device bring-up,
 so the GXM context is owned here
 ===============
 */
 void WIN_LoadGL( void )
 {
 #ifdef USE_GXM_NATIVE
-	// SDL loads this only from its vitaGL path, which a native device never takes;
+	// SDL loads this only from its GL path, which a native device never takes;
 	// without it every sceIme import resolves to zero and the console keyboard faults
 	sceSysmoduleLoadModule( SCE_SYSMODULE_IME );
 	if ( !GXM_DeviceInit() || !GXM_RingInit( 4 * 1024 * 1024 ) || !GXM_BackendInit() )
@@ -941,7 +941,7 @@ void WIN_LoadGL( void )
 ===============
 WIN_CreateWindow
 
-main thread: window + GL context only; vglInit already ran in WIN_LoadGL
+main thread: window only; the device already came up in WIN_LoadGL
 ===============
 */
 window_t WIN_CreateWindow( const windowDesc_t *windowDesc, glconfig_t *glConfig )

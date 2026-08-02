@@ -777,7 +777,7 @@ Sys_Vita_CheckConfigGate
 
 The LiveArea "Configuration" gate launches us with a "-config" param
 (target psla:-config). On that, hand off to companion.bin before we touch
-SDL/vitaGL -- it owns its own GL context and re-launches eboot.bin when done.
+SDL -- it owns its own GXM context and re-launches eboot.bin when done.
 =================
 */
 static void Sys_Vita_CheckConfigGate( void )

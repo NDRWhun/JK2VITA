@@ -103,10 +103,8 @@ add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-D__GNU_VISIBLE>)
 #----------------------------------------------------------------------------
 include(${CMAKE_SOURCE_DIR}/cmake/jk2_sources.cmake)
 
-# SDL is built here rather than taken from the SDK: the installed libSDL2.a is
-# compiled with the vitaGL video driver, and its video device table references
-# those entry points whether or not we call them. Building locally also keeps
-# other projects sharing this SDK on the SDL they expect.
+# built here, not taken from the SDK: the installed libSDL2.a wants a GL video
+# driver, and other projects share that SDK
 set(VIDEO_VITA_VGL OFF CACHE BOOL "" FORCE)
 set(VIDEO_VITA_PVR OFF CACHE BOOL "" FORCE)
 set(VIDEO_VITA_PIB OFF CACHE BOOL "" FORCE)
@@ -174,7 +172,7 @@ target_link_libraries(${GAME_TARGET}.elf
 
 #----------------------------------------------------------------------------
 # Companion: standalone "Configuration" app launched by the LiveArea -config gate.
-# Separate ELF/SELF (its own vitaGL context) bundled into the same VPK as
+# Separate ELF/SELF (its own GXM context) bundled into the same VPK as
 # companion.bin; the engine eboot sceAppMgrLoadExec's it when launched with -config.
 #----------------------------------------------------------------------------
 add_executable(companion.elf ${CMAKE_SOURCE_DIR}/src/vita/companion_main.cpp ${GXM_SOURCES_NOBRIDGE})
@@ -197,7 +195,7 @@ vita_create_self(companion.bin companion.elf UNSAFE)
 
 #----------------------------------------------------------------------------
 # gxm_probe: standalone hardware check for the native GXM renderer. Separate VPK
-# because sceGxmInitialize is process-global and cannot run alongside vitaGL.
+# because sceGxmInitialize is process-global and only one context may hold it.
 #----------------------------------------------------------------------------
 add_executable(gxm_probe.elf
   ${CMAKE_SOURCE_DIR}/src/code/rd-gxm/gxm_device.cpp

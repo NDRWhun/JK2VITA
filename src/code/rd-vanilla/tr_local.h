@@ -41,7 +41,7 @@ extern int activeBackEnd;		// frontend's double-buffer slot
 extern int rendBackEnd;			// render thread's double-buffer slot
 extern SceUID rend_mutex_in;
 extern SceUID rend_mutex_out;
-extern SceUID rend_init_done;	// init-only handshake (vglInit-done, ctx-init-done)
+extern SceUID rend_init_done;	// init-only handshake (device-up, ctx-init-done)
 extern volatile qboolean pendingCtxInit;	// one-shot: run ctx init on render thread's first wake
 extern cvar_t *r_renderThread;
 extern cvar_t *r_effectCombine;	// fold all-additive multi-stage effects into one programmable draw
@@ -1152,7 +1152,7 @@ extern cvar_t	*r_distanceCull;		// render-distance cap, clamps the map's distanc
 extern cvar_t	*r_forceFog;			// forced global fog END distance in units (0 = off)
 extern cvar_t	*r_forceFogColor;		// forced fog colour "r g b"
 extern cvar_t	*r_texCacheCompressed;	// DXT mip-chain texture cache on ux0 (0 = off)
-extern cvar_t	*r_dxtFast;				// DXT encode quality (1 = fast/STB_DXT_NORMAL, 0 = high)
+extern cvar_t	*r_dxtFast;				// DXT encode quality (1 = fast, 0 = extra refit passes)
 
 extern cvar_t	*r_primitives;			// "0" = based on compiled vertex array existance
 										// "1" = glDrawElemet tristrips

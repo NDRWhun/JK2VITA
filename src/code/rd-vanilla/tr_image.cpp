@@ -608,7 +608,7 @@ static char s_uploadDxtKey[MAX_QPATH];	// asset name of the in-flight Upload32, 
 typedef struct {
 	const byte	*rgba;
 	byte		*dst0;
-	int			 w, h, bw, bh, isDxt5, mode, blockBytes;
+	int			 w, h, bw, bh, isDxt5, highQuality, blockBytes;
 	volatile int nextRow;	// atomic block-row take-index
 } dxtEncJob_t;
 static dxtEncJob_t	s_dxtJob;	// serial at the texture level: only one encode in flight
@@ -636,7 +636,7 @@ static void R_DxtDrainRows( void )
 					brow[cc*4+0] = s[0]; brow[cc*4+1] = s[1]; brow[cc*4+2] = s[2]; brow[cc*4+3] = s[3];
 				}
 			}
-			R_CompressDxtBlock( dst, block, j->isDxt5, j->mode );
+			R_CompressDxtBlock( dst, block, j->isDxt5, j->highQuality );
 		}
 	}
 }
@@ -685,11 +685,12 @@ static int R_DxtEncodeUploadAppend( int level, GLenum glFmt, int w, int h, const
 	const int blockBytes = isDxt5 ? 16 : 8;
 	const int bw = (w + 3) >> 2, bh = (h + 3) >> 2;
 	const int mipSize = bw * bh * blockBytes;
-	const int mode = ( r_dxtFast && r_dxtFast->integer ) ? 0 : 2;	// STB_DXT_NORMAL vs HIGHQUAL
+	// the refit passes cost load time and picmip hides the difference at 960x544
+	const int highQuality = !( r_dxtFast && r_dxtFast->integer );
 
 	s_dxtJob.rgba = rgba; s_dxtJob.dst0 = blob + blobOfs;
 	s_dxtJob.w = w; s_dxtJob.h = h; s_dxtJob.bw = bw; s_dxtJob.bh = bh;
-	s_dxtJob.isDxt5 = isDxt5; s_dxtJob.mode = mode; s_dxtJob.blockBytes = blockBytes;
+	s_dxtJob.isDxt5 = isDxt5; s_dxtJob.highQuality = highQuality; s_dxtJob.blockBytes = blockBytes;
 	s_dxtJob.nextRow = 0;
 
 	if ( bh >= DXT_PARALLEL_MIN_ROWS && R_DxtEnsurePool() ) {
@@ -1337,8 +1338,8 @@ static image_t *R_CreateImageFromDxtCache( const char *name, qboolean mipmap, qb
 {
 	if ( !r_texCacheCompressed || !r_texCacheCompressed->integer ) return NULL;
 #ifdef VITA
-	// Park the render thread before touching GL from the frontend (same rule as
-	// R_CreateImage); an unsynchronized upload here corrupts the vitaGL heap.
+	// Park the render thread before touching the backend from the frontend (same
+	// rule as R_CreateImage); an unsynchronized upload here corrupts its heap.
 	if ( r_renderThread && r_renderThread->integer ) {
 		R_IssuePendingRenderCommands();
 	}
@@ -1802,9 +1803,8 @@ void R_CreateBuiltinImages( void ) {
 	qglDisable( GL_TEXTURE_RECTANGLE_ARB );
 	qglEnable( GL_TEXTURE_2D );
 #else
-	// vitaGL/GXM has no GL_TEXTURE_RECTANGLE_ARB target, and dynamic glow is off on the
-	// Vita anyway (tr_init.cpp), so skip these rectangle textures entirely. Creating them
-	// just spammed GL_INVALID_ENUM and gave a corrupt frame.
+	// GXM has no GL_TEXTURE_RECTANGLE_ARB target, and dynamic glow is off on the Vita
+	// anyway (tr_init.cpp), so skip these rectangle textures entirely.
 	tr.screenGlow = 0;
 	tr.sceneImage = 0;
 	tr.blurImage  = 0;

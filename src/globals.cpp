@@ -26,8 +26,8 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 #ifdef VITA
 // newlib heap size = the engine's ENTIRE malloc budget (Hunk/Z_Malloc are malloc
-// wrappers). Reserved before vglInit: every MiB here is one less for vitaGL's pools.
-// Engine peak ~100-120 MiB; 144 leaves margin and ~158 MiB for the vgl RAM pool.
+// wrappers). Reserved before the device comes up: every MiB here is one less for the
+// renderer's pools. Engine peak ~100-120 MiB; 144 leaves margin for the rest.
 unsigned int _newlib_heap_size_user = 144 * 1024 * 1024;
 
 // VitaSDK reads this to size the main thread's stack. The default (~256 KB) is

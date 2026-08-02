@@ -209,9 +209,9 @@ extern cvar_t	*com_buildScript;
 cvar_t	*r_environmentMapping;
 cvar_t *r_screenshotJpegQuality;
 
-// On Vita these qgl* names are either macros onto core vitaGL funcs
-// (multitexture/stencil) or NULL ptrs from gl_vita_ext.cpp (the ARB program /
-// NV combiner / EXT compiled-array stuff vitaGL doesn't have). Don't redefine them.
+// On Vita these qgl* names are either macros onto the backend (multitexture/stencil)
+// or NULL ptrs from gl_vita_ext.cpp (the ARB program / NV combiner / EXT
+// compiled-array stuff GXM has no answer for). Don't redefine them.
 #ifndef VITA
 #if !defined(__APPLE__)
 PFNGLSTENCILOPSEPARATEPROC qglStencilOpSeparate;
@@ -504,12 +504,12 @@ static void GLimp_InitExtensions( void )
 
 	// GL_ARB_multitexture
 #ifdef VITA
-	// vitaGL has core multitexture and qgl*ARB are macros onto core gl*, so
-	// nothing to load -- just report the texture-unit count.
+	// multitexture is core here and qgl*ARB are macros onto it, so nothing to
+	// load -- just report the texture-unit count.
 	qglGetIntegerv( GL_MAX_TEXTURE_UNITS_ARB, &glConfig.maxActiveTextures );
 	if ( glConfig.maxActiveTextures < 2 )
 		glConfig.maxActiveTextures = 2;
-	Com_Printf ("...using GL_ARB_multitexture (vitaGL)\n" );
+	Com_Printf ("...using GL_ARB_multitexture\n" );
 #else
 	qglMultiTexCoord2fARB = NULL;
 	qglActiveTextureARB = NULL;
@@ -714,7 +714,7 @@ static void GLimp_InitExtensions( void )
 	// Only allow dynamic glows/flares if they have the hardware
 #ifdef VITA
 	// Dynamic glow needs rectangle textures (GL_TEXTURE_RECTANGLE_ARB) and ARB
-	// assembly programs; vitaGL/GXM has neither. Force it off, otherwise the
+	// assembly programs; GXM has neither. Force it off, otherwise the
 	// renderer binds rectangle textures that spam GL_INVALID_ENUM and corrupt the
 	// frame. Overrides whatever r_DynamicGlow the device cfg saved.
 	g_bDynamicGlowSupported = false;
@@ -741,7 +741,7 @@ static void GLimp_InitExtensions( void )
 		glConfig.doStencilShadowsInOneDrawcall = qtrue;
 	}
 #else
-	// vitaGL has glStencilOpSeparate (the qglStencilOpSeparate macro).
+	// the qglStencilOpSeparate macro covers both faces in one call.
 	glConfig.doStencilShadowsInOneDrawcall = qtrue;
 #endif
 }
@@ -770,7 +770,7 @@ static void InitOpenGL( void )
 	if ( glConfig.vidWidth == 0 )
 	{
 #ifdef USE_GXM_NATIVE
-		// GRAPHICS_API_OPENGL is what makes SDL set SDL_WINDOW_OPENGL and call vglInit
+		// GRAPHICS_API_OPENGL is what makes SDL set SDL_WINDOW_OPENGL
 		windowDesc_t windowDesc = { GRAPHICS_API_GENERIC };
 #else
 		windowDesc_t windowDesc = { GRAPHICS_API_OPENGL };
@@ -780,17 +780,17 @@ static void InitOpenGL( void )
 #ifdef VITA
 		if ( r_renderThread && r_renderThread->integer )
 		{
-			// bring the vitaGL/GXM context up on the render thread, which owns it
+			// bring the GXM context up on the render thread, which owns it
 			// from here on; see the semaphore protocol in tr_cmds.cpp
 			//
 			// 1. main: SDL video + window cvars (needs main thread so SDL `_this` exists).
 			ri.WIN_InitSDLVideo();
-			// 2. main: start the render thread; it runs WIN_LoadGL (vglInit) on itself,
+			// 2. main: start the render thread; it runs WIN_LoadGL on itself,
 			//    then Signal(rend_init_done) and parks on Wait(rend_mutex_in).
 			R_StartRenderThread();
-			// 3. main: wait for vglInit to have run on the render thread.
+			// 3. main: wait for the device to have come up on the render thread.
 			sceKernelWaitSema( rend_init_done, 1, NULL );
-			// 4. main: create the window + GL context (SDL_CreateWindow now no-ops vglInit).
+			// 4. main: create the window.
 			window = ri.WIN_CreateWindow( &windowDesc, &glConfig );
 			// 5. main: hand off to the render thread for the one-shot context init
 			//    (GL_SetDefaultState + R_Splash), then wait for it to finish. The render
@@ -1245,13 +1245,6 @@ void GL_SetDefaultState( void )
 {
 	qglClearDepth( 1.0f );
 
-#ifdef VITA
-	// Pick vitaGL's fast DXT encoder (STB_DXT_NORMAL) over the exhaustive HIGHQUAL
-	// path. Runtime S3TC encode dominates level-load time, and with picmip the
-	// quality difference isn't visible at 960x544.
-	qglHint( GL_TEXTURE_COMPRESSION_HINT, GL_FASTEST );
-#endif
-
 	qglCullFace(GL_FRONT);
 
 	qglColor4f (1,1,1,1);
@@ -1629,12 +1622,9 @@ void R_Register( void )
 	r_allowExtensions = ri.Cvar_Get( "r_allowExtensions", "1", CVAR_ARCHIVE_ND | CVAR_LATCH );
 	r_ext_compressed_textures = ri.Cvar_Get( "r_ext_compress_textures", "1", CVAR_ARCHIVE_ND | CVAR_LATCH );
 #ifdef VITA
-	// r_texCacheCompressed drives DXT compression + the ux0 mip-chain cache. ON by
-	// default now that the vendored vitaGL fixes the multi-mip compressed upload
-	// (gpu_alloc_compressed_texture grew the chain with vgl_realloc on a raw-memblock
-	// pointer -> per-mip fault; replaced with alloc+copy+deferred free, fork commit
-	// eff5f00). The encode runs once per asset, then the ux0 cache skips it on every
-	// later load, and DXT1/5 cut texture VRAM 4-8x. Both latched, read pre-world.
+	// r_texCacheCompressed drives DXT compression + the ux0 mip-chain cache. The
+	// encode runs once per asset, then the ux0 cache skips it on every later load,
+	// and DXT1/5 cut texture VRAM 4-8x. Both latched, read pre-world.
 	r_texCacheCompressed = ri.Cvar_Get( "r_texCacheCompressed", "1", CVAR_ARCHIVE_ND | CVAR_LATCH );
 	r_dxtFast            = ri.Cvar_Get( "r_dxtFast",            "1", CVAR_ARCHIVE_ND );
 	{
@@ -1845,14 +1835,14 @@ void R_Register( void )
 			ri.Cvar_Set( "r_subdivisions", "4" );	// full curve tessellation
 			ri.Cvar_Set( "r_fastSky", "0" );		// real skybox
 			ri.Cvar_Set( "r_inGameVideo", "1" );	// in-world video screens
-			ri.Cvar_Set( "cg_shadows", "1" );		// blob shadows (stencil volumes don't draw on vitaGL)
+			ri.Cvar_Set( "cg_shadows", "1" );		// blob shadows (no stencil path in the backend)
 			ri.Cvar_Set( "r_effectCombine", "1" );	// fold additive effect stages into one draw
 		}
 	}
 #endif
 #ifdef VITA
-	// Stencil shadow volumes (cg_shadows 2) emit their silhouette via immediate-mode
-	// glBegin/glVertex3fv, which vitaGL doesn't draw, so the shadows just vanish.
+	// Stencil shadow volumes (cg_shadows 2) need a stencil buffer, which the backend
+	// does not carry, so the shadows just vanish.
 	// Bounce that mode to the blob/decal path (cg_shadows 1, glDrawElements). Only
 	// touches a stale/forced 2; 0 and 1 are left alone.
 	if ( r_shadows->integer == 2 ) {

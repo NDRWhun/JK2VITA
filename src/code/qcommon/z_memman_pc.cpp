@@ -136,7 +136,7 @@ zone_t	TheZone = {};
 // Sized to the real Upload32 peak with DXT OFF: 16 MB source decode + 4 MB R_MipMap2
 // scratch, held at once during one texture upload = 20 MB (the 8 MB DXT-blob path is
 // disabled while r_texCacheCompressed is 0). NO bigger -- the newlib grant on this
-// hardware is only ~120 MB (vitaGL's USER-partition pool takes the rest), so every MB
+// hardware is only ~120 MB (the renderer's USER-partition pools take the rest), so every MB
 // the arena reserves is a MB the zone/hunk can't have. An over-sized reservation is
 // footprint-NEGATIVE and OOMs lighter loads (a 32 MB arena regressed the yavin1 intro).
 #define ARENA_RESERVE		(22 * 1024 * 1024)

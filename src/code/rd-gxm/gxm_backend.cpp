@@ -881,7 +881,7 @@ void GXM_ImmBegin( unsigned int glMode )
 	gxm_immActive = true;
 
 	// these blocks are single-textured; inheriting a second unit from the last
-	// stage is how the vitaGL build lost its weather particles
+	// stage is how the weather particles went missing
 	gxm_immSavedUnits = gxm_texUnits;
 	gxm_texUnits = 1;
 }

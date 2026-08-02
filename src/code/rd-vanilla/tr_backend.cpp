@@ -1436,14 +1436,8 @@ const void *RB_Scissor ( const void *data )
 }
 
 #ifdef VITA
-// Render-scale / dynamic resolution.
-//
-// Draw the 3D world into an offscreen FBO at a fraction of 960x544, then upscale to the
-// backbuffer before the HUD (HUD stays full-res). Trades fillrate for framerate; DRS
-// nudges the scale to hold a target frame time. FBO calls are raw vitaGL -- no qgl
-// wrappers. One offscreen pass + one blit, because each FBO bind is a tile flush on this
-// TBDR GPU. Only binds the FBO once scale drops below 1.0; at full scale we go straight
-// to screen.
+// Render-scale: the world into an offscreen FBO below 960x544, upscaled before the
+// HUD. Inert on GXM, which has no offscreen target, so the FBO never completes.
 static float    rs_activeScale = 1.0f;
 static GLuint   rs_fbo = 0, rs_colorTex = 0, rs_depthRb = 0;
 static qboolean rs_fboFailed = qfalse;
@@ -1568,9 +1562,8 @@ static qboolean RB_RenderScaleBegin( void ) {
 static void RB_RenderScaleEnd( void ) {
 	glBindFramebuffer( GL_FRAMEBUFFER, 0 );
 
-	// vitaGL's glBlitFramebuffer can't reliably stretch to the default framebuffer
-	// (binding GL_DRAW_FRAMEBUFFER 0 leaves active_write_fb NULL), so we upscale with
-	// a plain full-screen textured quad instead.
+	// glBlitFramebuffer cannot stretch to the default framebuffer here, so we
+	// upscale with a plain full-screen textured quad instead.
 	const int   w = glConfig.vidWidth, h = glConfig.vidHeight;
 	const float u = (float)rs_scaledW / (float)w;	// FBO is full-size; we rendered its lower-left
 	float v0 = 0.0f, v1 = (float)rs_scaledH / (float)h;

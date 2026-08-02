@@ -98,7 +98,7 @@ typedef struct {
 	void			(*WIN_Present)						( window_t *window );
 	void            (*WIN_Shutdown)                     ( void );
 
-	// render-thread bring-up (Vita): video init on main, vglInit on render
+	// render-thread bring-up (Vita): video init on main, device up on render
 	// thread, window on main. r_renderThread 0 uses WIN_Init above.
 	void			(*WIN_InitSDLVideo)					( void );
 	void			(*WIN_LoadGL)						( void );

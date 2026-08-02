@@ -557,7 +557,7 @@ void GXM_EndFrame( void )
 	sceGxmEndScene( gxm_context, NULL, NULL );
 
 	// system dialogs (the IME the console opens) composite onto the back buffer and
-	// only the app can hand it over; vitaGL did this inside its swap
+	// only the app can hand it over, and this is the only place that sees the buffer
 	{
 		SceCommonDialogUpdateParam dlg;
 		memset( &dlg, 0, sizeof(dlg) );

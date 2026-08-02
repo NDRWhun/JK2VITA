@@ -104,7 +104,7 @@ static volatile int rend_error = 0;
 /*
 Render-thread semaphore protocol (all created at 0; R = render thread, M = main):
 
-  init:  M starts R -> R: WIN_LoadGL (vglInit on R), Signal(init) -> M: create window,
+  init:  M starts R -> R: WIN_LoadGL (device up on R), Signal(init) -> M: create window,
          pendingCtxInit=true, Signal(in) -> R: ctx init + splash, Signal(init),
          Signal(out) <- this one unconsumed token is the frame-1 hand-off credit.
   frame: M: Wait(out), Signal(in), flip activeBackEnd/tessPtr -> R: Wait(in),
@@ -115,13 +115,13 @@ Render-thread semaphore protocol (all created at 0; R = render thread, M = main)
   Wait(out)+Signal(out): blocks until R parks, leaves the token balance intact.
 */
 
-// Render backend thread: owns the vitaGL/GXM context. vglInit fires here (WIN_LoadGL),
-// then it loops: take a command buffer, run backend + present, signal, flip buffers.
+// Render backend thread: owns the GXM context, brought up here (WIN_LoadGL), then it
+// loops: take a command buffer, run backend + present, signal, flip buffers.
 extern "C" int sceGxmTransferFinish( void );	// GXM transfer-queue sync (SDK)
 
 static int renderThread( SceSize argc, void *argv ) {
-	// Bring vitaGL up ON THIS THREAD so the GXM context is owned here, then tell
-	// main it is safe to create the window (WIN_CreateWindow no-ops the vglInit).
+	// Bring the device up ON THIS THREAD so the GXM context is owned here, then
+	// tell main it is safe to create the window.
 	ri.WIN_LoadGL();
 	sceKernelSignalSema( rend_init_done, 1 );
 

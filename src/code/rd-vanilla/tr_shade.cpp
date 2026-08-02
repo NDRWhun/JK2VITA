@@ -187,8 +187,8 @@ static void R_DrawElements( int numIndexes, const glIndex_t *indexes, int numVer
 	// default is to use triangles if compiled vertex arrays are present
 	if ( primitives == 0 ) {
 #ifdef VITA
-		// vitaGL supports glDrawElements, but NOT the immediate-mode strip path
-		// (qglArrayElement is a no-op stub and qglLockArraysEXT is NULL on Vita).
+		// the backend takes indexed draws, not the immediate-mode strip path
+		// (qglArrayElement is a no-op and qglLockArraysEXT is NULL on Vita).
 		// Without forcing this, the default path draws nothing -> black menu/world.
 		primitives = 2;
 #else
@@ -203,7 +203,7 @@ static void R_DrawElements( int numIndexes, const glIndex_t *indexes, int numVer
 
 	if ( primitives == 2 ) {
 #ifdef VITA
-		// vitaGL sizes its vertex staging copy from this range, so it must cover every index
+		// the range must cover every index; the backend stages its vertex copy from it
 		qglDrawRangeElements( GL_TRIANGLES, 0,
 						numVertexes > 0 ? numVertexes - 1 : 0,
 						numIndexes,
