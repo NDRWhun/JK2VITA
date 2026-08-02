@@ -559,9 +559,18 @@ void GXM_SetViewport( int x, int y, int w, int h )
 		(float)top + (float)h * 0.5f, -( (float)h * 0.5f ),
 		gxm_depthOffset, gxm_depthScale );
 
+	// region clip is unsigned, so an off-screen origin wraps and kills every tile
+	int cx0 = x, cy0 = top, cx1 = x + w - 1, cy1 = top + h - 1;
+	if ( cx0 < 0 ) cx0 = 0;
+	if ( cy0 < 0 ) cy0 = 0;
+	if ( cx1 > GXM_DISPLAY_WIDTH  - 1 ) cx1 = GXM_DISPLAY_WIDTH  - 1;
+	if ( cy1 > GXM_DISPLAY_HEIGHT - 1 ) cy1 = GXM_DISPLAY_HEIGHT - 1;
+	if ( cx1 < cx0 || cy1 < cy0 ) {
+		cx0 = cy0 = cx1 = cy1 = 0;	// entirely off screen
+	}
+
 	sceGxmSetRegionClip( GXM_Context(), SCE_GXM_REGION_CLIP_OUTSIDE,
-		(unsigned)x, (unsigned)top,
-		(unsigned)( x + w - 1 ), (unsigned)( top + h - 1 ) );
+		(unsigned)cx0, (unsigned)cy0, (unsigned)cx1, (unsigned)cy1 );
 
 	gxm_viewX = x; gxm_viewY = top; gxm_viewW = w; gxm_viewH = h;
 }
