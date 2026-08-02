@@ -40,7 +40,6 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "sys_local.h"
 
 #ifdef VITA
-#include <psp2/power.h>
 #include <psp2/io/stat.h>
 #endif
 
@@ -89,12 +88,6 @@ void Sys_PlatformInit( int argc, char *argv[] )
 	}
 #else
 	(void)argc; (void)argv;
-
-	// the boot defaults are 333/111/166; nothing else raises them
-	scePowerSetArmClockFrequency( 444 );
-	scePowerSetBusClockFrequency( 222 );
-	scePowerSetGpuClockFrequency( 222 );
-	scePowerSetGpuXbarClockFrequency( 166 );
 #endif
 }
 
