@@ -366,10 +366,67 @@ static void MakeSkyVec( float s, float t, int axis, float outSt[2], vec3_t outXY
 static vec3_t	s_skyPoints[SKY_SUBDIVISIONS+1][SKY_SUBDIVISIONS+1];
 static float	s_skyTexCoords[SKY_SUBDIVISIONS+1][SKY_SUBDIVISIONS+1][2];
 
+#ifdef USE_GXM_NATIVE
+/*
+================
+DrawSkySideGxm
+
+The grid as an indexed triangle list; the strips it replaces were immediate mode.
+================
+*/
+#define SKY_GRID_VERTS	( ( SKY_SUBDIVISIONS + 1 ) * ( SKY_SUBDIVISIONS + 1 ) )
+
+static void DrawSkySideGxm( struct image_s *image, const int mins[2], const int maxs[2] )
+{
+	static vec4_t		verts[SKY_GRID_VERTS];
+	static vec2_t		uv[SKY_GRID_VERTS];
+	static color4ub_t	colors[SKY_GRID_VERTS];
+	static glIndex_t	idx[SKY_SUBDIVISIONS * SKY_SUBDIVISIONS * 6];
+
+	const int s0 = mins[0] + HALF_SKY_SUBDIVISIONS, s1 = maxs[0] + HALF_SKY_SUBDIVISIONS;
+	const int t0 = mins[1] + HALF_SKY_SUBDIVISIONS, t1 = maxs[1] + HALF_SKY_SUBDIVISIONS;
+	const int w = s1 - s0 + 1;
+	int nv = 0, ni = 0;
+
+	if ( w < 2 || t1 - t0 < 1 ) {
+		return;
+	}
+
+	for ( int t = t0; t <= t1; t++ ) {
+		for ( int s = s0; s <= s1; s++, nv++ ) {
+			// the caller's qglTranslatef put the box on the view origin
+			VectorAdd( s_skyPoints[t][s], backEnd.viewParms.ori.origin, verts[nv] );
+			verts[nv][3] = 1.0f;
+			uv[nv][0] = s_skyTexCoords[t][s][0];
+			uv[nv][1] = s_skyTexCoords[t][s][1];
+			colors[nv][0] = colors[nv][1] = colors[nv][2] = tr.identityLightByte;
+			colors[nv][3] = 255;
+		}
+	}
+
+	// same winding the triangle strip produced
+	for ( int t = 0; t < t1 - t0; t++ ) {
+		for ( int s = 0; s < w - 1; s++ ) {
+			const int a = t * w + s;
+			idx[ni++] = a;         idx[ni++] = a + w; idx[ni++] = a + 1;
+			idx[ni++] = a + 1;     idx[ni++] = a + w; idx[ni++] = a + w + 1;
+		}
+	}
+
+	GL_Bind( image );
+	GXM_SetVertexArrays( &verts[0][0], &uv[0][0], NULL, (const unsigned char *)colors );
+	GXM_SetStateBits( glState.glStateBits );
+	GXM_DrawTess( ni, idx, nv );
+}
+#endif
 static void DrawSkySide( struct image_s *image, const int mins[2], const int maxs[2] )
 {
 	int s, t;
 
+#ifdef USE_GXM_NATIVE
+	DrawSkySideGxm( image, mins, maxs );
+	return;
+#endif
 	GL_Bind( image );
 
 	for ( t = mins[1]+HALF_SKY_SUBDIVISIONS; t < maxs[1]+HALF_SKY_SUBDIVISIONS; t++ )

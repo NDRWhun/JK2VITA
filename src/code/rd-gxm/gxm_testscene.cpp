@@ -56,8 +56,8 @@ static void BuildCheckerboard( unsigned int *px, unsigned int w, unsigned int h 
 
 bool GXM_TestSceneInit( void )
 {
-	const SceGxmProgram *vert = (const SceGxmProgram *)gxs_generic_v_u1_c1;
-	const SceGxmProgram *frag = (const SceGxmProgram *)gxs_generic_f_t1_e0_a0;
+	const SceGxmProgram *vert = (const SceGxmProgram *)gxs_generic_v_u1_c1_f0;
+	const SceGxmProgram *frag = (const SceGxmProgram *)gxs_generic_f_t1_e0_a0_f0;
 
 	if ( sceGxmShaderPatcherRegisterProgram( GXM_ShaderPatcher(), vert, &ts_vertId ) < 0
 		|| sceGxmShaderPatcherRegisterProgram( GXM_ShaderPatcher(), frag, &ts_fragId ) < 0 ) {

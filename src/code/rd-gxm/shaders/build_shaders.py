@@ -27,15 +27,18 @@ SHADERS = {
 # baked into fragment-program instances at runtime by the shader patcher.
 for _nuv in (0, 1, 2):
     for _vcol in (0, 1):
-        SHADERS["generic_v_u%d_c%d" % (_nuv, _vcol)] = (
-            "generic_v.cg", "sce_vp_psp2", ["NUV=%d" % _nuv, "VCOLOR=%d" % _vcol])
+        for _fog in (0, 1):
+            SHADERS["generic_v_u%d_c%d_f%d" % (_nuv, _vcol, _fog)] = (
+                "generic_v.cg", "sce_vp_psp2",
+                ["NUV=%d" % _nuv, "VCOLOR=%d" % _vcol, "FOG=%d" % _fog])
 
 for _ntex in (0, 1, 2):
     for _env in ((0,) if _ntex < 2 else (0, 1)):
         for _atest in range(5):
-            SHADERS["generic_f_t%d_e%d_a%d" % (_ntex, _env, _atest)] = (
-                "generic_f.cg", "sce_fp_psp2",
-                ["NTEX=%d" % _ntex, "ENV=%d" % _env, "ATEST=%d" % _atest])
+            for _fog in (0, 1):
+                SHADERS["generic_f_t%d_e%d_a%d_f%d" % (_ntex, _env, _atest, _fog)] = (
+                    "generic_f.cg", "sce_fp_psp2",
+                    ["NTEX=%d" % _ntex, "ENV=%d" % _env, "ATEST=%d" % _atest, "FOG=%d" % _fog])
 
 # match what the runtime would have asked shark for
 CGC_FLAGS = ["-O3", "-fastmath", "-fastint", "-nofastprecision"]

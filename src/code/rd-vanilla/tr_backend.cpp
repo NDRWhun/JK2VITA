@@ -512,10 +512,16 @@ static void RB_BeginDrawingView (void) {
 		qglFogf( GL_FOG_END,   r_forceFog->value );
 		qglFogfv( GL_FOG_COLOR, fogClr );
 		qglEnable( GL_FOG );
+#ifdef USE_GXM_NATIVE
+		GXM_SetFog( 1, r_forceFog->value * 0.5f, r_forceFog->value, fogClr );
+#endif
 	}
 	else
 	{
 		qglDisable( GL_FOG );
+#ifdef USE_GXM_NATIVE
+		GXM_SetFog( 0, 0.0f, 0.0f, NULL );
+#endif
 	}
 #endif
 
@@ -1114,6 +1120,9 @@ void	RB_SetGL2D (void) {
 	qglDisable( GL_CLIP_PLANE0 );
 #ifdef VITA
 	qglDisable( GL_FOG );	// no fog on HUD/menus
+#ifdef USE_GXM_NATIVE
+	GXM_SetFog( 0, 0.0f, 0.0f, NULL );
+#endif
 #endif
 
 	// set time for 2D shaders

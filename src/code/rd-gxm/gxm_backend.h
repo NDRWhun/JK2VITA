@@ -56,6 +56,7 @@ void GXM_SetStateBits( unsigned int stateBits );
 void GXM_SetTexUnitCount( int count );
 void GXM_SetVertexColorEnabled( int enabled );
 void GXM_SetTexEnv( int env );				// GXM_TEXENV_*
+void GXM_SetFog( int enabled, float start, float end, const float *color );
 // draw the next tess from these arrays rather than tess itself
 void GXM_SetVertexArrays( const float *xyz, const float *uv0, const float *uv1,
 						  const unsigned char *rgba );

@@ -33,6 +33,10 @@ uniform sampler2D uTex0 : TEXUNIT0;
 uniform sampler2D uTex1 : TEXUNIT1;
 #endif
 
+#if FOG
+uniform float4 uFogColor;
+#endif
+
 float4 main(
 	float4 vColor : COLOR0
 #if NTEX >= 1
@@ -40,6 +44,9 @@ float4 main(
 #endif
 #if NTEX >= 2
 	, float2 vTexCoord1 : TEXCOORD1
+#endif
+#if FOG
+	, float vFog : TEXCOORD2
 #endif
 	) : COLOR
 {
@@ -66,6 +73,10 @@ float4 main(
 	if ( c.a < 0.5f )         discard;
 #elif ATEST == 4
 	if ( c.a < 0.75f )        discard;
+#endif
+
+#if FOG
+	c.rgb = lerp( uFogColor.rgb, c.rgb, vFog );
 #endif
 
 	return c;
