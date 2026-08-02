@@ -40,7 +40,9 @@ extern "C" {
 #endif
 
 typedef void (*gxmLogFn_t)( const char *msg );
-void GXM_SetLogger( gxmLogFn_t fn );
+typedef void (*gxmStateResetFn_t)( void );
+void GXM_SetLogger( gxmLogFn_t fn );
+void	 GXM_SetStateResetCallback( gxmStateResetFn_t fn );
 
 #define GXM_DISPLAY_WIDTH		960
 #define GXM_DISPLAY_HEIGHT		544

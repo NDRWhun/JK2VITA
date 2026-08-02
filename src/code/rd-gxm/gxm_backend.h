@@ -38,6 +38,9 @@ extern "C" {
 int  GXM_BackendInit( void );
 void GXM_BackendShutdown( void );
 
+// forget the shadowed context state after something else has set it
+void GXM_InvalidateStateShadow( void );
+
 // --- textures, keyed by the engine's texnum ---
 void GXM_TexUpload( unsigned int texnum, const void *rgba, int width, int height );
 void GXM_TexUploadDxt( unsigned int texnum, const void *blob, unsigned int size,

@@ -82,6 +82,15 @@ static bool			gxm_backendOk;
 // the viewport transform is rebuilt whenever either half of it moves
 static int			gxm_viewX, gxm_viewY, gxm_viewW, gxm_viewH;
 static float		gxm_depthScale = 0.5f, gxm_depthOffset = 0.5f;
+// libgxm keeps programs, streams, textures and depth state until they change,
+// so the last-set values are shadowed and only differences are re-issued
+static SceGxmVertexProgram		*gxm_curVertProg;
+static SceGxmFragmentProgram	*gxm_curFragProg;
+static const SceGxmTexture		*gxm_curTex[2];
+static gxmDepthState_t			gxm_curDepth;
+static bool						gxm_depthKnown;
+static bool						gxm_uniformsDirty = true;
+
 // what the backend actually did this run, reported by r_gxmStats
 static int	gxm_statUploads, gxm_statDraws, gxm_statTextured, gxm_statNoTex, gxm_statRingFail;
 static int	gxm_statDxtUploads;	// how many took the compressed path
@@ -207,8 +216,20 @@ int GXM_BackendInit( void )
 		}
 	}
 
+	GXM_InvalidateStateShadow();
+	GXM_SetStateResetCallback( GXM_InvalidateStateShadow );
 	gxm_backendOk = true;
 	return 1;
+}
+
+// the clear path sets programs and depth itself, so the shadow stops being true
+void GXM_InvalidateStateShadow( void )
+{
+	gxm_curVertProg = NULL;
+	gxm_curFragProg = NULL;
+	gxm_curTex[0] = gxm_curTex[1] = NULL;
+	gxm_depthKnown = false;
+	gxm_uniformsDirty = true;
 }
 
 void GXM_BackendShutdown( void )
@@ -223,11 +244,22 @@ void GXM_BackendShutdown( void )
 // textures
 // ---------------------------------------------------------------------------
 
+// the slot address survives a re-upload, so a shadowed bind would go stale
+static void ForgetTexture( unsigned int texnum )
+{
+	for ( int t = 0; t < 2; t++ ) {
+		if ( gxm_curTex[t] == &gxm_textures[texnum].tex ) {
+			gxm_curTex[t] = NULL;
+		}
+	}
+}
+
 void GXM_TexUpload( unsigned int texnum, const void *rgba, int width, int height )
 {
 	if ( texnum >= GXM_MAX_TEXNUM || width <= 0 || height <= 0 ) {
 		return;
 	}
+	ForgetTexture( texnum );
 	GXM_TextureFree( &gxm_textures[texnum] );
 	if ( GXM_TextureCreateRGBA( &gxm_textures[texnum], rgba, (unsigned)width, (unsigned)height ) ) {
 		gxm_statUploads++;
@@ -240,6 +272,7 @@ void GXM_TexUploadDxt( unsigned int texnum, const void *blob, unsigned int size,
 	if ( texnum >= GXM_MAX_TEXNUM || !blob || !size ) {
 		return;
 	}
+	ForgetTexture( texnum );
 	GXM_TextureFree( &gxm_textures[texnum] );
 	if ( GXM_TextureCreateDxt( &gxm_textures[texnum], blob, size, width, height,
 			mipCount, isDxt5 != 0 ) ) {
@@ -251,6 +284,7 @@ void GXM_TexUploadDxt( unsigned int texnum, const void *blob, unsigned int size,
 void GXM_TexFree( unsigned int texnum )
 {
 	if ( texnum < GXM_MAX_TEXNUM ) {
+		ForgetTexture( texnum );
 		GXM_TextureFree( &gxm_textures[texnum] );
 	}
 }
@@ -324,8 +358,12 @@ void GXM_SetDepthBias( float factor, float units )
 
 void GXM_SetConstantColor( float r, float g, float b, float a )
 {
-	gxm_constColor[0] = r; gxm_constColor[1] = g;
-	gxm_constColor[2] = b; gxm_constColor[3] = a;
+	if ( gxm_constColor[0] != r || gxm_constColor[1] != g
+		|| gxm_constColor[2] != b || gxm_constColor[3] != a ) {
+		gxm_constColor[0] = r; gxm_constColor[1] = g;
+		gxm_constColor[2] = b; gxm_constColor[3] = a;
+		gxm_uniformsDirty = true;
+	}
 }
 
 void GXM_SetCullFlip( int flip )					{ gxm_cullFlip = flip; }
@@ -497,25 +535,45 @@ void GXM_DrawTess( int numIndexes, const unsigned short *indexes, int numVertexe
 	if ( gxm_mvpDirty ) {
 		MulMat( gxm_mvp, gxm_proj, gxm_modelView );
 		gxm_mvpDirty = false;
+		gxm_uniformsDirty = true;
 	}
 
-	sceGxmSetVertexProgram( GXM_Context(), gxm_vertProgs[nuv][vcol] );
-	sceGxmSetFragmentProgram( GXM_Context(), frag );
-	GXM_ApplyDepthState( &depth );
+	SceGxmVertexProgram *vp = gxm_vertProgs[nuv][vcol];
+	bool progChanged = false;
+	if ( gxm_curVertProg != vp ) {
+		sceGxmSetVertexProgram( GXM_Context(), vp );
+		gxm_curVertProg = vp;
+		progChanged = true;
+	}
+	if ( gxm_curFragProg != frag ) {
+		sceGxmSetFragmentProgram( GXM_Context(), frag );
+		gxm_curFragProg = frag;
+		progChanged = true;
+	}
+	if ( !gxm_depthKnown || memcmp( &gxm_curDepth, &depth, sizeof(depth) ) != 0 ) {
+		GXM_ApplyDepthState( &depth );
+		gxm_curDepth  = depth;
+		gxm_depthKnown = true;
+	}
 
-	void *uniforms = NULL;
-	sceGxmReserveVertexDefaultUniformBuffer( GXM_Context(), &uniforms );
-	if ( uniforms ) {
-		const SceGxmProgramParameter *pm = gxm_pMVP[nuv][vcol];
-		const SceGxmProgramParameter *pc = gxm_pColor[nuv][vcol];
-		if ( pm ) sceGxmSetUniformDataF( uniforms, pm, 0, 16, gxm_mvp );
-		if ( pc ) sceGxmSetUniformDataF( uniforms, pc, 0, 4, gxm_constColor );
+	// a new program drops the reservation, so the uniforms must be written again
+	if ( progChanged || gxm_uniformsDirty ) {
+		void *uniforms = NULL;
+		sceGxmReserveVertexDefaultUniformBuffer( GXM_Context(), &uniforms );
+		if ( uniforms ) {
+			const SceGxmProgramParameter *pm = gxm_pMVP[nuv][vcol];
+			const SceGxmProgramParameter *pc = gxm_pColor[nuv][vcol];
+			if ( pm ) sceGxmSetUniformDataF( uniforms, pm, 0, 16, gxm_mvp );
+			if ( pc ) sceGxmSetUniformDataF( uniforms, pc, 0, 4, gxm_constColor );
+			gxm_uniformsDirty = false;
+		}
 	}
 
 	for ( int t = 0; t < ntex; t++ ) {
 		const unsigned int tn = gxm_boundTex[t] & (GXM_MAX_TEXNUM - 1);
-		if ( gxm_textures[tn].valid ) {
+		if ( gxm_textures[tn].valid && gxm_curTex[t] != &gxm_textures[tn].tex ) {
 			sceGxmSetFragmentTexture( GXM_Context(), t, &gxm_textures[tn].tex );
+			gxm_curTex[t] = &gxm_textures[tn].tex;
 		}
 	}
 
@@ -572,24 +630,46 @@ void GXM_DrawStaticBuffer( const void *vertexBuffer, const unsigned short *index
 	if ( gxm_mvpDirty ) {
 		MulMat( gxm_mvp, gxm_proj, gxm_modelView );
 		gxm_mvpDirty = false;
+		gxm_uniformsDirty = true;
 	}
 
-	sceGxmSetVertexProgram( GXM_Context(), gxm_vertProgs[ntex][0] );
-	sceGxmSetFragmentProgram( GXM_Context(), frag );
-	GXM_ApplyDepthState( &depth );
+	SceGxmVertexProgram *vp = gxm_vertProgs[ntex][0];
+	bool progChanged = false;
+	if ( gxm_curVertProg != vp ) {
+		sceGxmSetVertexProgram( GXM_Context(), vp );
+		gxm_curVertProg = vp;
+		progChanged = true;
+	}
+	if ( gxm_curFragProg != frag ) {
+		sceGxmSetFragmentProgram( GXM_Context(), frag );
+		gxm_curFragProg = frag;
+		progChanged = true;
+	}
+	if ( !gxm_depthKnown || memcmp( &gxm_curDepth, &depth, sizeof(depth) ) != 0 ) {
+		GXM_ApplyDepthState( &depth );
+		gxm_curDepth  = depth;
+		gxm_depthKnown = true;
+	}
 
-	void *uniforms = NULL;
-	sceGxmReserveVertexDefaultUniformBuffer( GXM_Context(), &uniforms );
-	if ( uniforms ) {
-		const SceGxmProgramParameter *pm = gxm_pMVP[ntex][0];
-		const SceGxmProgramParameter *pc = gxm_pColor[ntex][0];
-		if ( pm ) sceGxmSetUniformDataF( uniforms, pm, 0, 16, gxm_mvp );
-		if ( pc ) sceGxmSetUniformDataF( uniforms, pc, 0, 4, gxm_constColor );
+	// a new program drops the reservation, so the uniforms must be written again
+	if ( progChanged || gxm_uniformsDirty ) {
+		void *uniforms = NULL;
+		sceGxmReserveVertexDefaultUniformBuffer( GXM_Context(), &uniforms );
+		if ( uniforms ) {
+			const SceGxmProgramParameter *pm = gxm_pMVP[ntex][0];
+			const SceGxmProgramParameter *pc = gxm_pColor[ntex][0];
+			if ( pm ) sceGxmSetUniformDataF( uniforms, pm, 0, 16, gxm_mvp );
+			if ( pc ) sceGxmSetUniformDataF( uniforms, pc, 0, 4, gxm_constColor );
+			gxm_uniformsDirty = false;
+		}
 	}
 
 	for ( int t = 0; t < ntex; t++ ) {
 		const unsigned int tn = gxm_boundTex[t] & (GXM_MAX_TEXNUM - 1);
-		sceGxmSetFragmentTexture( GXM_Context(), t, &gxm_textures[tn].tex );
+		if ( gxm_curTex[t] != &gxm_textures[tn].tex ) {
+			sceGxmSetFragmentTexture( GXM_Context(), t, &gxm_textures[tn].tex );
+			gxm_curTex[t] = &gxm_textures[tn].tex;
+		}
 	}
 
 	gxm_statDraws++;

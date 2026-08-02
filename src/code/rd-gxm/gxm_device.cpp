@@ -36,6 +36,14 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 // the device knows nothing about the renderer; the owner installs a printer
 static gxmLogFn_t gxm_log;
 
+// the clear re-programs the context, so whoever shadows that state is told
+static gxmStateResetFn_t gxm_stateReset;
+
+void GXM_SetStateResetCallback( gxmStateResetFn_t fn )
+{
+	gxm_stateReset = fn;
+}
+
 void GXM_SetLogger( gxmLogFn_t fn )
 {
 	gxm_log = fn;
@@ -530,6 +538,10 @@ void GXM_ClearBuffers( int color, int depth )
 	sceGxmSetVertexStream( gxm_context, 0, gxm_clearVerts );
 	sceGxmDraw( gxm_context, SCE_GXM_PRIMITIVE_TRIANGLES,
 		SCE_GXM_INDEX_FORMAT_U16, gxm_clearIndices, 3 );
+
+	if ( gxm_stateReset ) {
+		gxm_stateReset();
+	}
 }
 
 void GXM_EndFrame( void )
