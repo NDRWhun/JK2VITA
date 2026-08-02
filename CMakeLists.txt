@@ -208,6 +208,7 @@ target_link_libraries(gxm_probe.elf
   SceGxm_stub
   SceDisplay_stub
   SceCtrl_stub
+  SceCommonDialog_stub
   SceSysmodule_stub
   SceAppMgr_stub
   c
