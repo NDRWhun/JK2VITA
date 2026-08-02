@@ -24,10 +24,8 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #pragma once
 
 #ifdef VITA
-// vitaGL.h supplies the GL type and constant vocabulary the renderer is written
-// in. The holes come after it so its declarations parse before the entry point
-// names become macros.
-#include <vitaGL.h>
+// the GL vocabulary the renderer is written in; the holes come after it
+#include "gl_vita_types.h"
 #else
 #if defined( __LINT__ )
 #	include <GL/gl.h>
@@ -406,43 +404,11 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #define GL_TEXTURE2_ARB GL_TEXTURE2
 #define GL_TEXTURE3_ARB GL_TEXTURE3
 #define qglStencilOpSeparate glStencilOpSeparate
-#define GL_RGB8 GL_RGB
 // ARB alias for the core multitexture coord
 #define qglMultiTexCoord2fARB glMultiTexCoord2f
-// internal-format enums vitaGL doesn't define. real GL values keep the
-// format-select switch cases distinct; vitaGL ignores them and picks the GXM
-// format from format/type anyway.
-#ifndef GL_RGBA4
-#define GL_RGBA4 0x8056
-#endif
-#ifndef GL_RGBA16
-#define GL_RGBA16 0x805B
-#endif
-#ifndef GL_RGB5
-#define GL_RGB5 0x8050
-#endif
-#ifndef GL_RGB4_S3TC
-#define GL_RGB4_S3TC 0x83A1
-#endif
-// framebuffer/readback enums for the glDrawBuffer/glReadPixels paths
-#ifndef GL_BACK_LEFT
-#define GL_BACK_LEFT GL_BACK
-#endif
-#ifndef GL_BACK_RIGHT
-#define GL_BACK_RIGHT GL_BACK
-#endif
-#ifndef GL_STENCIL_INDEX
-#define GL_STENCIL_INDEX 0x1901
-#endif
-#ifndef GL_TEXTURE_BORDER_COLOR
-#define GL_TEXTURE_BORDER_COLOR 0x1004
-#endif
-#ifndef GL_TEXTURE_RECTANGLE_ARB
-#define GL_TEXTURE_RECTANGLE_ARB 0x84F5
-#endif
-// typedefs + null pointers for extensions vitaGL lacks (NV combiners, ARB
-// programs, EXT compiled arrays) plus a glTexParameterfv shim, so the gated
-// call sites still compile
+// typedefs + null pointers for the extensions GXM has no answer for (NV
+// combiners, ARB programs, EXT compiled arrays) plus a glTexParameterfv shim,
+// so the gated call sites still compile
 #include "gl_vita_ext.h"
 #else
 #if !defined(__APPLE__)

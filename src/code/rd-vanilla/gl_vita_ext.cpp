@@ -34,8 +34,6 @@ the renderer's runtime gates (`if (qgl... )`) skip the corresponding paths.
 
 extern "C" {
 
-/* vitaGL has only the integer glTexParameter; the float form is used solely for
-   GL_TEXTURE_BORDER_COLOR, which has no effect under GXM. Best-effort no-op. */
 void glTexParameterfv(GLenum target, GLenum pname, const GLfloat *params)
 {
 	(void)target; (void)pname; (void)params;

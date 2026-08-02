@@ -26,7 +26,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 JK2VITA — Vita GL extension compatibility shim (rd-vanilla).
 
 The OpenJK vanilla renderer references a handful of legacy desktop-GL
-extensions that the PS Vita's GXM / vitaGL does not implement:
+extensions the PS Vita's GXM has no answer for:
 
   * EXT_compiled_vertex_array   (qglLockArraysEXT / qglUnlockArraysEXT)
   * ARB_vertex/fragment_program (the "dynamic glow" effect)
@@ -39,8 +39,8 @@ pointers (with correct signatures so the gated call sites still type-check)
 plus the enum values they reference. The features stay disabled at runtime —
 the renderer's existing fallback paths handle their absence.
 
-It also supplies a no-op glTexParameterfv (vitaGL exposes only the integer
-form; the only use is GL_TEXTURE_BORDER_COLOR, irrelevant on GXM).
+It also supplies a no-op glTexParameterfv; its only use is
+GL_TEXTURE_BORDER_COLOR, which is irrelevant on GXM.
 
 Included only from qgl.h's VITA branch. Storage is defined in gl_vita_ext.cpp.
 ============================================================================
@@ -50,9 +50,9 @@ Included only from qgl.h's VITA branch. Storage is defined in gl_vita_ext.cpp.
 
 #ifdef VITA
 
-#include <vitaGL.h>
+#include "gl_vita_types.h"
 
-/* GL calling-convention macros (vitaGL doesn't define them; harmless empty). */
+/* GL calling-convention macros; empty, since nothing here is stdcall. */
 #ifndef APIENTRY
 #define APIENTRY
 #endif
@@ -68,7 +68,7 @@ extern "C" {
 #endif
 
 /* ---- Missing core functions (best-effort shims) ---- */
-/* Border color: vitaGL exposes only the integer glTexParameter. */
+/* Border color: the backend takes only the integer glTexParameter. */
 void glTexParameterfv(GLenum target, GLenum pname, const GLfloat *params);
 /* Single framebuffer on GXM: draw-buffer selection is a no-op. */
 void glDrawBuffer(GLenum mode);
@@ -76,7 +76,7 @@ void glDrawBuffer(GLenum mode);
    path (Vita takes the glDrawElements path). No-op keeps it compiling. */
 void glArrayElement(GLint i);
 
-/* ---- Enums vitaGL doesn't define (real GL values; gated code only) ---- */
+/* ---- Extension enums, gated code only ---- */
 /* ARB vertex/fragment program */
 #ifndef GL_VERTEX_PROGRAM_ARB
 #define GL_VERTEX_PROGRAM_ARB            0x8620
