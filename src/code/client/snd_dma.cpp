@@ -1788,7 +1788,12 @@ void S_StartSound(const vec3_t origin, int entityNum, soundChannel_t entchannel,
 	sfx = &s_knownSfx[ sfxHandle ];
 	if (sfx->bInMemory == qfalse){
 #ifdef VITA
-		if ( S_AsyncLoad_Enqueue(sfx) ) return;	// loading off-thread; skip this instance (loops re-request)
+		// A voice line gates an ICARUS task, so dropping it strands the script and
+		// the next line starts over the one still playing. Those load here;
+		// everything else can arrive late.
+		const qboolean isVoice = (qboolean)( entchannel == CHAN_VOICE
+			|| entchannel == CHAN_VOICE_ATTEN || entchannel == CHAN_VOICE_GLOBAL );
+		if ( !isVoice && S_AsyncLoad_Enqueue(sfx) ) return;	// loops re-request
 #endif
 		S_memoryLoad(sfx);
 	}
@@ -2925,8 +2930,11 @@ void S_DoLipSynchs( const int s_oldpaintedtime )
 	channel_t		*ch;
 	int				i;
 
-	// clear out the lip synching override array for this frame
-	memset(s_entityWavVol, 0,(MAX_GENTITIES * 4));
+	// Build into scratch and publish at the end. The game thread polls the
+	// exported table unlocked to decide a voice line finished, so blanking it
+	// in place would end scripted dialogue early.
+	static int wavVol[MAX_GENTITIES];
+	memset(wavVol, 0,(MAX_GENTITIES * 4));
 
 	ch = s_channels;
 	for (i=0; i<MAX_CHANNELS ; i++, ch++) {
@@ -2942,12 +2950,14 @@ void S_DoLipSynchs( const int s_oldpaintedtime )
 		if ( ch->entchannel == CHAN_VOICE || ch->entchannel == CHAN_VOICE_ATTEN || ch->entchannel == CHAN_VOICE_GLOBAL )
 		{
 			// go away and work out amplitude for this sound we are playing right now.
-			s_entityWavVol[ ch->entnum ] = S_CheckAmplitude( ch, s_oldpaintedtime );
+			wavVol[ ch->entnum ] = S_CheckAmplitude( ch, s_oldpaintedtime );
 			if ( s_show->integer == 3 ) {
-				Com_Printf( "(%i)%i %s vol = %i\n", ch->entnum, i, ch->thesfx->sSoundName, s_entityWavVol[ ch->entnum ] );
+				Com_Printf( "(%i)%i %s vol = %i\n", ch->entnum, i, ch->thesfx->sSoundName, wavVol[ ch->entnum ] );
 			}
 		}
 	}
+
+	memcpy( s_entityWavVol, wavVol, MAX_GENTITIES * 4 );
 
 	if (next_amplitude < s_soundtime)	{
 		next_amplitude = s_soundtime + 800;
