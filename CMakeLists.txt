@@ -104,7 +104,6 @@ add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-D__GNU_VISIBLE>)
 #----------------------------------------------------------------------------
 include(${CMAKE_SOURCE_DIR}/cmake/jk2_sources.cmake)
 
-option(GXM_NATIVE "Render through the native GXM backend instead of vitaGL" OFF)
 
 set(GXM_SOURCES
   ${CMAKE_SOURCE_DIR}/src/code/rd-gxm/gxm_device.cpp
@@ -114,12 +113,8 @@ set(GXM_SOURCES
   ${CMAKE_SOURCE_DIR}/src/code/rd-vanilla/tr_gxm_bridge.cpp
 )
 
-if(GXM_NATIVE)
-  add_executable(${GAME_TARGET}.elf ${JK2_SOURCES} ${GXM_SOURCES})
-  target_compile_definitions(${GAME_TARGET}.elf PRIVATE USE_GXM_NATIVE)
-else()
-  add_executable(${GAME_TARGET}.elf ${JK2_SOURCES})
-endif()
+add_executable(${GAME_TARGET}.elf ${JK2_SOURCES} ${GXM_SOURCES})
+target_compile_definitions(${GAME_TARGET}.elf PRIVATE USE_GXM_NATIVE)
 
 # mp3code's global `window` (float decode table) collides with rd-vanilla's
 # `window_t window`. Rename it consistently across the (self-contained) mp3
@@ -128,22 +123,15 @@ file(GLOB JK2_MP3_SOURCES ${CMAKE_SOURCE_DIR}/src/code/mp3code/*.c)
 set_source_files_properties(${JK2_MP3_SOURCES} PROPERTIES COMPILE_DEFINITIONS "window=mp3code_window")
 
 target_link_libraries(${GAME_TARGET}.elf
-  # Vita GL stack
   SDL2
-  vitaGL
-  vitashark
-  SceShaccCgExt
   # image / compression
   jpeg
   png16
   z
   # math
   mathneon
-  # C++ runtime (vitaGL + OpenJK are C++)
   stdc++
   # Sce stubs
-  taihen_stub
-  SceShaccCg_stub
   SceGxm_stub
   SceDisplay_stub
   SceCtrl_stub
@@ -172,13 +160,8 @@ target_link_libraries(${GAME_TARGET}.elf
 #----------------------------------------------------------------------------
 add_executable(companion.elf ${CMAKE_SOURCE_DIR}/src/vita/companion_main.cpp)
 target_link_libraries(companion.elf
-  vitaGL
-  vitashark
-  SceShaccCgExt
   mathneon
   stdc++
-  taihen_stub
-  SceShaccCg_stub
   SceGxm_stub
   SceDisplay_stub
   SceCtrl_stub

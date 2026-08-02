@@ -340,27 +340,9 @@ static bool GLimp_DetectAvailableModes(void)
 
 #ifdef VITA
 #include <psp2/kernel/sysmem.h>
-// must run on the vglInit thread, before vglInit
-extern "C" void vglSetParamBufferSize( uint32_t size );
-extern "C" void vglSetCircularPoolSize( uint32_t size );
-extern "C" void vglUseExtraMem( uint8_t usage );
 
 // pre-vglInit config; heap spill off - GC-freed GXM blocks in the newlib arena
 // corrupt the allocator, and with the 144 MB heap the pools never need it
-static void WIN_SetupVglMem( const char *where )
-{
-	SceKernelFreeMemorySizeInfo fmi;
-	fmi.size = sizeof( fmi );
-	if ( sceKernelGetFreeMemorySize( &fmi ) == 0 )
-		Com_Printf( "%s: kernel free USER %d KiB, CDRAM %d KiB, PHYCONT %d KiB\n",
-			where, fmi.size_user / 1024, fmi.size_cdram / 1024, fmi.size_phycont / 1024 );
-
-	vglUseExtraMem( 0 );
-	// 16 MB: 2-3 in-flight scenes share it, smaller overflows the tiler
-	vglSetParamBufferSize( 16 * 1024 * 1024 );
-	// default 32 MB circular pool spills into slow fallback allocations
-	vglSetCircularPoolSize( 48 * 1024 * 1024 );
-}
 #endif
 
 /*
@@ -392,7 +374,6 @@ static rserr_t GLimp_SetMode(glconfig_t *glConfig, const windowDesc_t *windowDes
 #ifdef VITA
 	// r_renderThread 0 fallback: vglInit fires later in SDL_CreateWindow on this thread.
 	if ( doParamBufferSize ) {
-		WIN_SetupVglMem( "vgl mem setup (main thread)" );
 	}
 #endif
 
@@ -945,7 +926,6 @@ void WIN_LoadGL( void )
 		Com_Error( ERR_FATAL, "WIN_LoadGL: native GXM device init failed" );
 	}
 #else
-	WIN_SetupVglMem( "vgl mem setup (render thread)" );
 	if ( SDL_GL_LoadLibrary( NULL ) < 0 )
 	{
 		Com_Error( ERR_FATAL, "WIN_LoadGL: SDL_GL_LoadLibrary failed (%s)", SDL_GetError() );

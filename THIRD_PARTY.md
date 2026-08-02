@@ -16,13 +16,21 @@ Licenses of vdpm-installed libraries are documented in their upstream repositori
 
 ## License note
 
-OpenJK is GPLv2; vitaGL is LGPLv3. Combining GPLv2-only code with an LGPLv3
-library in one statically-linked binary is not a combination the FSF's
-compatibility matrix endorses. This port follows the established practice of
-the Vita homebrew ecosystem — including vitaGL's own author's GPLv2 engine
-ports (vitaQuakeIII, vitaRTCW) — on the understanding that vitaGL's sole
-copyright holder distributes such combinations himself. Full source for the
-combined work is available in this repository, satisfying the source-availability
-and relinking obligations of both licenses.
+The renderer is native sceGxm. vitaGL is no longer used, which removes the
+GPLv2-only / LGPLv3 combination this port previously relied on.
+
+### Builds released before the GXM renderer
+
+Those binaries statically linked vitaGL (LGPLv3). The corresponding source is this
+repository at the release tag plus the vitaGL commit that tag pins:
+
+| Tag | vitaGL commit in [NDRWhun/vitaGL](https://github.com/NDRWhun/vitaGL) |
+|-----|------------------------------------------------------------------|
+| `pre-release` | `5d47e2847b0ab962feb8ce3281c2ce53ed2b69f3` |
+| `v0.9.8`, `playtest_0.9.81` | `b59cde421c4353f2f8a754e8056a86da08ff2dfe` |
+
+Those tags and those upstream commits must stay reachable and public: they are the
+Minimal Corresponding Source and relinkable Application Code that LGPLv3 section
+4(d)(0) requires for the copies already conveyed.
 
 Game assets are not distributed; a legally-owned copy of Jedi Outcast is required.
