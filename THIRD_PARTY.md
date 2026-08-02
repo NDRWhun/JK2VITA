@@ -13,22 +13,16 @@ Licenses of vdpm-installed libraries are documented in their upstream repositori
 
 ## License note
 
-The renderer is native sceGxm. The vitaGL submodule and its shader-compiler
-dependencies are gone, which removes the GPLv2-only / LGPLv3 combination this
-port previously relied on, and with it the `libshacccg.suprx` requirement.
+The renderer is native sceGxm. vitaGL is gone, and with it the LGPLv3 combination
+and the `libshacccg.suprx` requirement.
 
-### Builds released before the GXM renderer
-
-Those binaries statically linked vitaGL (LGPLv3). The corresponding source is this
-repository at the release tag plus the vitaGL commit that tag pins:
+Builds released before that statically linked vitaGL (LGPLv3). Their corresponding
+source is this repository at the release tag plus the vitaGL commit it pins, so both
+must stay public (LGPLv3 section 4(d)(0)):
 
 | Tag | vitaGL commit in [NDRWhun/vitaGL](https://github.com/NDRWhun/vitaGL) |
 |-----|------------------------------------------------------------------|
 | `pre-release` | `5d47e2847b0ab962feb8ce3281c2ce53ed2b69f3` |
 | `v0.9.8`, `playtest_0.9.81` | `b59cde421c4353f2f8a754e8056a86da08ff2dfe` |
-
-Those tags and those upstream commits must stay reachable and public: they are the
-Minimal Corresponding Source and relinkable Application Code that LGPLv3 section
-4(d)(0) requires for the copies already conveyed.
 
 Game assets are not distributed; a legally-owned copy of Jedi Outcast is required.
