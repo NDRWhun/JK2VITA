@@ -23,6 +23,7 @@ must stay public (LGPLv3 4(d)(0)):
 | Tag | vitaGL commit in [NDRWhun/vitaGL](https://github.com/NDRWhun/vitaGL) |
 |-----|------------------------------------------------------------------|
 | `pre-release` | `5d47e2847b0ab962feb8ce3281c2ce53ed2b69f3` |
-| `v0.9.8`, `playtest_0.9.81` | `b59cde421c4353f2f8a754e8056a86da08ff2dfe` |
+| `playtest`, `playtest_0.9.81` | `b59cde421c4353f2f8a754e8056a86da08ff2dfe` |
+| `playtest-0.9.82` | `120ce2301cdebf9047407dd31842d9044a96294a` |
 
 Game assets are not distributed; a legally-owned copy of Jedi Outcast is required.
