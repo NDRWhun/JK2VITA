@@ -5,9 +5,7 @@
 [![License: GPL v2](https://img.shields.io/badge/License-GPLv2-blue.svg)](LICENSE)
 
 A port of Jedi Outcast's single-player to the PS Vita, built on
-[OpenJK](https://github.com/JACoders/OpenJK) and rendering through
-[vitaGL](https://github.com/Rinnegatamante/vitaGL), which translates the engine's OpenGL to the
-Vita's GXM.
+[OpenJK](https://github.com/JACoders/OpenJK) with a native sceGxm renderer.
 
 Please report bugs if you find any -> Issues
 
@@ -15,9 +13,6 @@ Please report bugs if you find any -> Issues
 
 You need your own legally-owned copy of Jedi Outcast (eg.: from Steam)
 
-- Install `libshacccg.suprx` (the runtime shader compiler vitaGL needs) at
-  `ur0:data/libshacccg.suprx` —
-  [guide](https://samilops2.gitbook.io/vita-troubleshooting-guide/shader-compiler/extract-libshacccg.suprx).
 - Install `JK2VITA.vpk` (from [Releases](../../releases)) with VitaShell.
 - Copy your JK2 1.04 `base/` PK3s — `assets0.pk3`, `assets1.pk3`, `assets2.pk3`, `assets5.pk3` — to
   `ux0:data/JK2VITA/base/`.
@@ -122,14 +117,13 @@ Tune by editing `ux0:data/JK2VITA/base/openjo_sp.cfg` on the card, or from the i
 ## Build (for developers)
 
 Needs [VitaSDK](https://vitasdk.org) and [vdpm](https://github.com/vitasdk/vdpm) on `PATH`, plus cmake,
-ninja, and GNU make. **On Windows, run from Git Bash.** vitaGL and SDL2 come in as git submodules — forks
-with the Vita patches already committed ([vitaGL](https://github.com/NDRWhun/vitaGL/tree/master),
-[SDL](https://github.com/NDRWhun/SDL/tree/jk2vita)) — which the build script builds and installs over the
-stock copies VitaSDK ships.
+ninja, and GNU make. **On Windows, run from Git Bash.** SDL2 comes in as a git submodule
+([fork](https://github.com/NDRWhun/SDL/tree/jk2vita) with the Vita patches committed) and builds as a
+subproject, so nothing is installed over the copies VitaSDK ships.
 
 ```bash
 git clone --recursive https://github.com/NDRWhun/JK2VITA && cd JK2VITA
-bash tools/build.sh        # vdpm deps + vitaGL + SDL + port -> build/JK2VITA.vpk
+bash tools/build.sh        # vdpm deps + SDL + port -> build/JK2VITA.vpk
 ```
 
 `bash tools/build.sh --skip-deps` rebuilds just the port once the deps are installed. Cloned without
@@ -139,8 +133,8 @@ bash tools/build.sh        # vdpm deps + vitaGL + SDL + port -> build/JK2VITA.vp
 
 - [OpenJK](https://github.com/JACoders/OpenJK) (JACoders) — the open-source JK2/JKA engine this builds on.
 - Raven Software / LucasArts — the original *Jedi Knight II: Jedi Outcast*.
-- [Rinnegatamante](https://github.com/Rinnegatamante) — vitaGL, vitaQuakeIII (the reference id Tech 3 Vita port), and [vitaRTCW](https://github.com/Rinnegatamante/vitaRTCW) — the reference for the multi-threaded rendering.
-- [Northfear](https://github.com/Northfear/SDL) — SDL2 with the vitaGL backend.
+- [Rinnegatamante](https://github.com/Rinnegatamante) — vitaQuakeIII (the reference id Tech 3 Vita port) and [vitaRTCW](https://github.com/Rinnegatamante/vitaRTCW), the reference for the multi-threaded rendering.
+- [Northfear](https://github.com/Northfear/SDL) — the Vita SDL2 port this fork is based on.
 
 ## License
 

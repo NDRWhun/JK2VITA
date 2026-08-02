@@ -1,6 +1,4 @@
 build/
-build-gxm/
-/build/
 *.vpk
 *.elf
 *.velf
