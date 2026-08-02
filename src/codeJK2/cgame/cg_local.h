@@ -62,6 +62,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #define	ITEM_BLOB_TIME		200
 #define	MUZZLE_FLASH_TIME	20
 #define	FRAG_FADE_TIME		1000		// time for fragments to fade away
+#define	FRAG_COLLIDE_MSEC	64			// how often debris sweeps for collision
 
 #define	PULSE_SCALE			1.5			// amount to scale up the icons when activating
 
@@ -229,6 +230,9 @@ typedef struct localEntity_s {
 	struct localEntity_s	*prev, *next;
 	leType_t		leType;
 	int				leFlags;
+
+	int				nextCollideTime;	// next sweep, so debris spreads its collision cost
+	vec3_t			traceOrigin;		// where the last sweep started
 
 	int				startTime;
 	int				endTime;

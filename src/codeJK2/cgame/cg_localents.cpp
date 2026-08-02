@@ -199,6 +199,12 @@ void CG_AddFragment( localEntity_t *le )
 	// used to sink into the ground, but it looks better to maybe just fade them out
 	int		t;
 
+	if ( !le->nextCollideTime ) {	// first frame for this chunk; spread the slices
+		static int stagger = 0;
+		VectorCopy( le->refEntity.origin, le->traceOrigin );
+		le->nextCollideTime = cg.time + ( ( stagger++ & 3 ) * ( FRAG_COLLIDE_MSEC / 4 ) );
+	}
+
 	t = le->endTime - cg.time;
 
 	if ( t < FRAG_FADE_TIME )
@@ -210,10 +216,12 @@ void CG_AddFragment( localEntity_t *le )
 
 	if ( le->pos.trType == TR_STATIONARY )
 	{
-		if ( !(cgi_CM_PointContents( le->refEntity.origin, 0 ) & CONTENTS_SOLID ))
+		if ( cg.time >= le->nextCollideTime
+			&& !(cgi_CM_PointContents( le->refEntity.origin, 0 ) & CONTENTS_SOLID ))
 		{
 			// thing is no longer in solid, so let gravity take it back
 			VectorCopy( le->refEntity.origin, le->pos.trBase );
+			VectorCopy( le->refEntity.origin, le->traceOrigin );
 			VectorClear( le->pos.trDelta );
 			le->pos.trTime = cg.time;
 			le->pos.trType = TR_GRAVITY;
@@ -230,8 +238,24 @@ void CG_AddFragment( localEntity_t *le )
 	le->refEntity.renderfx |= RF_LIGHTING_ORIGIN;
 	VectorCopy( newOrigin, le->refEntity.lightingOrigin );
 
+	// the chunk still moves between sweeps; the next one starts where it last was
+	if ( cg.time < le->nextCollideTime ) {
+		VectorCopy( newOrigin, le->refEntity.origin );
+		if ( le->leFlags & LEF_TUMBLE ) {
+			vec3_t angles;
+			EvaluateTrajectory( &le->angles, cg.time, angles );
+			AnglesToAxis( angles, le->refEntity.axis );
+			for ( int k = 0; k < 3; k++ ) {
+				VectorScale( le->refEntity.axis[k], le->radius, le->refEntity.axis[k] );
+			}
+		}
+		cgi_R_AddRefEntityToScene( &le->refEntity );
+		return;
+	}
+
 	// trace a line from previous position to new position
-	CG_Trace( &trace, le->refEntity.origin, NULL, NULL, newOrigin, le->ownerGentNum, CONTENTS_SOLID );
+	CG_Trace( &trace, le->traceOrigin, NULL, NULL, newOrigin, le->ownerGentNum, CONTENTS_SOLID );
+	le->nextCollideTime = cg.time + FRAG_COLLIDE_MSEC;
 	if ( trace.fraction == 1.0 ) {
 		// still in free fall
 		VectorCopy( newOrigin, le->refEntity.origin );
@@ -248,6 +272,7 @@ void CG_AddFragment( localEntity_t *le )
 
 		}
 
+		VectorCopy( newOrigin, le->traceOrigin );
 		cgi_R_AddRefEntityToScene( &le->refEntity );
 
 		return;
@@ -269,6 +294,7 @@ void CG_AddFragment( localEntity_t *le )
 	CG_ReflectVelocity( le, &trace );
 	//FIXME: if LEF_TUMBLE, change avelocity too?
 
+	VectorCopy( le->refEntity.origin, le->traceOrigin );
 	cgi_R_AddRefEntityToScene( &le->refEntity );
 }
 
