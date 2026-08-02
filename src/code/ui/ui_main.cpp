@@ -405,9 +405,6 @@ vmCvar_t	ui_char_color_green;
 vmCvar_t	ui_char_color_blue;
 vmCvar_t	ui_PrecacheModels;
 vmCvar_t	ui_screenshotType;
-#ifdef VITA
-vmCvar_t	ui_modelDebug;
-#endif
 
 static void UI_UpdateScreenshot( void )
 {
@@ -470,10 +467,7 @@ static cvarTable_t cvarTable[] =
 
 	{ &ui_PrecacheModels,		"ui_PrecacheModels",	"1", NULL, CVAR_ARCHIVE},
 
-	{ &ui_screenshotType,		"ui_screenshotType",	"jpg", UI_UpdateScreenshot, CVAR_ARCHIVE },
-#ifdef VITA
-	{ &ui_modelDebug,			"ui_modelDebug",		"0", NULL, 0 }
-#endif
+	{ &ui_screenshotType,		"ui_screenshotType",	"jpg", UI_UpdateScreenshot, CVAR_ARCHIVE }
 };
 
 #define FP_UPDATED_NONE -1
