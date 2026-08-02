@@ -3,21 +3,19 @@
 | Component | License | Where | Role |
 |-----------|---------|-------|------|
 | [OpenJK](https://github.com/JACoders/OpenJK) | GPLv2 | `src/` (vendored subset, commit 2ba5021) | the engine/game this port builds on |
-| [vitaGL](https://github.com/Rinnegatamante/vitaGL) | LGPLv3 (`COPYING.LESSER` in the submodule) | `third_party/vitaGL` (fork, statically linked) | OpenGL → GXM translation |
-| [SDL2](https://github.com/Northfear/SDL) | zlib | `third_party/SDL-vitagl` (fork, statically linked) | video/input/audio backend |
-| [vitaShaRK](https://github.com/Rinnegatamante/vitaShaRK) | via vdpm | linked | runtime shader compilation for vitaGL |
-| [SceShaccCgExt](https://github.com/frangarcj/SceShaccCgExt) | via vdpm | linked | interface to the user-supplied `libshacccg.suprx` (Sony's shader compiler is **not** distributed with this port) |
-| [taiHEN](https://github.com/yifanlu/taiHEN) stubs | via vdpm | link stubs only | kernel interface stubs required by vitaShaRK |
+| [SDL2](https://github.com/Northfear/SDL) | zlib | `third_party/SDL2` (fork, built from source, vitaGL video driver off) | video/input/audio backend |
 | math-neon | via vdpm | linked | NEON math routines |
 | minizip, libjpeg-turbo, libpng, zlib | zlib/IJG/zlib/zlib | `src/lib/minizip` + vdpm | asset loading |
 | mp3code | GPLv2 (part of the JK2 source release) | `src/code/mp3code` | MP3 decoding |
+| DXT encoder | GPLv2 (written for this port) | `src/code/rd-common/tr_dxt.cpp` | DXT1/DXT5 block compression for the texture cache |
 
 Licenses of vdpm-installed libraries are documented in their upstream repositories.
 
 ## License note
 
-The renderer is native sceGxm. vitaGL is no longer used, which removes the
-GPLv2-only / LGPLv3 combination this port previously relied on.
+The renderer is native sceGxm. The vitaGL submodule and its shader-compiler
+dependencies are gone, which removes the GPLv2-only / LGPLv3 combination this
+port previously relied on, and with it the `libshacccg.suprx` requirement.
 
 ### Builds released before the GXM renderer
 

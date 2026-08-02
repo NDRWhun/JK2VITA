@@ -1,8 +1,4 @@
-[submodule "third_party/vitaGL"]
-	path = third_party/vitaGL
-	url = https://github.com/NDRWhun/vitaGL
-	branch = master
-[submodule "third_party/SDL-vitagl"]
-	path = third_party/SDL-vitagl
+[submodule "third_party/SDL2"]
+	path = third_party/SDL2
 	url = https://github.com/NDRWhun/SDL
 	branch = jk2vita
