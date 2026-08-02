@@ -328,7 +328,7 @@ void R_BuildWorldVBO( world_t &worldData )
 void R_WorldVBO_Stats( char *out, int outSize )
 {
 	Com_sprintf( out, outSize,
-		"WVBO: batches=%d surfs=%d tris=%d | tess: noresident=%d lit=%d split=%d full=%d\n",
+		"WVBO: draws=%d surfs=%d tris=%d | tess: noresident=%d lit=%d split=%d full=%d\n",
 		wvbo_statBatches, wvbo_statSurfs, wvbo_statTris,
 		wvbo_statNotResident, wvbo_statLit, wvbo_statGroupSplit, wvbo_statFull );
 
