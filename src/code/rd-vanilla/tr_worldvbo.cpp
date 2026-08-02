@@ -109,7 +109,35 @@ void R_WorldVBO_ContextReset( void )
 #endif
 }
 
-// Only the static per-vertex data the GL actually reads can come from the buffer;
+// A stage can be drawn from the buffer when both its coordinates and its colour
+// are already in it: uv0 for the diffuse, uv1 for a collapsed lightmap, and
+// either a constant tint or the stream colour.
+static qboolean R_WorldVBO_StageEligible( const shaderStage_t *st )
+{
+	if ( !st->active ) {
+		return qfalse;
+	}
+	if ( st->bundle[0].tcGen != TCGEN_TEXTURE || st->bundle[0].numTexMods ) {
+		return qfalse;
+	}
+	if ( st->bundle[1].image
+		&& ( st->bundle[1].tcGen != TCGEN_LIGHTMAP || st->bundle[1].numTexMods ) ) {
+		return qfalse;
+	}
+	switch ( st->rgbGen ) {
+	case CGEN_IDENTITY:
+	case CGEN_IDENTITY_LIGHTING:
+	case CGEN_EXACT_VERTEX:
+	case CGEN_VERTEX:
+		break;
+	default:
+		return qfalse;
+	}
+	// ParseStage rewrites identity to skip on script-authored stages
+	return (qboolean)( st->alphaGen == AGEN_IDENTITY || st->alphaGen == AGEN_SKIP );
+}
+
+// Only the static per-vertex data the backend reads can come from the buffer;
 // anything view- or time-dependent has to keep running through tess.
 static qboolean R_WorldVBO_ShaderEligible( const shader_t *shader )
 {
@@ -125,15 +153,11 @@ static qboolean R_WorldVBO_ShaderEligible( const shader_t *shader )
 	if ( shader->numDeforms ) {
 		return qfalse;					// deformVertexes rewrites xyz every frame
 	}
-	if ( shader->numUnfoggedPasses != 1 ) {
+	if ( shader->numUnfoggedPasses < 1 || shader->numUnfoggedPasses > MAX_SHADER_STAGES ) {
 		return qfalse;
 	}
-	const qboolean vertexLit = (qboolean)( shader->lightmapIndex[0] == LIGHTMAP_BY_VERTEX );
-	if ( shader->lightmapIndex[0] < 0 && !vertexLit ) {
-		return qfalse;
-	}
-	if ( vertexLit ) {
-		// an animating style rewrites the colour every frame
+	if ( shader->lightmapIndex[0] == LIGHTMAP_BY_VERTEX ) {
+		// the stream colour is only static while no light style animates it
 		if ( shader->styles[0] != LS_NORMAL ) {
 			return qfalse;
 		}
@@ -142,31 +166,14 @@ static qboolean R_WorldVBO_ShaderEligible( const shader_t *shader )
 				return qfalse;
 			}
 		}
+	} else if ( shader->lightmapIndex[0] < 0 ) {
+		return qfalse;
 	}
 
-	const shaderStage_t *st = &shader->stages[0];
-	if ( !st->active ) {
-		return qfalse;
-	}
-	if ( vertexLit ) {
-		if ( st->rgbGen != CGEN_EXACT_VERTEX && st->rgbGen != CGEN_VERTEX ) {
+	for ( int i = 0; i < shader->numUnfoggedPasses; i++ ) {
+		if ( !R_WorldVBO_StageEligible( &shader->stages[i] ) ) {
 			return qfalse;
 		}
-	} else if ( st->rgbGen != CGEN_IDENTITY && st->rgbGen != CGEN_IDENTITY_LIGHTING ) {
-		return qfalse;					// only the constant-colour cases need no array
-	}
-	// ParseStage rewrites identity to skip on script-authored stages
-	if ( st->alphaGen != AGEN_IDENTITY && st->alphaGen != AGEN_SKIP ) {
-		return qfalse;
-	}
-	if ( st->bundle[0].tcGen != TCGEN_TEXTURE || st->bundle[0].numTexMods ) {
-		return qfalse;
-	}
-	if ( vertexLit ) {
-		return (qboolean)( st->bundle[1].image == NULL );	// one pass, one texture
-	}
-	if ( !st->bundle[1].image || st->bundle[1].tcGen != TCGEN_LIGHTMAP || st->bundle[1].numTexMods ) {
-		return qfalse;					// the collapsed diffuse+lightmap pass
 	}
 	return qtrue;
 }
@@ -382,37 +389,44 @@ void R_WorldVBO_Flush( shader_t *shader )
 
 	const shaderStage_t *st = &shader->stages[0];
 
-	wvbo_statBatches++;
 	wvbo_statTris += wvbo_numIdx / 3;
-
-	GL_State( st->stateBits );
 	GL_Cull( shader->cullType );
 
 #ifdef USE_GXM_NATIVE
-	const qboolean vertexLit = (qboolean)( shader->lightmapIndex[0] == LIGHTMAP_BY_VERTEX );
+	// every stage reads the same resident vertices; only bindings and state move
+	for ( int i = 0; i < shader->numUnfoggedPasses; i++ ) {
+		const shaderStage_t *ps = &shader->stages[i];
+		const int ntex = ps->bundle[1].image ? 2 : 1;
+		const int vcol = ( ps->rgbGen == CGEN_EXACT_VERTEX || ps->rgbGen == CGEN_VERTEX );
+		const float lit = ( ps->rgbGen == CGEN_IDENTITY_LIGHTING || ps->rgbGen == CGEN_VERTEX )
+						  ? tr.identityLight : 1.0f;
 
-	GL_SelectTexture( 0 );
-	R_BindAnimatedImage( &st->bundle[0] );
-	if ( !vertexLit ) {
-		GL_SelectTexture( 1 );
-		GL_TexEnv( r_lightmap->integer ? GL_REPLACE : shader->multitextureEnv );
-		R_BindAnimatedImage( &st->bundle[1] );
+		GL_State( ps->stateBits );
+		GL_SelectTexture( 0 );
+		R_BindAnimatedImage( &ps->bundle[0] );
+		if ( ntex == 2 ) {
+			GL_SelectTexture( 1 );
+			GL_TexEnv( r_lightmap->integer ? GL_REPLACE : shader->multitextureEnv );
+			R_BindAnimatedImage( &ps->bundle[1] );
+			GL_SelectTexture( 0 );
+		}
+
+		GXM_SetConstantColor( lit, lit, lit, 1.0f );
+		GXM_SetTexUnitCount( ntex );
+		GXM_SetStateBits( glState.glStateBits );
+		GXM_DrawStaticBuffer( wvbo_groups[wvbo_curGroup].data, wvbo_idx, wvbo_numIdx, vcol );
+		wvbo_statBatches++;
 	}
-
-	const float lit = ( st->rgbGen == CGEN_IDENTITY_LIGHTING || st->rgbGen == CGEN_VERTEX )
-					  ? tr.identityLight : 1.0f;
-	GXM_SetConstantColor( lit, lit, lit, 1.0f );
-	GXM_SetTexUnitCount( vertexLit ? 1 : 2 );
-	GXM_SetStateBits( glState.glStateBits );
-	GXM_DrawStaticBuffer( wvbo_groups[wvbo_curGroup].data, wvbo_idx, wvbo_numIdx, vertexLit );
 	GXM_SetTexUnitCount( 1 );
 	GXM_SetConstantColor( 1.0f, 1.0f, 1.0f, 1.0f );
-
 	GL_SelectTexture( 0 );
+
 	wvbo_numIdx = 0;
 	wvbo_curGroup = -1;
 	return;
 #else
+	GL_State( st->stateBits );
+	wvbo_statBatches++;
 	const GLuint vbo = wvbo_groups[wvbo_curGroup].vbo;
 
 	glBindBuffer( GL_ARRAY_BUFFER, vbo );
