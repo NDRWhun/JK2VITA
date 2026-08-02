@@ -42,8 +42,7 @@ extern "C" void GXM_GetTessArrays( const float **xyz, const float **uv0,
 #define GXM_MAX_TEXNUM		4096
 #define GXM_MAX_PROGRAMS	256
 
-// one interleaved stream: GXM allows 4 total and packing keeps the
-// vertex-program count down
+// one interleaved stream; the limit is 16, but packing keeps the program count down
 typedef struct {
 	float			xyz[3];
 	float			uv0[2];
@@ -60,6 +59,8 @@ static gxmTexture_t		gxm_textures[GXM_MAX_TEXNUM];
 static unsigned int		gxm_boundTex[2];
 
 static SceGxmShaderPatcherId	gxm_vertIds[3][2];		// [texcoord sets][vertex colour]
+// resolved once; the names are fixed at build time and the search is by string
+static const SceGxmProgramParameter	*gxm_pMVP[3][2], *gxm_pColor[3][2];
 static SceGxmVertexProgram		*gxm_vertProgs[3][2];
 static const SceGxmProgram		*gxm_vertBlobs[3][2];
 static SceGxmShaderPatcherId	gxm_fragIds[3][2][5];	// [textures][env][alpha test]
@@ -189,6 +190,8 @@ int GXM_BackendInit( void )
 			if ( !gxm_vertProgs[nuv][vcol] ) {
 				return 0;
 			}
+			gxm_pMVP[nuv][vcol]   = sceGxmProgramFindParameterByName( gxm_vertBlobs[nuv][vcol], "uMVP" );
+			gxm_pColor[nuv][vcol] = sceGxmProgramFindParameterByName( gxm_vertBlobs[nuv][vcol], "uColor" );
 		}
 	}
 
@@ -481,8 +484,10 @@ void GXM_DrawTess( int numIndexes, const unsigned short *indexes, int numVertexe
 		v[i].xyz[2] = xyz[i * 4 + 2];
 		v[i].uv0[0] = uv0 ? uv0[i * 2 + 0] : 0.0f;
 		v[i].uv0[1] = uv0 ? uv0[i * 2 + 1] : 0.0f;
-		v[i].uv1[0] = uv1 ? uv1[i * 2 + 0] : 0.0f;
-		v[i].uv1[1] = uv1 ? uv1[i * 2 + 1] : 0.0f;
+		if ( nuv >= 2 && uv1 ) {	// otherwise the program never reads it
+			v[i].uv1[0] = uv1[i * 2 + 0];
+			v[i].uv1[1] = uv1[i * 2 + 1];
+		}
 		if ( vcol ) {
 			memcpy( v[i].rgba, &rgba[i * 4], 4 );
 		}	// otherwise the program has no aColor and the bytes are never read
@@ -501,8 +506,8 @@ void GXM_DrawTess( int numIndexes, const unsigned short *indexes, int numVertexe
 	void *uniforms = NULL;
 	sceGxmReserveVertexDefaultUniformBuffer( GXM_Context(), &uniforms );
 	if ( uniforms ) {
-		const SceGxmProgramParameter *pm = sceGxmProgramFindParameterByName( gxm_vertBlobs[nuv][vcol], "uMVP" );
-		const SceGxmProgramParameter *pc = sceGxmProgramFindParameterByName( gxm_vertBlobs[nuv][vcol], "uColor" );
+		const SceGxmProgramParameter *pm = gxm_pMVP[nuv][vcol];
+		const SceGxmProgramParameter *pc = gxm_pColor[nuv][vcol];
 		if ( pm ) sceGxmSetUniformDataF( uniforms, pm, 0, 16, gxm_mvp );
 		if ( pc ) sceGxmSetUniformDataF( uniforms, pc, 0, 4, gxm_constColor );
 	}
@@ -576,8 +581,8 @@ void GXM_DrawStaticBuffer( const void *vertexBuffer, const unsigned short *index
 	void *uniforms = NULL;
 	sceGxmReserveVertexDefaultUniformBuffer( GXM_Context(), &uniforms );
 	if ( uniforms ) {
-		const SceGxmProgramParameter *pm = sceGxmProgramFindParameterByName( gxm_vertBlobs[ntex][0], "uMVP" );
-		const SceGxmProgramParameter *pc = sceGxmProgramFindParameterByName( gxm_vertBlobs[ntex][0], "uColor" );
+		const SceGxmProgramParameter *pm = gxm_pMVP[ntex][0];
+		const SceGxmProgramParameter *pc = gxm_pColor[ntex][0];
 		if ( pm ) sceGxmSetUniformDataF( uniforms, pm, 0, 16, gxm_mvp );
 		if ( pc ) sceGxmSetUniformDataF( uniforms, pc, 0, 4, gxm_constColor );
 	}
