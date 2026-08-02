@@ -382,6 +382,9 @@ static void DrawTris (shaderCommands_t *input)
 		}
 
 		qglDisable( GL_POLYGON_OFFSET_LINE );
+#ifdef USE_GXM_NATIVE
+		GXM_SetDepthBias( 0.0f, 0.0f );
+#endif
 	}
 	else
 	{

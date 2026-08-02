@@ -40,6 +40,9 @@ extern void			SetViewportAndScissor( void );
 ////////////////////////////////////////////////////////////////////////////////////////
 #include "tr_local.h"
 #include "tr_WorldEffects.h"
+#ifdef USE_GXM_NATIVE
+#include "../rd-gxm/gxm_backend.h"
+#endif
 #include "../Ravl/CVec.h"
 #include "../Ratl/vector_vs.h"
 #include "../Ratl/bits_vs.h"
@@ -1443,6 +1446,9 @@ public:
 		//---------------------------
 		qglEnable(GL_TEXTURE_2D);
 		qglDisable(GL_CULL_FACE);
+#ifdef USE_GXM_NATIVE
+		GXM_SetCull( 0, 0 );	// billboards are two-sided; cull is not in the state mask
+#endif
 
 		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, (mFilterMode==0)?(GL_LINEAR):(GL_NEAREST));
 		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, (mFilterMode==0)?(GL_LINEAR):(GL_NEAREST));
@@ -1551,6 +1557,9 @@ public:
 		qglEnd();
 
 		qglEnable(GL_CULL_FACE);
+#ifdef USE_GXM_NATIVE
+		GXM_SetCull( GL_FRONT, 1 );
+#endif
 		qglPopMatrix();
 
 		mParticlesRendered += mParticleCountRender;
