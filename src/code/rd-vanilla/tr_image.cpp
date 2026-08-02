@@ -594,7 +594,7 @@ typedef struct {					// 32-byte LE header, native Vita byte order
 	unsigned int totalSize;			// sum of per-mip sizes
 } texCacheHdrDxt_t;
 
-extern "C" void stb_compress_dxt_block( unsigned char *dst, const unsigned char *src, int alpha, int mode );
+#include "../rd-common/tr_dxt.h"
 
 static void R_TexCacheStoreDxt( const char *name, const texCacheHdrDxt_t *hdr,
 								const unsigned *mipSizes, const byte *blob );	// defined below, next to the cache read path
@@ -636,7 +636,7 @@ static void R_DxtDrainRows( void )
 					brow[cc*4+0] = s[0]; brow[cc*4+1] = s[1]; brow[cc*4+2] = s[2]; brow[cc*4+3] = s[3];
 				}
 			}
-			stb_compress_dxt_block( dst, block, j->isDxt5, j->mode );
+			R_CompressDxtBlock( dst, block, j->isDxt5, j->mode );
 		}
 	}
 }
@@ -657,9 +657,6 @@ static qboolean R_DxtEnsurePool( void )
 	if ( s_dxtThid[0] >= 0 ) return qtrue;
 	if ( tried ) return qfalse;
 	tried = 1;
-	// stb_compress_dxt_block lazily fills global tables on its first call (not thread-safe);
-	// warm it once single-threaded so the workers only ever hit the read-only path
-	{ byte warmIn[64] = {0}, warmOut[16]; stb_compress_dxt_block( warmOut, warmIn, 0, 0 ); }
 	s_dxtGo   = sceKernelCreateSema( "dxt_go",   0, 0, DXT_WORKERS, NULL );
 	s_dxtDone = sceKernelCreateSema( "dxt_done", 0, 0, DXT_WORKERS, NULL );
 	const int cores[DXT_WORKERS] = { SCE_KERNEL_CPU_MASK_USER_0, SCE_KERNEL_CPU_MASK_USER_2 };

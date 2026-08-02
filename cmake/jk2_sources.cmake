@@ -67,6 +67,7 @@ set(JK_ENGINE_SOURCES
     src/code/qcommon/strip.cpp
     src/code/qcommon/tri_coll_test.cpp
     src/code/qcommon/z_memman_pc.cpp
+    src/code/rd-common/tr_dxt.cpp
     src/code/rd-common/tr_font.cpp
     src/code/rd-common/tr_image_jpg.cpp
     src/code/rd-common/tr_image_load.cpp
