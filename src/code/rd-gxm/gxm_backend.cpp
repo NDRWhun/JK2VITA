@@ -39,7 +39,12 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 extern "C" void GXM_GetTessArrays( const float **xyz, const float **uv0,
 								   const float **uv1, const unsigned char **rgba );
 
-#define GXM_MAX_TEXNUM		4096
+// keyed by live texture, not by texnum: the engine's texnums start at 2048 and
+// climb without reuse, so any fixed ceiling is only a question of when
+#define GXM_MAX_TEXTURES	4096
+#define GXM_TEXMAP_SIZE		8192		// power of two, kept under half full
+#define GXM_SLOT_NONE		(-1)
+#define GXM_SLOT_DEAD		(-2)		// tombstone; probing must walk past it
 #define GXM_MAX_PROGRAMS	256
 
 // one interleaved stream; the limit is 16, but packing keeps the program count down
@@ -55,8 +60,78 @@ typedef struct {
 	SceGxmFragmentProgram	*prog;
 } gxmProgCache_t;
 
-static gxmTexture_t		gxm_textures[GXM_MAX_TEXNUM];
-static unsigned int		gxm_boundTex[2];
+static gxmTexture_t		gxm_textures[GXM_MAX_TEXTURES];
+static int				gxm_freeSlots[GXM_MAX_TEXTURES];
+static int				gxm_numFree;
+static unsigned int		gxm_mapKey[GXM_TEXMAP_SIZE];
+static int				gxm_mapSlot[GXM_TEXMAP_SIZE];
+static int				gxm_boundTex[2];		// resolved slots, not texnums
+
+static unsigned int TexHash( unsigned int texnum )
+{
+	return ( texnum * 2654435761u ) & ( GXM_TEXMAP_SIZE - 1 );
+}
+
+static int TexFind( unsigned int texnum )
+{
+	unsigned int i = TexHash( texnum );
+	for ( int n = 0; n < GXM_TEXMAP_SIZE; n++ ) {
+		if ( gxm_mapSlot[i] == GXM_SLOT_NONE ) {
+			return GXM_SLOT_NONE;
+		}
+		if ( gxm_mapSlot[i] >= 0 && gxm_mapKey[i] == texnum ) {
+			return gxm_mapSlot[i];
+		}
+		i = ( i + 1 ) & ( GXM_TEXMAP_SIZE - 1 );
+	}
+	return GXM_SLOT_NONE;
+}
+
+// find or claim a slot; GXM_SLOT_NONE means the pool is genuinely full
+static int TexClaim( unsigned int texnum )
+{
+	const int found = TexFind( texnum );
+	if ( found >= 0 ) {
+		return found;
+	}
+	if ( !gxm_numFree ) {
+		return GXM_SLOT_NONE;
+	}
+
+	unsigned int i = TexHash( texnum );
+	int dead = -1;
+	for ( int n = 0; n < GXM_TEXMAP_SIZE; n++ ) {
+		if ( gxm_mapSlot[i] == GXM_SLOT_DEAD && dead < 0 ) {
+			dead = (int)i;
+		}
+		if ( gxm_mapSlot[i] == GXM_SLOT_NONE ) {
+			if ( dead >= 0 ) {
+				i = (unsigned int)dead;
+			}
+			gxm_mapKey[i]  = texnum;
+			gxm_mapSlot[i] = gxm_freeSlots[--gxm_numFree];
+			return gxm_mapSlot[i];
+		}
+		i = ( i + 1 ) & ( GXM_TEXMAP_SIZE - 1 );
+	}
+	return GXM_SLOT_NONE;
+}
+
+static void TexRelease( unsigned int texnum )
+{
+	unsigned int i = TexHash( texnum );
+	for ( int n = 0; n < GXM_TEXMAP_SIZE; n++ ) {
+		if ( gxm_mapSlot[i] == GXM_SLOT_NONE ) {
+			return;
+		}
+		if ( gxm_mapSlot[i] >= 0 && gxm_mapKey[i] == texnum ) {
+			gxm_freeSlots[gxm_numFree++] = gxm_mapSlot[i];
+			gxm_mapSlot[i] = GXM_SLOT_DEAD;
+			return;
+		}
+		i = ( i + 1 ) & ( GXM_TEXMAP_SIZE - 1 );
+	}
+}
 
 static SceGxmShaderPatcherId	gxm_vertIds[3][2][2];	// [texcoord sets][vertex colour][fog]
 // resolved once; the names are fixed at build time and the search is by string
@@ -102,6 +177,7 @@ static bool						gxm_uniformsDirty = true;
 // what the backend actually did this run, reported by r_gxmStats
 static int	gxm_statUploads, gxm_statDraws, gxm_statTextured, gxm_statNoTex, gxm_statRingFail;
 static int	gxm_statDxtUploads;	// how many took the compressed path
+static int	gxm_statSlotFail;	// textures refused because the pool is full
 
 static const SceGxmProgram *VertBlob( int nuv, int vcol, int fog )
 {
@@ -186,6 +262,14 @@ static SceGxmVertexProgram *BuildVertexProgram( const SceGxmProgram *blob,
 int GXM_BackendInit( void )
 {
 	memset( gxm_textures, 0, sizeof(gxm_textures) );
+	for ( int i = 0; i < GXM_TEXMAP_SIZE; i++ ) {
+		gxm_mapSlot[i] = GXM_SLOT_NONE;
+	}
+	gxm_numFree = 0;
+	for ( int i = GXM_MAX_TEXTURES - 1; i >= 0; i-- ) {
+		gxm_freeSlots[gxm_numFree++] = i;
+	}
+	gxm_boundTex[0] = gxm_boundTex[1] = GXM_SLOT_NONE;
 	memset( gxm_progCache, 0, sizeof(gxm_progCache) );
 	gxm_progCount = 0;
 
@@ -245,7 +329,7 @@ void GXM_InvalidateStateShadow( void )
 void GXM_BackendShutdown( void )
 {
 	gxm_backendOk = false;
-	for ( unsigned int i = 0; i < GXM_MAX_TEXNUM; i++ ) {
+	for ( unsigned int i = 0; i < GXM_MAX_TEXTURES; i++ ) {
 		GXM_TextureFree( &gxm_textures[i] );
 	}
 }
@@ -255,10 +339,10 @@ void GXM_BackendShutdown( void )
 // ---------------------------------------------------------------------------
 
 // the slot address survives a re-upload, so a shadowed bind would go stale
-static void ForgetTexture( unsigned int texnum )
+static void ForgetTexture( int slot )
 {
 	for ( int t = 0; t < 2; t++ ) {
-		if ( gxm_curTex[t] == &gxm_textures[texnum].tex ) {
+		if ( gxm_curTex[t] == &gxm_textures[slot].tex ) {
 			gxm_curTex[t] = NULL;
 		}
 	}
@@ -266,12 +350,17 @@ static void ForgetTexture( unsigned int texnum )
 
 void GXM_TexUpload( unsigned int texnum, const void *rgba, int width, int height )
 {
-	if ( texnum >= GXM_MAX_TEXNUM || width <= 0 || height <= 0 ) {
+	if ( width <= 0 || height <= 0 ) {
 		return;
 	}
-	ForgetTexture( texnum );
-	GXM_TextureFree( &gxm_textures[texnum] );
-	if ( GXM_TextureCreateRGBA( &gxm_textures[texnum], rgba, (unsigned)width, (unsigned)height ) ) {
+	const int slot = TexClaim( texnum );
+	if ( slot < 0 ) {
+		gxm_statSlotFail++;
+		return;
+	}
+	ForgetTexture( slot );
+	GXM_TextureFree( &gxm_textures[slot] );
+	if ( GXM_TextureCreateRGBA( &gxm_textures[slot], rgba, (unsigned)width, (unsigned)height ) ) {
 		gxm_statUploads++;
 	}
 }
@@ -279,12 +368,17 @@ void GXM_TexUpload( unsigned int texnum, const void *rgba, int width, int height
 void GXM_TexUploadDxt( unsigned int texnum, const void *blob, unsigned int size,
 					   unsigned int width, unsigned int height, unsigned int mipCount, int isDxt5 )
 {
-	if ( texnum >= GXM_MAX_TEXNUM || !blob || !size ) {
+	if ( !blob || !size ) {
 		return;
 	}
-	ForgetTexture( texnum );
-	GXM_TextureFree( &gxm_textures[texnum] );
-	if ( GXM_TextureCreateDxt( &gxm_textures[texnum], blob, size, width, height,
+	const int slot = TexClaim( texnum );
+	if ( slot < 0 ) {
+		gxm_statSlotFail++;
+		return;
+	}
+	ForgetTexture( slot );
+	GXM_TextureFree( &gxm_textures[slot] );
+	if ( GXM_TextureCreateDxt( &gxm_textures[slot], blob, size, width, height,
 			mipCount, isDxt5 != 0 ) ) {
 		gxm_statUploads++;
 		gxm_statDxtUploads++;
@@ -293,23 +387,27 @@ void GXM_TexUploadDxt( unsigned int texnum, const void *blob, unsigned int size,
 
 void GXM_TexFree( unsigned int texnum )
 {
-	if ( texnum < GXM_MAX_TEXNUM ) {
-		ForgetTexture( texnum );
-		GXM_TextureFree( &gxm_textures[texnum] );
+	const int slot = TexFind( texnum );
+	if ( slot >= 0 ) {
+		ForgetTexture( slot );
+		GXM_TextureFree( &gxm_textures[slot] );
+		TexRelease( texnum );
 	}
 }
 
+// resolved once here rather than per draw; GL_Bind already collapses repeats
 void GXM_TexBind( int tmu, unsigned int texnum )
 {
 	if ( tmu >= 0 && tmu < 2 ) {
-		gxm_boundTex[tmu] = texnum;
+		gxm_boundTex[tmu] = TexFind( texnum );
 	}
 }
 
 void GXM_TexFilter( unsigned int texnum, int linear, int clampToEdge )
 {
-	if ( texnum < GXM_MAX_TEXNUM ) {
-		GXM_TextureSetFilter( &gxm_textures[texnum], linear != 0, clampToEdge != 0 );
+	const int slot = TexFind( texnum );
+	if ( slot >= 0 ) {
+		GXM_TextureSetFilter( &gxm_textures[slot], linear != 0, clampToEdge != 0 );
 	}
 }
 
@@ -537,7 +635,7 @@ void GXM_DrawTess( int numIndexes, const unsigned short *indexes, int numVertexe
 	if ( ntex > 2 ) ntex = 2;
 	if ( ntex < 0 ) ntex = 0;
 	gxm_statDraws++;
-	if ( ntex >= 1 && !gxm_textures[ gxm_boundTex[0] & (GXM_MAX_TEXNUM-1) ].valid ) {
+	if ( ntex >= 1 && ( gxm_boundTex[0] < 0 || !gxm_textures[ gxm_boundTex[0] ].valid ) ) {
 		ntex = 0;	// an unbacked texture would sample garbage
 		gxm_statNoTex++;
 	} else if ( ntex >= 1 ) {
@@ -618,8 +716,8 @@ void GXM_DrawTess( int numIndexes, const unsigned short *indexes, int numVertexe
 	}
 
 	for ( int t = 0; t < ntex; t++ ) {
-		const unsigned int tn = gxm_boundTex[t] & (GXM_MAX_TEXNUM - 1);
-		if ( gxm_textures[tn].valid && gxm_curTex[t] != &gxm_textures[tn].tex ) {
+		const int tn = gxm_boundTex[t];
+		if ( tn >= 0 && gxm_textures[tn].valid && gxm_curTex[t] != &gxm_textures[tn].tex ) {
 			sceGxmSetFragmentTexture( GXM_Context(), t, &gxm_textures[tn].tex );
 			gxm_curTex[t] = &gxm_textures[tn].tex;
 		}
@@ -662,7 +760,7 @@ void GXM_DrawStaticBuffer( const void *vertexBuffer, const unsigned short *index
 	if ( ntex > 2 ) ntex = 2;
 	if ( ntex < 0 ) ntex = 0;
 	for ( int t = 0; t < ntex; t++ ) {
-		if ( !gxm_textures[ gxm_boundTex[t] & (GXM_MAX_TEXNUM - 1) ].valid ) {
+		if ( gxm_boundTex[t] < 0 || !gxm_textures[ gxm_boundTex[t] ].valid ) {
 			ntex = t;	// an unbacked unit would sample garbage; drop it and any above
 			break;
 		}
@@ -726,8 +824,8 @@ void GXM_DrawStaticBuffer( const void *vertexBuffer, const unsigned short *index
 	}
 
 	for ( int t = 0; t < ntex; t++ ) {
-		const unsigned int tn = gxm_boundTex[t] & (GXM_MAX_TEXNUM - 1);
-		if ( gxm_curTex[t] != &gxm_textures[tn].tex ) {
+		const int tn = gxm_boundTex[t];
+		if ( tn >= 0 && gxm_curTex[t] != &gxm_textures[tn].tex ) {
 			sceGxmSetFragmentTexture( GXM_Context(), t, &gxm_textures[tn].tex );
 			gxm_curTex[t] = &gxm_textures[tn].tex;
 		}
@@ -752,8 +850,9 @@ void GXM_ReportStats( char *out, int outSize )
 	extern int gxm_texAllocFail, gxm_texInitFail;
 	extern unsigned int gxm_texBytes;
 	const int n = snprintf( out, outSize,
-		"GXM: uploads=%d dxt=%d allocfail=%d initfail=%d texmem=%uMB | draws=%d textured=%d notex=%d ringfail=%d ring=%uKB/%uKB\n",
-		gxm_statUploads, gxm_statDxtUploads, gxm_texAllocFail, gxm_texInitFail, gxm_texBytes / ( 1024 * 1024 ),
+		"GXM: uploads=%d dxt=%d allocfail=%d initfail=%d slotfail=%d texmem=%uMB | draws=%d textured=%d notex=%d ringfail=%d ring=%uKB/%uKB\n",
+		gxm_statUploads, gxm_statDxtUploads, gxm_texAllocFail, gxm_texInitFail,
+		gxm_statSlotFail, gxm_texBytes / ( 1024 * 1024 ),
 		gxm_statDraws, gxm_statTextured, gxm_statNoTex,
 		gxm_statRingFail, GXM_RingUsedLastFrame() / 1024, GXM_RingBytesPerFrame() / 1024 );
 
