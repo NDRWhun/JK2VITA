@@ -96,6 +96,26 @@ bool GXM_TextureCreateRGBA( gxmTexture_t *t, const void *rgba, unsigned int w, u
 	return true;
 }
 
+// a video frame arrives every frame at a fixed size; reallocating each time would
+// churn memblocks, so an in-place copy is the analogue of glTexSubImage2D
+bool GXM_TextureUpdateRGBA( gxmTexture_t *t, const void *rgba, unsigned int w, unsigned int h )
+{
+	if ( !t->valid || !rgba || t->width != w || t->height != h || t->mipCount ) {
+		return false;
+	}
+
+	const unsigned int stride = ALIGN( w, 8 );
+	if ( stride == w ) {
+		memcpy( t->data, rgba, stride * h * 4 );
+	} else {
+		for ( unsigned int y = 0; y < h; y++ ) {
+			memcpy( (unsigned char *)t->data + y * stride * 4,
+					(const unsigned char *)rgba + y * w * 4, w * 4 );
+		}
+	}
+	return true;
+}
+
 /*
 ================
 SwizzledIndex

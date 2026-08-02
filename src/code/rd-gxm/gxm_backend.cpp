@@ -358,6 +358,9 @@ void GXM_TexUpload( unsigned int texnum, const void *rgba, int width, int height
 		gxm_statSlotFail++;
 		return;
 	}
+	if ( GXM_TextureUpdateRGBA( &gxm_textures[slot], rgba, (unsigned)width, (unsigned)height ) ) {
+		return;	// same size, so the pixels went straight in
+	}
 	ForgetTexture( slot );
 	GXM_TextureFree( &gxm_textures[slot] );
 	if ( GXM_TextureCreateRGBA( &gxm_textures[slot], rgba, (unsigned)width, (unsigned)height ) ) {

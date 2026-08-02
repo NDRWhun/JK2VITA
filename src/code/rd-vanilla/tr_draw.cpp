@@ -111,6 +111,10 @@ void RE_StretchRaw (int x, int y, int w, int h, int cols, int rows, const byte *
 #endif
 
 		qglTexImage2D( GL_TEXTURE_2D, 0, GL_RGB8, cols, rows, 0, GL_RGBA, GL_UNSIGNED_BYTE, data );
+#ifdef USE_GXM_NATIVE
+		GXM_TexUpload( tr.scratchImage[iClient]->texnum, data, cols, rows );
+		GXM_TexFilter( tr.scratchImage[iClient]->texnum, 1, 1 );
+#endif
 
 		qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
 		qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
@@ -140,6 +144,9 @@ void RE_StretchRaw (int x, int y, int w, int h, int cols, int rows, const byte *
 	#endif
 
 			qglTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, cols, rows, GL_RGBA, GL_UNSIGNED_BYTE, data );
+#ifdef USE_GXM_NATIVE
+			GXM_TexUpload( tr.scratchImage[iClient]->texnum, data, cols, rows );
+#endif
 
 	#ifdef TIMEBIND
 			if ( r_ignore->integer )
@@ -182,6 +189,10 @@ void RE_UploadCinematic (int cols, int rows, const byte *data, int client, qbool
 		tr.scratchImage[client]->width = cols;
 		tr.scratchImage[client]->height = rows;
 		qglTexImage2D( GL_TEXTURE_2D, 0, GL_RGB8, cols, rows, 0, GL_RGBA, GL_UNSIGNED_BYTE, data );
+#ifdef USE_GXM_NATIVE
+		GXM_TexUpload( tr.scratchImage[client]->texnum, data, cols, rows );
+		GXM_TexFilter( tr.scratchImage[client]->texnum, 1, 1 );
+#endif
 
 		qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
 		qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
@@ -192,6 +203,9 @@ void RE_UploadCinematic (int cols, int rows, const byte *data, int client, qbool
 			// otherwise, just subimage upload it so that drivers can tell we are going to be changing
 			// it and don't try and do a texture compression
 			qglTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, cols, rows, GL_RGBA, GL_UNSIGNED_BYTE, data );
+#ifdef USE_GXM_NATIVE
+			GXM_TexUpload( tr.scratchImage[client]->texnum, data, cols, rows );
+#endif
 		}
 	}
 }

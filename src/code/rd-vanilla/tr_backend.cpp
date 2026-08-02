@@ -1862,12 +1862,19 @@ static const void *RB_Cinematic( const void *data ) {
 		img->width = (word)cmd->cols;
 		img->height = (word)cmd->rows;
 		qglTexImage2D( GL_TEXTURE_2D, 0, GL_RGB8, cmd->cols, cmd->rows, 0, GL_RGBA, GL_UNSIGNED_BYTE, cmd->pixels );
+#ifdef USE_GXM_NATIVE
+		GXM_TexUpload( img->texnum, cmd->pixels, cmd->cols, cmd->rows );
+		GXM_TexFilter( img->texnum, 1, 1 );
+#endif
 		qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
 		qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
 		qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, glConfig.clampToEdgeAvailable ? GL_CLAMP_TO_EDGE : GL_CLAMP );
 		qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, glConfig.clampToEdgeAvailable ? GL_CLAMP_TO_EDGE : GL_CLAMP );
 	} else if ( cmd->dirty ) {
 		qglTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, cmd->cols, cmd->rows, GL_RGBA, GL_UNSIGNED_BYTE, cmd->pixels );
+#ifdef USE_GXM_NATIVE
+		GXM_TexUpload( img->texnum, cmd->pixels, cmd->cols, cmd->rows );
+#endif
 	}
 
 	if ( cmd->w ) {
@@ -1891,6 +1898,12 @@ static const void *RB_Cinematic( const void *data ) {
 		qglTexCoordPointer( 2, GL_FLOAT, 0, st );
 		qglColorPointer( 4, GL_UNSIGNED_BYTE, 0, col );
 		qglDrawElements( GL_TRIANGLES, 6, GL_INDEX_TYPE, idx );
+#ifdef USE_GXM_NATIVE
+		GXM_SetTexUnitCount( 1 );
+		GXM_SetVertexArrays( &xyz[0][0], &st[0][0], NULL, (const unsigned char *)col );
+		GXM_SetStateBits( glState.glStateBits );
+		GXM_DrawTess( 6, idx, 4 );
+#endif
 	}
 	return (const void *)(cmd + 1);
 }
