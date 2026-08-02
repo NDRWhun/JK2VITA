@@ -1816,6 +1816,9 @@ Generates and draws a game scene and status information at the given time.
 extern void CG_BuildSolidList( void );
 void cgi_CM_SnapPVS(vec3_t origin,byte *buffer);
 extern vec3_t	serverViewOrg;
+// cg_speeds: where the client frame goes, reset each report
+int cg_msecEnts, cg_msecMarks, cg_msecFx, cg_msecLocalEnts;
+
 void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView ) {
 	qboolean	inwater = qfalse;
 
@@ -1933,8 +1936,12 @@ wasForceSpeed=isForceSpeed;
 
 	// build the render lists
 	if ( !cg.hyperspace ) {
+		int t0 = cgi_Milliseconds();
 		CG_AddPacketEntities();			// adter calcViewValues, so predicted player state is correct
+		cg_msecEnts += cgi_Milliseconds() - t0;
+		t0 = cgi_Milliseconds();
 		CG_AddMarks();
+		cg_msecMarks += cgi_Milliseconds() - t0;
 	}
 
 	//check for opaque water
@@ -1992,7 +1999,9 @@ wasForceSpeed=isForceSpeed;
 	if ( !cg.hyperspace )
 	{
 		//Add all effects
+		const int t0 = cgi_Milliseconds();
 		theFxScheduler.AddScheduledEffects( );
+		cg_msecFx += cgi_Milliseconds() - t0;
 	}
 
 	// finish up the rest of the refdef
@@ -2001,7 +2010,9 @@ wasForceSpeed=isForceSpeed;
 	}
 
 	if ( !cg.hyperspace ) {
+		const int t0 = cgi_Milliseconds();
 		CG_AddLocalEntities();
+		cg_msecLocalEnts += cgi_Milliseconds() - t0;
 	}
 
 	cg.refdef.time = cg.time;

@@ -78,6 +78,9 @@ cvar_t	*com_timestamps;
 int		time_game;
 int		time_frontend;		// renderer frontend time
 int		time_backend;		// renderer backend time
+#ifdef VITA
+extern int cg_msecEnts, cg_msecMarks, cg_msecFx, cg_msecLocalEnts;
+#endif
 
 int		timeInTrace;
 int		timeInPVSCheck;
@@ -1526,8 +1529,19 @@ void Com_Frame( void ) {
 			sv -= time_game;
 			cl -= time_frontend + time_backend;
 
-			Com_Printf("fr:%i all:%3i sv:%3i ev:%3i cl:%3i gm:%3i tr:%3i pvs:%3i rf:%3i bk:%3i\n",
-						com_frameNumber, all, sv, ev, cl, time_game, timeInTrace, timeInPVSCheck, time_frontend, time_backend);
+			Com_Printf("fr:%i all:%3i sv:%3i ev:%3i cl:%3i gm:%3i tr:%3i pvs:%3i rf:%3i bk:%3i"
+#ifdef VITA
+						" | ents:%3i marks:%3i fx:%3i lents:%3i"
+#endif
+						"\n",
+						com_frameNumber, all, sv, ev, cl, time_game, timeInTrace, timeInPVSCheck, time_frontend, time_backend
+#ifdef VITA
+						, cg_msecEnts, cg_msecMarks, cg_msecFx, cg_msecLocalEnts
+#endif
+						);
+#ifdef VITA
+			cg_msecEnts = cg_msecMarks = cg_msecFx = cg_msecLocalEnts = 0;
+#endif
 
 			// speedslog
 			if ( com_speedslog && com_speedslog->integer )
