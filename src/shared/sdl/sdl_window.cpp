@@ -26,7 +26,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "sys/sys_local.h"
 #include "sdl_icon.h"
 #ifdef USE_GXM_NATIVE
-#include <psp2/libime.h>
+#include <psp2/libime.h>
 #include <psp2/sysmodule.h>
 #include "../../code/rd-gxm/gxm_device.h"
 #include "../../code/rd-gxm/gxm_texture.h"
@@ -979,16 +979,19 @@ window_t WIN_CreateWindow( const windowDesc_t *windowDesc, glconfig_t *glConfig 
 ===============
 WIN_MakeCurrent
 
-render thread must call this before its first present:
-SDL_GL_SwapWindow no-ops unless the window is current on the calling thread
+render thread must call this before its first present
 ===============
 */
 void WIN_MakeCurrent( void )
 {
+#ifndef USE_GXM_NATIVE
+	// SDL's GL hooks are absent without a GL video driver, and this one is
+	// dispatched unchecked; the native present owns its context anyway
 	if ( SDL_GL_MakeCurrent( screen, opengl_context ) < 0 )
 	{
 		Com_Printf( "WIN_MakeCurrent: SDL_GL_MakeCurrent failed (%s)\n", SDL_GetError() );
 	}
+#endif
 }
 #endif // VITA
 
