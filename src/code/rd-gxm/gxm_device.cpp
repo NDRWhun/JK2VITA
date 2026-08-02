@@ -1,6 +1,9 @@
 /*
 ===========================================================================
-Copyright (C) 2026 JK2VITA contributors
+Copyright (C) 1999 - 2005, Id Software, Inc.
+Copyright (C) 2000 - 2013, Raven Software, Inc.
+Copyright (C) 2001 - 2013, Activision, Inc.
+Copyright (C) 2013 - 2015, OpenJK contributors
 
 This file is part of the OpenJK source code.
 
@@ -18,10 +21,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 ===========================================================================
 */
 
-// gxm_device.cpp -- native GXM device: context, memory, swap chain, frame
-//
-// GXM has no clear operation: the frame opens by drawing a fullscreen triangle
-// with depth writes forced, which also primes the tile buffers.
+// gxm_device.cpp -- native GXM device: context, memory, swap chain, frame.
 
 #include "gxm_device.h"
 #include "shaders/gxm_shaders.h"
@@ -107,8 +107,7 @@ static bool				 gxm_sceneOpen;	// sceGxmEndScene without a matching begin is a d
 ================
 GXM_Alloc
 
-CDRAM is the fast pool but only accepts 256 KiB granularity, so callers asking
-for RWDATA get LPDDR.
+CDRAM is the fast pool but only takes 256 KiB granularity.
 ================
 */
 void *GXM_Alloc( SceKernelMemBlockType type, unsigned int size, unsigned int alignment,
@@ -227,8 +226,7 @@ static void GXM_PatcherHostFree( void *userData, void *mem )
 ================
 GXM_DisplayCallback
 
-Runs on the display queue thread once the GPU has finished the frame. No libgxm
-calls are legal here.
+Runs on the display queue thread; no libgxm calls are legal here.
 ================
 */
 static void GXM_DisplayCallback( const void *callbackData )
@@ -376,8 +374,7 @@ static bool GXM_InitPatcher( void )
 ================
 GXM_InitClear
 
-The clear is a single oversized triangle; three vertices cover the viewport
-without needing a scissor.
+Builds the fullscreen triangle and its two fragment-program instances.
 ================
 */
 static bool GXM_InitClear( void )
@@ -498,13 +495,7 @@ void GXM_BeginFrame( void )
 ================
 GXM_ClearBuffers
 
-GXM has no clear operation, so a clear is a fullscreen triangle at z=1 with the
-depth test forced to pass. The engine issues these mid-frame too -- portals, fog
-volumes and r_fastsky all reset one buffer or the other partway through a scene --
-so it takes which buffers to touch rather than assuming a frame boundary.
-
-Colour is masked off through a second fragment-program instance, because the mask
-is compiled into the program on this GPU rather than being context state.
+GXM has no clear, so a clear is a fullscreen triangle at z=1.
 ================
 */
 void GXM_ClearBuffers( int color, int depth )
@@ -513,8 +504,7 @@ void GXM_ClearBuffers( int color, int depth )
 		return;
 	}
 
-	// GXM state survives across scenes, so the clear sets everything it depends on
-	// rather than inheriting whatever the last draw left behind
+	// GXM state survives scenes, so the clear sets everything it depends on
 	sceGxmSetFrontDepthFunc( gxm_context, SCE_GXM_DEPTH_FUNC_ALWAYS );
 	sceGxmSetBackDepthFunc( gxm_context, SCE_GXM_DEPTH_FUNC_ALWAYS );
 	sceGxmSetFrontDepthWriteEnable( gxm_context,

@@ -130,8 +130,7 @@ void GL_SelectTexture( int unit )
 
 
 #ifdef USE_GXM_NATIVE
-// GXM screen space runs top-down, mirroring GL's window space, so a triangle GL sees
-// as counter-clockwise is clockwise here. Culling GL_FRONT therefore culls CW.
+// the GL cull face, translated for GXM's inverted winding
 #define GXM_SETCULL( glMode, on )	GXM_SetCull( glMode, on )
 #else
 #define GXM_SETCULL( glMode, on )	((void)0)
@@ -196,10 +195,7 @@ void GL_Cull( int cullType ) {
 void GL_TexEnv( int env )
 {
 #ifdef USE_GXM_NATIVE
-	// only unit 1 has an env: it is how the second texture combines onto the first.
-	// Set ahead of the cache test, since the GXM side has its own idea of current.
-	// GL_REPLACE/GL_DECAL exist only for the r_lightmap debug view and fall back to
-	// modulate rather than carry two more shader variants.
+	// only unit 1 has an env, and it is set ahead of the cache test
 	if ( glState.currenttmu == 1 ) {
 		GXM_SetTexEnv( ( env == GL_ADD ) ? GXM_TEXENV_ADD : GXM_TEXENV_MODULATE );
 	}

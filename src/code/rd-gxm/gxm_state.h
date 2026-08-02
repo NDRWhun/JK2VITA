@@ -1,6 +1,9 @@
 /*
 ===========================================================================
-Copyright (C) 2026 JK2VITA contributors
+Copyright (C) 1999 - 2005, Id Software, Inc.
+Copyright (C) 2000 - 2013, Raven Software, Inc.
+Copyright (C) 2001 - 2013, Activision, Inc.
+Copyright (C) 2013 - 2015, OpenJK contributors
 
 This file is part of the OpenJK source code.
 
@@ -19,10 +22,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 */
 
 // gxm_state.h -- the engine's GLS_ bitmask translated for GXM.
-//
-// GXM has no blend state: blending and colour masking are compiled into
-// fragment-program instances. So the mask splits in two - the parts that are
-// real context calls (depth, cull) and the parts that key a program instance.
+// Blending is not context state here; it is compiled into program instances.
 
 #ifndef GXM_STATE_H
 #define GXM_STATE_H
@@ -62,8 +62,7 @@ bool GXM_TranslateState( unsigned int stateBits, gxmProgramKey_t *key, gxmDepthS
 // apply the context half; the program half is resolved by the draw path
 void GXM_ApplyDepthState( const gxmDepthState_t *depth );
 
-// the GL entry points the renderer still reads back through; qgl_gxm.h routes
-// the qgl macros here, and these declarations are what give them C linkage
+// qgl_gxm.h routes the qgl macros here; these give them C linkage
 const unsigned char *GXM_GlGetString( unsigned int name );
 void GXM_GlGetIntegerv( unsigned int pname, int *params );
 void GXM_GlGetFloatv( unsigned int pname, float *params );

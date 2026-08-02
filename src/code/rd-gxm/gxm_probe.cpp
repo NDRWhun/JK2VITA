@@ -1,6 +1,9 @@
 /*
 ===========================================================================
-Copyright (C) 2026 JK2VITA contributors
+Copyright (C) 1999 - 2005, Id Software, Inc.
+Copyright (C) 2000 - 2013, Raven Software, Inc.
+Copyright (C) 2001 - 2013, Activision, Inc.
+Copyright (C) 2013 - 2015, OpenJK contributors
 
 This file is part of the OpenJK source code.
 
@@ -19,10 +22,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 */
 
 // gxm_probe.cpp -- standalone hardware check for the native GXM device.
-//
-// sceGxmInitialize is process-global and one-shot, so the device cannot be
-// brought up inside a vitaGL process; this runs it on its own. Writes a result
-// line to ux0:data/JK2VITA/gxm_probe.log and exits on START.
+// sceGxmInitialize is process-global and one-shot, so this runs on its own.
 
 #include "gxm_device.h"
 #include "gxm_texture.h"

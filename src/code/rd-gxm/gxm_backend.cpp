@@ -1,6 +1,9 @@
 /*
 ===========================================================================
-Copyright (C) 2026 JK2VITA contributors
+Copyright (C) 1999 - 2005, Id Software, Inc.
+Copyright (C) 2000 - 2013, Raven Software, Inc.
+Copyright (C) 2001 - 2013, Activision, Inc.
+Copyright (C) 2013 - 2015, OpenJK contributors
 
 This file is part of the OpenJK source code.
 
@@ -19,9 +22,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 */
 
 // gxm_backend.cpp -- the renderer's draw path on sceGxm.
-//
-// tess is rebuilt every surface, and GXM reads draw data asynchronously at
-// end-of-scene, so every draw copies its vertices into the per-frame ring.
+// GXM reads draw data at end-of-scene, so every draw copies into the frame ring.
 
 #include "gxm_backend.h"
 #include "gxm_device.h"
@@ -94,8 +95,7 @@ static const SceGxmProgram *VertBlob( int nuv, int vcol )
 	return (const SceGxmProgram *)v[nuv][vcol];
 }
 
-// GL_ADD only differs from GL_MODULATE once a second texture is in play, so the
-// env variants exist for two units alone
+// GL_ADD only differs from GL_MODULATE once a second texture is in play
 static const SceGxmProgram *FragBlob( int ntex, int env, int atest )
 {
 	static const unsigned char *t0[5] = {
@@ -120,8 +120,7 @@ static const SceGxmProgram *FragBlob( int ntex, int env, int atest )
 ================
 BuildVertexProgram
 
-The patcher generates the attribute unpack, so one .gxp serves any stride; only
-the attribute set differs per texcoord count.
+The patcher generates the attribute unpack, so one .gxp serves any stride.
 ================
 */
 static SceGxmVertexProgram *BuildVertexProgram( const SceGxmProgram *blob,
@@ -307,10 +306,7 @@ void GXM_SetTexEnv( int env )					{ gxm_texEnv = env; }
 ================
 GXM_SetDepthBias
 
-There is no enable to toggle: libgxm-Reference documents "Depth bias is always
-enabled", so the off state is a bias of zero and it has to be set back explicitly.
-GL's factor/units are floats but GXM takes integer steps in [-16,15], which covers
-every value the renderer actually asks for.
+GL's polygon offset; there is no enable, so zero is the off state.
 ================
 */
 void GXM_SetDepthBias( float factor, float units )
@@ -335,14 +331,7 @@ void GXM_SetCullFlip( int flip )					{ gxm_cullFlip = flip; }
 ================
 GXM_SetCull
 
-GL decides facing from the signed area in window coordinates, which run bottom-up;
-GXM uses screen coordinates, which run top-down. The mirror negates the area, so a
-triangle GL calls front-facing (counter-clockwise, area > 0) is the same triangle
-GXM calls front-facing (clockwise in its space) -- culling GL_FRONT is CULL_CW,
-which libgxm defines as "cull triangles with clockwise window coordinates".
-
-r_gxmCullFlip inverts that, because the sign is the one part of this the docs do
-not pin down well enough to bet a build cycle on.
+GL measures winding bottom-up and GXM top-down, so the sense inverts.
 ================
 */
 void GXM_SetCull( int glCullMode, int enabled )
@@ -365,13 +354,7 @@ void GXM_SetCull( int glCullMode, int enabled )
 ================
 GXM_SetViewport
 
-The engine's rectangle is GL's: origin bottom-left. GXM's screen space runs top-down,
-so the rectangle is flipped here and the viewport's yScale carries the sign.
-
-Setting the transform explicitly rather than inheriting what sceGxmBeginScene left is
-what pins the conventions down: yScale < 0 puts NDC +1 at the top of the screen, and
-zOffset/zScale 0.5 accept GL's [-1,1] clip Z, so the engine's own projection matrices
-need no rewriting. sceGxmBeginScene resets both, so this has to run every frame.
+Takes GL's bottom-left rectangle and pins the NDC conventions explicitly.
 ================
 */
 void GXM_SetViewport( int x, int y, int w, int h )
@@ -397,8 +380,7 @@ void GXM_SetViewport( int x, int y, int w, int h )
 ================
 GXM_SetDepthRange
 
-qglDepthRange's near/far, folded into the viewport's Z transform. GL maps clip Z
-[-1,1] onto [near,far], so scale and offset are half the span and its midpoint.
+qglDepthRange's near/far, folded into the viewport's Z transform.
 ================
 */
 void GXM_SetDepthRange( float zNear, float zFar )
@@ -541,10 +523,7 @@ void GXM_DrawTess( int numIndexes, const unsigned short *indexes, int numVertexe
 ================
 GXM_DrawStaticBuffer
 
-The world VBO's vertices already sit in GPU memory in exactly the interleaved layout
-the generic vertex program reads, so only the indices — rebuilt every frame as
-surfaces batch — go through the ring. This is the whole point of the path: static
-geometry is never copied per frame.
+Draws resident vertices, so only the indices go through the ring.
 ================
 */
 void GXM_DrawStaticBuffer( const void *vertexBuffer, const unsigned short *indexes,
@@ -570,8 +549,7 @@ void GXM_DrawStaticBuffer( const void *vertexBuffer, const unsigned short *index
 		}
 	}
 
-	// the batch gate only admits constant-colour stages, so the colour comes from
-	// the uniform and the buffer's baked vertex colours go unread
+	// the batch gate admits only constant-colour stages, so the tint is a uniform
 	const int env = ( ntex >= 2 && gxm_texEnv == GXM_TEXENV_ADD ) ? 1 : 0;
 	SceGxmFragmentProgram *frag = ResolveFragment( ntex, env, 0, &key );
 	if ( !frag ) {

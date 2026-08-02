@@ -1,6 +1,9 @@
 /*
 ===========================================================================
-Copyright (C) 2026 JK2VITA contributors
+Copyright (C) 1999 - 2005, Id Software, Inc.
+Copyright (C) 2000 - 2013, Raven Software, Inc.
+Copyright (C) 2001 - 2013, Activision, Inc.
+Copyright (C) 2013 - 2015, OpenJK contributors
 
 This file is part of the OpenJK source code.
 
@@ -19,9 +22,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 */
 
 // tr_gxm_bridge.cpp -- hands the renderer's tess and state to the GXM backend.
-//
-// Lives in rd-vanilla because tess and glState are private to the renderer; the
-// backend itself stays free of engine headers.
+// Lives here because tess and glState are private to the renderer.
 
 #ifdef USE_GXM_NATIVE
 
@@ -32,8 +33,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 ================
 GXM_GetTessArrays
 
-tess.xyz is vec4 for SIMD alignment; the texcoords and colours are the per-stage
-arrays ComputeTexCoords and ComputeColors just filled.
+tess is private to the renderer, so the backend is handed pointers.
 ================
 */
 extern "C" void GXM_GetTessArrays( const float **xyz, const float **uv0,

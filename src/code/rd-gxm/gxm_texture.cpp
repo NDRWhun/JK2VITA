@@ -1,6 +1,9 @@
 /*
 ===========================================================================
-Copyright (C) 2026 JK2VITA contributors
+Copyright (C) 1999 - 2005, Id Software, Inc.
+Copyright (C) 2000 - 2013, Raven Software, Inc.
+Copyright (C) 2001 - 2013, Activision, Inc.
+Copyright (C) 2013 - 2015, OpenJK contributors
 
 This file is part of the OpenJK source code.
 
@@ -25,15 +28,11 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include <psp2/kernel/sysmem.h>
 #include <string.h>
 
-// a failed texture reads back as white geometry, so the two ways it can fail are
-// counted apart: out of memory vs libgxm rejecting the format
+// a failed texture draws white, so the two failure modes are counted apart
 int gxm_texAllocFail, gxm_texInitFail;
 unsigned int gxm_texBytes;
 
-// CDRAM is a separate 128 MB pool that only the display buffers use, while every
-// texture competes with the engine heap for LPDDR. Its 256 KiB granularity would
-// waste most of a small texture, but a power-of-two texture that big is already an
-// exact multiple of it, so the split costs nothing.
+// a power-of-two texture this big is an exact multiple of CDRAM's granularity
 #define GXM_TEX_CDRAM_MIN	( 256 * 1024 )
 
 static void *TexAlloc( unsigned int size, SceUID *uid )
@@ -101,8 +100,7 @@ bool GXM_TextureCreateRGBA( gxmTexture_t *t, const void *rgba, unsigned int w, u
 ================
 SwizzledIndex
 
-Morton order: the low bits of u and v interleave, v first, and whichever
-dimension has bits left over appends them above the interleaved field.
+Morton order: u and v interleave, v first, odd bits appended on top.
 ================
 */
 static unsigned int SwizzledIndex( unsigned int u, unsigned int v,
@@ -121,9 +119,7 @@ static unsigned int SwizzledIndex( unsigned int u, unsigned int v,
 	return idx;
 }
 
-// DXT1/DXT5 are GXM's UBC1/UBC3 block-for-block, but libgxm only accepts block
-// compressed data in swizzled layout, so the raster-ordered blocks get shuffled
-// into Morton order on the way in. The block contents are untouched.
+// UBC1/UBC3 are DXT1/DXT5, but libgxm only takes them swizzled
 bool GXM_TextureCreateDxt( gxmTexture_t *t, const void *blob, unsigned int size,
 						   unsigned int w, unsigned int h, unsigned int mipCount, bool isDxt5 )
 {
@@ -198,8 +194,7 @@ void GXM_TextureSetFilter( gxmTexture_t *t, bool linear, bool clamp )
 	sceGxmTextureSetUAddrMode( &t->tex, m );
 	sceGxmTextureSetVAddrMode( &t->tex, m );
 
-	// without this an uploaded mip chain is never sampled, which both aliases and
-	// thrashes the texture cache on anything minified
+	// without this an uploaded mip chain is never sampled
 	sceGxmTextureSetMipFilter( &t->tex, ( t->mipCount > 1 )
 		? SCE_GXM_TEXTURE_MIP_FILTER_ENABLED : SCE_GXM_TEXTURE_MIP_FILTER_DISABLED );
 }
@@ -249,14 +244,12 @@ void GXM_RingShutdown( void )
 ================
 GXM_RingBeginFrame
 
-Advancing by one slice per frame gives the GPU GXM_RING_FRAMES-1 frames of grace
-before the CPU can catch up with a slice it is still reading.
+One slice per frame gives the GPU a frame of grace before reuse.
 ================
 */
 void GXM_RingBeginFrame( void )
 {
-	// a high-water mark rather than the last sample, so an occasional heavy frame
-	// still shows up in a report taken every N frames
+	// a high-water mark, so a heavy frame still shows in an occasional report
 	if ( ring_offset > ring_lastUsed ) {
 		ring_lastUsed = ring_offset;
 	}
