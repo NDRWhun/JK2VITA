@@ -1949,6 +1949,8 @@ const void	*RB_SwapBuffers( const void *data ) {
 			char line[192];
 			GXM_ReportStats( line, sizeof( line ) );
 			ri.Printf( PRINT_ALL, "%s", line );
+			R_WorldVBO_Stats( line, sizeof( line ) );
+			ri.Printf( PRINT_ALL, "%s", line );
 		}
 	}
 #endif

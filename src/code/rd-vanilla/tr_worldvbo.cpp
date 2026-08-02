@@ -68,6 +68,10 @@ static glIndex_t	wvbo_idx[WVBO_MAXIDX];
 static int			wvbo_numIdx;
 static int			wvbo_curGroup = -1;
 
+// per-frame, so the fallback reasons can be told apart
+static int	wvbo_statBatches, wvbo_statSurfs, wvbo_statTris;
+static int	wvbo_statNotResident, wvbo_statLit, wvbo_statGroupSplit, wvbo_statFull;
+
 /*
 ===============
 R_WorldVBO_Clear
@@ -148,6 +152,16 @@ static qboolean R_WorldVBO_ShaderEligible( const shader_t *shader )
 	return qtrue;
 }
 
+typedef struct {
+	srfSurfaceFace_t	*face;
+	int					shader;			// tr.shaders[] index; only adjacency matters
+} wvboEntry_t;
+
+static int R_WorldVBO_CompareEntry( const void *a, const void *b )
+{
+	return ( (const wvboEntry_t *)a )->shader - ( (const wvboEntry_t *)b )->shader;
+}
+
 /*
 ===============
 R_BuildWorldVBO
@@ -170,22 +184,44 @@ void R_BuildWorldVBO( world_t &worldData )
 	R_IssuePendingRenderCommands();
 	R_WorldVBO_Clear();
 
+	// Gather eligible surfaces and pack them in material order. The backend batches a
+	// run of one shader into one draw only while the run stays inside one buffer, so
+	// packing in surface order would scatter a shader across groups and split it.
+	wvboEntry_t *list = (wvboEntry_t *)R_Malloc( numSurfaces * sizeof( wvboEntry_t ),
+												TAG_TEMP_WORKSPACE, qfalse );
+	int numEligible = 0;
+
+	for ( int i = 0; i < numSurfaces; i++ )
+	{
+		msurface_t *surf = &worldData.surfaces[i];
+		if ( *surf->data != SF_FACE || !R_WorldVBO_ShaderEligible( surf->shader ) ) {
+			continue;
+		}
+		list[numEligible].face  = (srfSurfaceFace_t *)surf->data;
+		list[numEligible].shader = surf->shader->index;
+		numEligible++;
+	}
+
+	qsort( list, numEligible, sizeof( wvboEntry_t ), R_WorldVBO_CompareEntry );
+
 	byte *verts = (byte *)R_Malloc( WVBO_GROUPVERTS * WVBO_STRIDE, TAG_TEMP_WORKSPACE, qfalse );
 	int groupVerts = 0;
-	int resident = 0, totalVerts = 0, totalIdx = 0;
+	int resident = 0, totalVerts = 0, totalIdx = 0, splitShaders = 0;
+	int lastShader = -1;
 
-	for ( int i = 0; i <= numSurfaces; i++ )
+	for ( int i = 0; i <= numEligible; i++ )
 	{
-		msurface_t	*surf = ( i < numSurfaces ) ? &worldData.surfaces[i] : NULL;
-		srfSurfaceFace_t *face = NULL;
+		srfSurfaceFace_t *face = ( i < numEligible ) ? list[i].face : NULL;
 
-		if ( surf && *surf->data == SF_FACE && R_WorldVBO_ShaderEligible( surf->shader ) ) {
-			face = (srfSurfaceFace_t *)surf->data;
+		// a shader that outgrows one buffer still has to split, so count it
+		if ( face && list[i].shader != lastShader ) {
+			lastShader = list[i].shader;
+		} else if ( face && groupVerts + face->numPoints > WVBO_GROUPVERTS ) {
+			splitShaders++;
 		}
 
-		// close only when this surface cannot fit, or the list ran out; an ineligible
-		// surface is simply skipped, or the groups fragment to one surface each
-		if ( groupVerts && ( i == numSurfaces
+		// close only when this surface cannot fit, or the list ran out
+		if ( groupVerts && ( i == numEligible
 			|| ( face && groupVerts + face->numPoints > WVBO_GROUPVERTS ) ) )
 		{
 			if ( wvbo_numGroups >= WVBO_MAXGROUPS ) {
@@ -255,10 +291,23 @@ void R_BuildWorldVBO( world_t &worldData )
 	}
 
 	R_Free( verts );
+	R_Free( list );
 
-	ri.Printf( PRINT_ALL, "world VBO: %i/%i surfaces resident, %i verts %i tris, %i groups, %.2f MB\n",
-		resident, numSurfaces, totalVerts, totalIdx / 3, wvbo_numGroups,
+	ri.Printf( PRINT_ALL, "world VBO: %i/%i surfaces resident, %i verts %i tris, %i groups, %i split, %.2f MB\n",
+		resident, numSurfaces, totalVerts, totalIdx / 3, wvbo_numGroups, splitShaders,
 		wvbo_bytes / (1024.0f * 1024.0f) );
+}
+
+// what the batcher managed this frame, and where the rest went
+void R_WorldVBO_Stats( char *out, int outSize )
+{
+	Com_sprintf( out, outSize,
+		"WVBO: batches=%d surfs=%d tris=%d | tess: noresident=%d lit=%d split=%d full=%d\n",
+		wvbo_statBatches, wvbo_statSurfs, wvbo_statTris,
+		wvbo_statNotResident, wvbo_statLit, wvbo_statGroupSplit, wvbo_statFull );
+
+	wvbo_statBatches = wvbo_statSurfs = wvbo_statTris = 0;
+	wvbo_statNotResident = wvbo_statLit = wvbo_statGroupSplit = wvbo_statFull = 0;
 }
 
 /*
@@ -270,20 +319,28 @@ Appends a resident surface's indices. False means it has to go through tess.
 */
 qboolean R_WorldVBO_Surface( const srfSurfaceFace_t *face, int fogNum, int dlighted )
 {
-	if ( !r_worldVBO || !r_worldVBO->integer || wvbo_failed || !face->vboIndexes ) {
+	if ( !r_worldVBO || !r_worldVBO->integer || wvbo_failed ) {
+		return qfalse;
+	}
+	if ( !face->vboIndexes ) {
+		wvbo_statNotResident++;
 		return qfalse;
 	}
 	if ( fogNum || dlighted || face->dlightBits[backEnd.smpFrame] ) {
+		wvbo_statLit++;
 		return qfalse;					// the fog and dlight passes only exist on the tess path
 	}
 	if ( wvbo_numIdx + face->numIndices > WVBO_MAXIDX ) {
+		wvbo_statFull++;
 		return qfalse;						// scratch full; tess takes the remainder
 	}
 	if ( wvbo_curGroup >= 0 && wvbo_curGroup != face->vboGroup ) {
+		wvbo_statGroupSplit++;
 		return qfalse;						// a different buffer, so a different draw
 	}
 
 	wvbo_curGroup = face->vboGroup;
+	wvbo_statSurfs++;
 	memcpy( wvbo_idx + wvbo_numIdx, face->vboIndexes, face->numIndices * sizeof( glIndex_t ) );
 	wvbo_numIdx += face->numIndices;
 	return qtrue;
@@ -305,6 +362,9 @@ void R_WorldVBO_Flush( shader_t *shader )
 	}
 
 	const shaderStage_t *st = &shader->stages[0];
+
+	wvbo_statBatches++;
+	wvbo_statTris += wvbo_numIdx / 3;
 
 	GL_State( st->stateBits );
 	GL_Cull( shader->cullType );
