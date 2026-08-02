@@ -16,9 +16,9 @@ Licenses of vdpm-installed libraries are documented in their upstream repositori
 The renderer is native sceGxm. vitaGL is gone, and with it the LGPLv3 combination
 and the `libshacccg.suprx` requirement.
 
-Builds released before that statically linked vitaGL (LGPLv3). Their corresponding
-source is this repository at the release tag plus the vitaGL commit it pins, so both
-must stay public (LGPLv3 section 4(d)(0)):
+Earlier releases statically linked vitaGL (LGPLv3). Their corresponding source is this
+repository at the release tag plus the vitaGL commit that tag pins, so both repositories
+must stay public (LGPLv3 4(d)(0)):
 
 | Tag | vitaGL commit in [NDRWhun/vitaGL](https://github.com/NDRWhun/vitaGL) |
 |-----|------------------------------------------------------------------|
