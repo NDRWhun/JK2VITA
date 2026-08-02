@@ -2716,6 +2716,12 @@ static int S_CheckAmplitude(channel_t	*ch, const int s_oldpaintedtime )
 		return (sample);
 	}
 	// no, just get last value calculated from backup table
+	if ( !s_entityWavVol_back[ ch->entnum ] ) {
+		// nothing sampled for this entity yet: the recompute is throttled globally
+		// by next_amplitude, so a line can start between passes. Zero would read as
+		// finished and end the script's wait on it.
+		return -1;
+	}
 	assert( s_entityWavVol_back[ch->entnum] );
 	return (s_entityWavVol_back[ ch->entnum]);
 }
