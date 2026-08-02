@@ -1951,6 +1951,7 @@ const void	*RB_SwapBuffers( const void *data ) {
 			ri.Printf( PRINT_ALL, "%s", line );
 			R_WorldVBO_Stats( line, sizeof( line ) );
 			ri.Printf( PRINT_ALL, "%s", line );
+			GXM_LogStatsLine( line );
 		}
 	}
 #endif

@@ -970,24 +970,29 @@ void GXM_ImmEnd( void )
 	GXM_DrawTess( ni, gxm_immIdx, gxm_immCount );
 }
 
+// the engine log is not flushed on an abrupt exit, so stats get their own file
+void GXM_LogStatsLine( const char *line )
+{
+	sceIoMkdir( "ux0:data/JK2VITA", 0777 );
+	SceUID f = sceIoOpen( "ux0:data/JK2VITA/gxm_stats.log",
+		SCE_O_WRONLY | SCE_O_CREAT | SCE_O_APPEND, 0777 );
+	if ( f >= 0 ) {
+		sceIoWrite( f, line, strlen( line ) );
+		sceIoClose( f );
+	}
+}
+
 // a picture of what the backend actually did, for r_gxmStats
 void GXM_ReportStats( char *out, int outSize )
 {
 	extern int gxm_texAllocFail, gxm_texInitFail;
 	extern unsigned int gxm_texBytes;
-	const int n = snprintf( out, outSize,
+	snprintf( out, outSize,
 		"GXM: uploads=%d dxt=%d allocfail=%d initfail=%d slotfail=%d texmem=%uMB | draws=%d textured=%d notex=%d ringfail=%d ring=%uKB/%uKB\n",
 		gxm_statUploads, gxm_statDxtUploads, gxm_texAllocFail, gxm_texInitFail,
 		gxm_statSlotFail, gxm_texBytes / ( 1024 * 1024 ),
 		gxm_statDraws, gxm_statTextured, gxm_statNoTex,
 		gxm_statRingFail, GXM_RingUsedLastFrame() / 1024, GXM_RingBytesPerFrame() / 1024 );
 
-	// also to its own file: the engine log is not flushed on an abrupt exit
-	sceIoMkdir( "ux0:data/JK2VITA", 0777 );
-	SceUID f = sceIoOpen( "ux0:data/JK2VITA/gxm_stats.log",
-		SCE_O_WRONLY | SCE_O_CREAT | SCE_O_APPEND, 0777 );
-	if ( f >= 0 ) {
-		sceIoWrite( f, out, n );
-		sceIoClose( f );
-	}
+	GXM_LogStatsLine( out );
 }
