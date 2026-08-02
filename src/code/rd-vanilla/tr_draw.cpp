@@ -37,6 +37,47 @@ Used for cinematics.
 */
 
 // param 'bDirty' should be true 99% of the time
+#ifdef VITA
+/*
+===============
+R_StageCinematic
+
+Copies the frame aside and hands it to the render thread, which owns the
+backend. A zero width records the upload without a draw.
+===============
+*/
+static void R_StageCinematic( int x, int y, int w, int h, int cols, int rows,
+							  const byte *data, int client, qboolean dirty )
+{
+	// upload-only and draw commands can both be in flight for one client in a
+	// frame, so they stage apart: growing one must not free the other's pixels
+	const int use = w ? 0 : 1;
+	static byte *stage[2][2][NUM_SCRATCH_IMAGES];
+	static int   stageSize[2][2][NUM_SCRATCH_IMAGES];
+	const int bytes = cols * rows * 4;
+
+	if ( stageSize[activeBackEnd][use][client] < bytes ) {
+		if ( stage[activeBackEnd][use][client] ) {
+			R_Free( stage[activeBackEnd][use][client] );
+		}
+		stage[activeBackEnd][use][client] = (byte *)R_Malloc( bytes, TAG_TEMP_WORKSPACE, qfalse );
+		stageSize[activeBackEnd][use][client] = bytes;
+	}
+	memcpy( stage[activeBackEnd][use][client], data, bytes );
+
+	cinematicCommand_t *cmd = (cinematicCommand_t *)R_GetCommandBuffer( sizeof( *cmd ) );
+	if ( !cmd ) {
+		return;
+	}
+	cmd->commandId = RC_CINEMATIC;
+	cmd->pixels = stage[activeBackEnd][use][client];
+	cmd->x = x; cmd->y = y; cmd->w = w; cmd->h = h;
+	cmd->cols = cols; cmd->rows = rows;
+	cmd->client = client;
+	cmd->dirty = dirty;
+}
+#endif
+
 void RE_StretchRaw (int x, int y, int w, int h, int cols, int rows, const byte *data, int iClient, qboolean bDirty )
 {
 	if ( !tr.registered ) {
@@ -50,28 +91,7 @@ void RE_StretchRaw (int x, int y, int w, int h, int cols, int rows, const byte *
 		if ( (cols&(cols-1)) || (rows&(rows-1)) ) {
 			Com_Error (ERR_DROP, "Draw_StretchRaw: size not a power of 2: %i by %i", cols, rows);
 		}
-		static byte *stage[2][NUM_SCRATCH_IMAGES];
-		static int   stageSize[2][NUM_SCRATCH_IMAGES];
-		const int bytes = cols * rows * 4;
-		if ( stageSize[activeBackEnd][iClient] < bytes ) {
-			if ( stage[activeBackEnd][iClient] ) {
-				R_Free( stage[activeBackEnd][iClient] );
-			}
-			stage[activeBackEnd][iClient] = (byte *)R_Malloc( bytes, TAG_TEMP_WORKSPACE, qfalse );
-			stageSize[activeBackEnd][iClient] = bytes;
-		}
-		memcpy( stage[activeBackEnd][iClient], data, bytes );
-
-		cinematicCommand_t *cmd = (cinematicCommand_t *)R_GetCommandBuffer( sizeof( *cmd ) );
-		if ( !cmd ) {
-			return;
-		}
-		cmd->commandId = RC_CINEMATIC;
-		cmd->pixels = stage[activeBackEnd][iClient];
-		cmd->x = x; cmd->y = y; cmd->w = w; cmd->h = h;
-		cmd->cols = cols; cmd->rows = rows;
-		cmd->client = iClient;
-		cmd->dirty = bDirty;
+		R_StageCinematic( x, y, w, h, cols, rows, data, iClient, bDirty );
 		return;
 	}
 #endif
@@ -181,6 +201,15 @@ void RE_StretchRaw (int x, int y, int w, int h, int cols, int rows, const byte *
 
 
 void RE_UploadCinematic (int cols, int rows, const byte *data, int client, qboolean dirty) {
+
+#ifdef VITA
+	// the render thread owns the backend, so hand it the frame rather than
+	// binding and uploading from here
+	if ( r_renderThread && r_renderThread->integer ) {
+		R_StageCinematic( 0, 0, 0, 0, cols, rows, data, client, dirty );
+		return;
+	}
+#endif
 
 	GL_Bind( tr.scratchImage[client] );
 
