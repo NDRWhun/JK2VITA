@@ -197,7 +197,8 @@ void GL_TexEnv( int env )
 #ifdef USE_GXM_NATIVE
 	// only unit 1 has an env, and it is set ahead of the cache test
 	if ( glState.currenttmu == 1 ) {
-		GXM_SetTexEnv( ( env == GL_ADD ) ? GXM_TEXENV_ADD : GXM_TEXENV_MODULATE );
+		GXM_SetTexEnv( env == GL_ADD     ? GXM_TEXENV_ADD :
+					   env == GL_REPLACE ? GXM_TEXENV_REPLACE : GXM_TEXENV_MODULATE );
 	}
 #endif
 	if ( env == glState.texEnv[glState.currenttmu] )

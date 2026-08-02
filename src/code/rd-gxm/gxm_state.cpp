@@ -178,7 +178,8 @@ const unsigned char *GXM_GlGetString( unsigned int name )
 	case 0x1F02:	return (const unsigned char *)"GXM native";		// GL_VERSION
 	// for the console dump; WIN_GL_ExtensionSupported is what the renderer asks
 	case 0x1F03:	return (const unsigned char *)
-						"GL_ARB_texture_compression GL_EXT_texture_compression_s3tc";
+						"GL_ARB_texture_compression GL_EXT_texture_compression_s3tc "
+						"GL_EXT_texture_env_add";
 	default:		return (const unsigned char *)"";
 	}
 }

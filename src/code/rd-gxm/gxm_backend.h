@@ -30,9 +30,10 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 extern "C" {
 #endif
 
-// how a second texture combines onto the first, mirroring GL_MODULATE / GL_ADD
+// how a second texture combines onto the first, mirroring the GL texture env
 #define GXM_TEXENV_MODULATE		0
 #define GXM_TEXENV_ADD			1
+#define GXM_TEXENV_REPLACE		2
 
 // how the owner exposes tess; unset means draws must supply their own arrays
 typedef void (*gxmTessArraysFn_t)( const float **xyz, const float **uv0,

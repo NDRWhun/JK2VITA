@@ -1094,6 +1094,7 @@ qboolean WIN_GL_ExtensionSupported( const char *extension )
 	static const char *supported[] = {
 		"GL_ARB_texture_compression",
 		"GL_EXT_texture_compression_s3tc",
+		"GL_EXT_texture_env_add",		// the two-texture add program set
 	};
 	for ( size_t i = 0; i < ARRAY_LEN( supported ); i++ ) {
 		if ( !Q_stricmp( extension, supported[i] ) ) {

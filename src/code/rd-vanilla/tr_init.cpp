@@ -1755,7 +1755,7 @@ void R_Register( void )
 	// 1 = backend on a dedicated render thread (default), 0 = inline on main. CVAR_LATCH.
 	r_renderThread = ri.Cvar_Get( "r_renderThread", "1", CVAR_ARCHIVE | CVAR_LATCH );
 	// fold all-additive multi-stage effects into one programmable draw; 2 = transposed MVP (debug)
-	r_effectCombine = ri.Cvar_Get( "r_effectCombine", "1", CVAR_ARCHIVE );
+	r_effectCombine = ri.Cvar_Get( "r_effectCombine", "0", CVAR_ARCHIVE );
 	// 1 = drop old-map textures at shutdown; stock keeps both maps resident until the
 	// new map's first frame (the transition OOM peak). Reload comes from the DXT cache.
 	r_dropTexturesOnLoad = ri.Cvar_Get( "r_dropTexturesOnLoad", "1", CVAR_ARCHIVE );
@@ -1829,9 +1829,9 @@ void R_Register( void )
 		cvar_t *gfxBase = ri.Cvar_Get( "vita_gfxBaseline", "0", CVAR_ARCHIVE );
 		// v2 re-asserted cg_shadows; v3 re-enables the DXT cache over a bisect edit;
 		// v4 raises the quality baseline (sharper textures, full LOD/tessellation, real sky);
-		// v5 folds additive effect stages (r_effectCombine).
-		if ( gfxBase->integer < 5 ) {
-			ri.Cvar_Set( "vita_gfxBaseline", "5" );
+		// v6 retires r_effectCombine: it needs GLSL, which the backend does not have.
+		if ( gfxBase->integer < 6 ) {
+			ri.Cvar_Set( "vita_gfxBaseline", "6" );
 			ri.Cvar_Set( "r_texCacheCompressed", "1" );
 			ri.Cvar_Set( "r_picmip", "1" );			// sharper textures (DXT pays for it)
 			ri.Cvar_Set( "r_lodbias", "0" );		// full geometry detail
@@ -1839,7 +1839,7 @@ void R_Register( void )
 			ri.Cvar_Set( "r_fastSky", "0" );		// real skybox
 			ri.Cvar_Set( "r_inGameVideo", "1" );	// in-world video screens
 			ri.Cvar_Set( "cg_shadows", "1" );		// blob shadows (no stencil path in the backend)
-			ri.Cvar_Set( "r_effectCombine", "1" );	// fold additive effect stages into one draw
+			ri.Cvar_Set( "r_effectCombine", "0" );
 		}
 	}
 #endif

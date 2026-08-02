@@ -141,11 +141,11 @@ static void TexRelease( unsigned int texnum )
 static SceGxmShaderPatcherId	gxm_vertIds[3][2][2];	// [texcoord sets][vertex colour][fog]
 // resolved once; the names are fixed at build time and the search is by string
 static const SceGxmProgramParameter	*gxm_pMVP[3][2][2], *gxm_pColor[3][2][2], *gxm_pFogParams[3][2][2];
-static const SceGxmProgramParameter	*gxm_pFogColor[3][2][5][2];
+static const SceGxmProgramParameter	*gxm_pFogColor[3][3][5][2];
 static SceGxmVertexProgram		*gxm_vertProgs[3][2][2];
 static const SceGxmProgram		*gxm_vertBlobs[3][2][2];
-static SceGxmShaderPatcherId	gxm_fragIds[3][2][5][2];	// [textures][env][alpha test][fog]
-static const SceGxmProgram		*gxm_fragBlobs[3][2][5][2];
+static SceGxmShaderPatcherId	gxm_fragIds[3][3][5][2];	// [textures][env][alpha test][fog]
+static const SceGxmProgram		*gxm_fragBlobs[3][3][5][2];
 
 static gxmProgCache_t	gxm_progCache[GXM_MAX_PROGRAMS];
 static int				gxm_progCount;
@@ -202,11 +202,14 @@ static const SceGxmProgram *FragBlob( int ntex, int env, int atest, int fog )
 	static const unsigned char *t1[5][2] = { F(1,0,0), F(1,0,1), F(1,0,2), F(1,0,3), F(1,0,4) };
 	static const unsigned char *t2e0[5][2] = { F(2,0,0), F(2,0,1), F(2,0,2), F(2,0,3), F(2,0,4) };
 	static const unsigned char *t2e1[5][2] = { F(2,1,0), F(2,1,1), F(2,1,2), F(2,1,3), F(2,1,4) };
+	static const unsigned char *t2e2[5][2] = { F(2,2,0), F(2,2,1), F(2,2,2), F(2,2,3), F(2,2,4) };
 #undef F
 
 	if ( ntex <= 0 ) return (const SceGxmProgram *)t0[atest][fog];
 	if ( ntex == 1 ) return (const SceGxmProgram *)t1[atest][fog];
-	return (const SceGxmProgram *)( env ? t2e1[atest][fog] : t2e0[atest][fog] );
+	if ( env == GXM_TEXENV_REPLACE ) return (const SceGxmProgram *)t2e2[atest][fog];
+	if ( env == GXM_TEXENV_ADD )     return (const SceGxmProgram *)t2e1[atest][fog];
+	return (const SceGxmProgram *)t2e0[atest][fog];
 }
 
 /*
@@ -300,7 +303,8 @@ int GXM_BackendInit( void )
 	}
 
 	for ( int t = 0; t < 3; t++ ) {
-		for ( int e = 0; e < 2; e++ ) {
+		// only the two-texture set has env variants; the rest alias env 0
+		for ( int e = 0; e < ( t == 2 ? 3 : 1 ); e++ ) {
 			for ( int a = 0; a < 5; a++ ) {
 				for ( int fog = 0; fog < 2; fog++ ) {
 					const SceGxmProgram *b = FragBlob( t, e, a, fog );
@@ -453,7 +457,8 @@ void GXM_SetModelView( const float *m )
 void GXM_SetStateBits( unsigned int stateBits )	{ gxm_stateBits = stateBits; }
 void GXM_SetTexUnitCount( int count )			{ gxm_texUnits = count; }
 void GXM_SetVertexColorEnabled( int enabled )	{ gxm_vertexColor = enabled; }
-void GXM_SetTexEnv( int env )					{ gxm_texEnv = env; }
+// clamped: env indexes the fragment program table
+void GXM_SetTexEnv( int env )					{ gxm_texEnv = ( env >= 0 && env <= GXM_TEXENV_REPLACE ) ? env : GXM_TEXENV_MODULATE; }
 
 // linear fog only; start/end are eye distances, matching GL_LINEAR
 void GXM_SetFog( int enabled, float start, float end, const float *color )
@@ -584,8 +589,8 @@ void GXM_SetDepthRange( float zNear, float zFar )
 static SceGxmFragmentProgram *ResolveFragment( int ntex, int env, int vcol, int fog,
 											   const gxmProgramKey_t *key )
 {
-	const unsigned int hash = ( GXM_ProgramKeyHash( key ) << 5 )
-		| ( (unsigned)ntex << 3 ) | ( (unsigned)env << 2 )
+	const unsigned int hash = ( GXM_ProgramKeyHash( key ) << 6 )
+		| ( (unsigned)ntex << 4 ) | ( (unsigned)env << 2 )
 		| ( (unsigned)vcol << 1 ) | (unsigned)fog;
 
 	for ( int i = 0; i < gxm_progCount; i++ ) {
@@ -662,7 +667,7 @@ void GXM_DrawTess( int numIndexes, const unsigned short *indexes, int numVertexe
 
 	const int nuv  = ntex;
 	const int vcol = ( rgba && gxm_vertexColor ) ? 1 : 0;
-	const int env  = ( ntex >= 2 && gxm_texEnv == GXM_TEXENV_ADD ) ? 1 : 0;
+	const int env  = ( ntex >= 2 ) ? gxm_texEnv : 0;
 	const int fog  = gxm_fogOn ? 1 : 0;
 
 	SceGxmFragmentProgram *frag = ResolveFragment( ntex, env, vcol, fog, &key );
@@ -785,7 +790,7 @@ void GXM_DrawStaticBuffer( const void *vertexBuffer, const unsigned short *index
 	}
 
 	// the batch gate admits only constant-colour stages, so the tint is a uniform
-	const int env = ( ntex >= 2 && gxm_texEnv == GXM_TEXENV_ADD ) ? 1 : 0;
+	const int env = ( ntex >= 2 ) ? gxm_texEnv : 0;
 	const int fog = gxm_fogOn ? 1 : 0;
 	SceGxmFragmentProgram *frag = ResolveFragment( ntex, env, 0, fog, &key );
 	if ( !frag ) {

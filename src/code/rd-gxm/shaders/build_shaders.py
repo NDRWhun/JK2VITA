@@ -33,7 +33,7 @@ for _nuv in (0, 1, 2):
                 ["NUV=%d" % _nuv, "VCOLOR=%d" % _vcol, "FOG=%d" % _fog])
 
 for _ntex in (0, 1, 2):
-    for _env in ((0,) if _ntex < 2 else (0, 1)):
+    for _env in ((0,) if _ntex < 2 else (0, 1, 2)):
         for _atest in range(5):
             for _fog in (0, 1):
                 SHADERS["generic_f_t%d_e%d_a%d_f%d" % (_ntex, _env, _atest, _fog)] = (
