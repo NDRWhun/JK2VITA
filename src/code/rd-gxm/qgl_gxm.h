@@ -16,6 +16,12 @@ void GXM_GlClear( unsigned int mask );
 void GXM_SetClearColor( float r, float g, float b, float a );
 void GXM_SetDepthRange( float zNear, float zFar );
 void GXM_SetDepthBias( float factor, float units );
+void GXM_ImmBegin( unsigned int glMode );
+void GXM_ImmTexCoord2f( float s, float t );
+void GXM_ImmColor4f( float r, float g, float b, float a );
+void GXM_ImmColor4ubv( const unsigned char *c );
+void GXM_ImmVertex3f( float x, float y, float z );
+void GXM_ImmEnd( void );
 #ifdef __cplusplus
 }
 #endif
@@ -23,7 +29,7 @@ void GXM_SetDepthBias( float factor, float units );
 #define qglAccum(...) ((void)0)
 #define qglAlphaFunc(...) ((void)0)
 #define qglAreTexturesResident(...) ((void)0)
-#define qglBegin(...) ((void)0)
+#define qglBegin(m) GXM_ImmBegin((unsigned int)(m))
 #define qglBindProgramARB(...) ((void)0)
 #define qglBindTexture(...) ((void)0)
 #define qglBitmap(...) ((void)0)
@@ -41,7 +47,7 @@ void GXM_SetDepthBias( float factor, float units );
 #define qglColor3bv(...) ((void)0)
 #define qglColor3d(...) ((void)0)
 #define qglColor3dv(...) ((void)0)
-#define qglColor3f(...) ((void)0)
+#define qglColor3f(r, g, b) GXM_ImmColor4f((r), (g), (b), 1.0f)
 #define qglColor3fv(...) ((void)0)
 #define qglColor3i(...) ((void)0)
 #define qglColor3iv(...) ((void)0)
@@ -57,14 +63,14 @@ void GXM_SetDepthBias( float factor, float units );
 #define qglColor4bv(...) ((void)0)
 #define qglColor4d(...) ((void)0)
 #define qglColor4dv(...) ((void)0)
-#define qglColor4f(...) ((void)0)
+#define qglColor4f(r, g, b, a) GXM_ImmColor4f((r), (g), (b), (a))
 #define qglColor4fv(...) ((void)0)
 #define qglColor4i(...) ((void)0)
 #define qglColor4iv(...) ((void)0)
 #define qglColor4s(...) ((void)0)
 #define qglColor4sv(...) ((void)0)
 #define qglColor4ub(...) ((void)0)
-#define qglColor4ubv(...) ((void)0)
+#define qglColor4ubv(v) GXM_ImmColor4ubv((const unsigned char *)(v))
 #define qglColor4ui(...) ((void)0)
 #define qglColor4uiv(...) ((void)0)
 #define qglColor4us(...) ((void)0)
@@ -102,7 +108,7 @@ void GXM_SetDepthBias( float factor, float units );
 #define qglEdgeFlagv(...) ((void)0)
 #define qglEnable(...) ((void)0)
 #define qglEnableClientState(...) ((void)0)
-#define qglEnd(...) ((void)0)
+#define qglEnd() GXM_ImmEnd()
 #define qglEndList(...) ((void)0)
 #define qglEvalCoord1d(...) ((void)0)
 #define qglEvalCoord1dv(...) ((void)0)
@@ -318,8 +324,8 @@ void GXM_SetDepthBias( float factor, float units );
 #define qglTexCoord1sv(...) ((void)0)
 #define qglTexCoord2d(...) ((void)0)
 #define qglTexCoord2dv(...) ((void)0)
-#define qglTexCoord2f(...) ((void)0)
-#define qglTexCoord2fv(...) ((void)0)
+#define qglTexCoord2f(s, t) GXM_ImmTexCoord2f((s), (t))
+#define qglTexCoord2fv(v) GXM_ImmTexCoord2f((v)[0], (v)[1])
 #define qglTexCoord2i(...) ((void)0)
 #define qglTexCoord2iv(...) ((void)0)
 #define qglTexCoord2s(...) ((void)0)
@@ -363,7 +369,7 @@ void GXM_SetDepthBias( float factor, float units );
 #define qglUnlockArraysEXT(...) ((void)0)
 #define qglVertex2d(...) ((void)0)
 #define qglVertex2dv(...) ((void)0)
-#define qglVertex2f(...) ((void)0)
+#define qglVertex2f(x, y) GXM_ImmVertex3f((x), (y), 0.0f)
 #define qglVertex2fv(...) ((void)0)
 #define qglVertex2i(...) ((void)0)
 #define qglVertex2iv(...) ((void)0)
@@ -371,8 +377,8 @@ void GXM_SetDepthBias( float factor, float units );
 #define qglVertex2sv(...) ((void)0)
 #define qglVertex3d(...) ((void)0)
 #define qglVertex3dv(...) ((void)0)
-#define qglVertex3f(...) ((void)0)
-#define qglVertex3fv(...) ((void)0)
+#define qglVertex3f(x, y, z) GXM_ImmVertex3f((x), (y), (z))
+#define qglVertex3fv(v) GXM_ImmVertex3f((v)[0], (v)[1], (v)[2])
 #define qglVertex3i(...) ((void)0)
 #define qglVertex3iv(...) ((void)0)
 #define qglVertex3s(...) ((void)0)

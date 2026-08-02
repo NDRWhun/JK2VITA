@@ -32,6 +32,20 @@ DIRECT_RETURNS = {
     "vglMemTotal": "0",
 }
 
+# the immediate-mode entry points still used, mapped onto the accumulator
+IMMEDIATE = {
+    "qglBegin":        "(m) GXM_ImmBegin((unsigned int)(m))",
+    "qglEnd":          "() GXM_ImmEnd()",
+    "qglVertex2f":     "(x, y) GXM_ImmVertex3f((x), (y), 0.0f)",
+    "qglVertex3f":     "(x, y, z) GXM_ImmVertex3f((x), (y), (z))",
+    "qglVertex3fv":    "(v) GXM_ImmVertex3f((v)[0], (v)[1], (v)[2])",
+    "qglTexCoord2f":   "(s, t) GXM_ImmTexCoord2f((s), (t))",
+    "qglTexCoord2fv":  "(v) GXM_ImmTexCoord2f((v)[0], (v)[1])",
+    "qglColor3f":      "(r, g, b) GXM_ImmColor4f((r), (g), (b), 1.0f)",
+    "qglColor4f":      "(r, g, b, a) GXM_ImmColor4f((r), (g), (b), (a))",
+    "qglColor4ubv":    "(v) GXM_ImmColor4ubv((const unsigned char *)(v))",
+}
+
 # gl_vita_ext.cpp defines these itself; macroing them would break the definitions
 DEFINED_LOCALLY = {"glTexParameterfv", "glDrawBuffer", "glArrayElement"}
 
@@ -98,6 +112,12 @@ out = [
     "void GXM_SetClearColor( float r, float g, float b, float a );",
     "void GXM_SetDepthRange( float zNear, float zFar );",
     "void GXM_SetDepthBias( float factor, float units );",
+    "void GXM_ImmBegin( unsigned int glMode );",
+    "void GXM_ImmTexCoord2f( float s, float t );",
+    "void GXM_ImmColor4f( float r, float g, float b, float a );",
+    "void GXM_ImmColor4ubv( const unsigned char *c );",
+    "void GXM_ImmVertex3f( float x, float y, float z );",
+    "void GXM_ImmEnd( void );",
     "#ifdef __cplusplus",
     "}",
     "#endif",
@@ -120,6 +140,9 @@ for n in qgl_names:
         out.append("#define %s(n, f) GXM_SetDepthRange((float)(n), (float)(f))" % n)
     elif n == "qglPolygonOffset":
         out.append("#define %s(f, u) GXM_SetDepthBias((f), (u))" % n)
+    # the remaining glBegin/glVertex blocks: weather, the cinematic quad, shadows
+    elif n in IMMEDIATE:
+        out.append("#define %s%s" % (n, IMMEDIATE[n]))
     elif n in QGL_RETURNS:
         out.append("#define %s(...) (%s)" % (n, QGL_RETURNS[n]))
     else:

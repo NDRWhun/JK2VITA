@@ -71,6 +71,14 @@ void GXM_SetDepthBias( float factor, float units );	// zero is the off state
 // ux0:data/JK2VITA/gxm_stats.log
 void GXM_ReportStats( char *out, int outSize );
 
+// the glBegin/glVertex paths that remain; one draw leaves per block
+void GXM_ImmBegin( unsigned int glMode );
+void GXM_ImmTexCoord2f( float s, float t );
+void GXM_ImmColor4f( float r, float g, float b, float a );
+void GXM_ImmColor4ubv( const unsigned char *c );
+void GXM_ImmVertex3f( float x, float y, float z );
+void GXM_ImmEnd( void );
+
 // draw the current tess contents
 void GXM_DrawTess( int numIndexes, const unsigned short *indexes, int numVertexes );
 

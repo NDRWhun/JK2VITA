@@ -847,6 +847,115 @@ void GXM_DrawStaticBuffer( const void *vertexBuffer, const unsigned short *index
 		SCE_GXM_INDEX_FORMAT_U16, idx, numIndexes );
 }
 
+// ---------------------------------------------------------------------------
+// immediate mode
+//
+// A handful of paths (weather, the cinematic quad, shadow volumes) still build
+// geometry with glBegin/glVertex. They accumulate here and leave as one draw.
+// ---------------------------------------------------------------------------
+
+#define GXM_IMM_MAX_VERTS	16384
+
+static float			gxm_immXyz[GXM_IMM_MAX_VERTS][4];
+static float			gxm_immUv[GXM_IMM_MAX_VERTS][2];
+static unsigned char	gxm_immRgba[GXM_IMM_MAX_VERTS][4];
+static unsigned short	gxm_immIdx[GXM_IMM_MAX_VERTS * 3];
+static int				gxm_immCount;
+static unsigned int		gxm_immMode;
+static bool				gxm_immActive;
+static float			gxm_immCurUv[2];
+static unsigned char	gxm_immCurRgba[4] = { 255, 255, 255, 255 };
+
+void GXM_ImmBegin( unsigned int glMode )
+{
+	gxm_immMode   = glMode;
+	gxm_immCount  = 0;
+	gxm_immActive = true;
+}
+
+void GXM_ImmTexCoord2f( float s, float t )
+{
+	gxm_immCurUv[0] = s; gxm_immCurUv[1] = t;
+}
+
+void GXM_ImmColor4f( float r, float g, float b, float a )
+{
+	gxm_immCurRgba[0] = (unsigned char)( r * 255.0f );
+	gxm_immCurRgba[1] = (unsigned char)( g * 255.0f );
+	gxm_immCurRgba[2] = (unsigned char)( b * 255.0f );
+	gxm_immCurRgba[3] = (unsigned char)( a * 255.0f );
+}
+
+void GXM_ImmColor4ubv( const unsigned char *c )
+{
+	gxm_immCurRgba[0] = c[0]; gxm_immCurRgba[1] = c[1];
+	gxm_immCurRgba[2] = c[2]; gxm_immCurRgba[3] = c[3];
+}
+
+void GXM_ImmVertex3f( float x, float y, float z )
+{
+	if ( !gxm_immActive || gxm_immCount >= GXM_IMM_MAX_VERTS ) {
+		return;
+	}
+	const int i = gxm_immCount++;
+	gxm_immXyz[i][0] = x; gxm_immXyz[i][1] = y; gxm_immXyz[i][2] = z; gxm_immXyz[i][3] = 1.0f;
+	gxm_immUv[i][0] = gxm_immCurUv[0]; gxm_immUv[i][1] = gxm_immCurUv[1];
+	memcpy( gxm_immRgba[i], gxm_immCurRgba, 4 );
+}
+
+// GL_TRIANGLES 0x0004, GL_TRIANGLE_STRIP 0x0005, GL_TRIANGLE_FAN 0x0006, GL_QUADS 0x0007
+void GXM_ImmEnd( void )
+{
+	if ( !gxm_immActive ) {
+		return;
+	}
+	gxm_immActive = false;
+
+	int ni = 0;
+	switch ( gxm_immMode ) {
+	case 0x0007:
+		for ( int q = 0; q + 3 < gxm_immCount; q += 4 ) {
+			gxm_immIdx[ni++] = (unsigned short)( q + 0 );
+			gxm_immIdx[ni++] = (unsigned short)( q + 1 );
+			gxm_immIdx[ni++] = (unsigned short)( q + 2 );
+			gxm_immIdx[ni++] = (unsigned short)( q + 0 );
+			gxm_immIdx[ni++] = (unsigned short)( q + 2 );
+			gxm_immIdx[ni++] = (unsigned short)( q + 3 );
+		}
+		break;
+	case 0x0004:
+		for ( int v = 0; v + 2 < gxm_immCount; v += 3 ) {
+			gxm_immIdx[ni++] = (unsigned short)( v + 0 );
+			gxm_immIdx[ni++] = (unsigned short)( v + 1 );
+			gxm_immIdx[ni++] = (unsigned short)( v + 2 );
+		}
+		break;
+	case 0x0005:
+		for ( int v = 0; v + 2 < gxm_immCount; v++ ) {
+			const int odd = v & 1;
+			gxm_immIdx[ni++] = (unsigned short)( v + 0 );
+			gxm_immIdx[ni++] = (unsigned short)( v + ( odd ? 2 : 1 ) );
+			gxm_immIdx[ni++] = (unsigned short)( v + ( odd ? 1 : 2 ) );
+		}
+		break;
+	case 0x0006:
+		for ( int v = 1; v + 1 < gxm_immCount; v++ ) {
+			gxm_immIdx[ni++] = 0;
+			gxm_immIdx[ni++] = (unsigned short)( v + 0 );
+			gxm_immIdx[ni++] = (unsigned short)( v + 1 );
+		}
+		break;
+	default:
+		return;	// lines and points have no triangle expansion
+	}
+
+	if ( !ni ) {
+		return;
+	}
+	GXM_SetVertexArrays( &gxm_immXyz[0][0], &gxm_immUv[0][0], NULL, &gxm_immRgba[0][0] );
+	GXM_DrawTess( ni, gxm_immIdx, gxm_immCount );
+}
+
 // a picture of what the backend actually did, for r_gxmStats
 void GXM_ReportStats( char *out, int outSize )
 {
