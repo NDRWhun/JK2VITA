@@ -585,6 +585,21 @@ void GXM_EndFrame( void )
 
 /*
 ================
+GXM_Sync
+
+Blocks until the GPU has finished everything submitted so far.
+================
+*/
+void GXM_Sync( void )
+{
+	if ( !gxm_deviceOk ) {
+		return;
+	}
+	sceGxmFinish( gxm_context );
+}
+
+/*
+================
 GXM_ReadPixels
 
 Copies a rectangle of the last presented frame, bottom row first; comps is 3 or 4.

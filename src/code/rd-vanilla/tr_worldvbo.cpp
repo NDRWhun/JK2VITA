@@ -79,6 +79,7 @@ R_WorldVBO_Clear
 */
 void R_WorldVBO_Clear( void )
 {
+	GXM_Sync();
 	for ( int i = 0; i < wvbo_numGroups; i++ ) {
 #ifdef USE_GXM_NATIVE
 		if ( wvbo_groups[i].data ) {

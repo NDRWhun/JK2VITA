@@ -1044,6 +1044,7 @@ static void GL_ResetBinds(void)
 //
 void R_Images_DeleteLightMaps(void)
 {
+	GXM_Sync();
 
 	for (AllocatedImages_t::iterator itImage = AllocatedImages.begin(); itImage != AllocatedImages.end(); /* empty */)
 	{
@@ -1123,6 +1124,7 @@ void RE_RegisterImages_Info_f( void )
 //
 qboolean RE_RegisterImages_LevelLoadEnd(void)
 {
+	GXM_Sync();
 	//ri.Printf( PRINT_DEVELOPER, "RE_RegisterImages_LevelLoadEnd():\n");
 
 	qboolean imageDeleted = qfalse;
@@ -1958,6 +1960,7 @@ R_DeleteTextures
 // (only gets called during vid_restart now (and app exit), not during map load)
 //
 void R_DeleteTextures( void ) {
+	GXM_Sync();
 
 	R_Images_Clear();
 	GL_ResetBinds();

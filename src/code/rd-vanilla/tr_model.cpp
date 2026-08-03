@@ -28,6 +28,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 #include "tr_common.h"
 #include "tr_local.h"
+#include "../rd-gxm/gxm_device.h"
 #include "qcommon/matcomp.h"
 #include "../qcommon/sstring.h"
 
@@ -257,6 +258,7 @@ extern cvar_t *r_modelpoolmegs;
 extern qboolean gbInsideRegisterModel;
 qboolean RE_RegisterModels_LevelLoadEnd(qboolean bDeleteEverythingNotUsedThisLevel /* = qfalse */)
 {
+	GXM_Sync();
 	qboolean bAtLeastoneModelFreed = qfalse;
 
 	// md3 surfaces may be freed below; drop the surface-keyed vertex cache.
@@ -346,6 +348,7 @@ void RE_RegisterModels_Info_f( void )
 
 static void RE_RegisterModels_DeleteAll(void)
 {
+	GXM_Sync();
 	if(!CachedModels) {
 		return;	//argh!
 	}
