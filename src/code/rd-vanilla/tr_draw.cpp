@@ -211,8 +211,7 @@ void RE_StretchRaw (int x, int y, int w, int h, int cols, int rows, const byte *
 void RE_UploadCinematic (int cols, int rows, const byte *data, int client, qboolean dirty) {
 
 #ifdef VITA
-	// only the thread that owns the command buffer may stage; the backend owns
-	// the context instead and uploads straight away
+	// staging belongs to the thread that owns the command buffer
 	if ( r_renderThread && r_renderThread->integer && !Sys_InRenderThread() ) {
 		R_StageCinematic( 0, 0, 0, 0, cols, rows, data, client, dirty );
 		return;

@@ -82,6 +82,7 @@ bool GXM_TextureCreateRGBA( gxmTexture_t *t, const void *rgba, unsigned int w, u
 	if ( sceGxmTextureInitLinear( &t->tex, t->data,
 			SCE_GXM_TEXTURE_FORMAT_A8B8G8R8, w, h, 0 ) < 0 ) {
 		gxm_texInitFail++;
+		gxm_texBytes -= size;
 		GXM_Free( t->uid );
 		t->data = NULL;
 		return false;
@@ -159,7 +160,10 @@ bool GXM_TextureCreateDxt( gxmTexture_t *t, const void *blob, unsigned int size,
 		const unsigned int bw = ( mw + 3 ) / 4, bh = ( mh + 3 ) / 4;
 		const unsigned int levelSize = bw * bh * blockBytes;
 		if ( ofs + levelSize > size ) {
-			break;	// the cached blob ran out; keep what decoded cleanly
+			gxm_texBytes -= size;
+			GXM_Free( t->uid );	// the descriptor below would claim mips this cannot hold
+			memset( t, 0, sizeof(*t) );
+			return false;
 		}
 		for ( unsigned int by = 0; by < bh; by++ ) {
 			for ( unsigned int bx = 0; bx < bw; bx++ ) {
@@ -176,6 +180,7 @@ bool GXM_TextureCreateDxt( gxmTexture_t *t, const void *blob, unsigned int size,
 		? SCE_GXM_TEXTURE_FORMAT_UBC3_ABGR : SCE_GXM_TEXTURE_FORMAT_UBC1_ABGR;
 	if ( sceGxmTextureInitSwizzled( &t->tex, t->data, fmt, w, h, mipCount ) < 0 ) {
 		gxm_texInitFail++;
+		gxm_texBytes -= size;
 		GXM_Free( t->uid );
 		t->data = NULL;
 		return false;

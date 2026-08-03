@@ -1371,8 +1371,7 @@ static image_t *R_CreateImageFromDxtCache( const char *name, qboolean mipmap, qb
 		sceIoClose( fd );
 		return NULL;
 	}
-	// every level must be exactly the size its own dimensions imply, or the texture
-	// ends up describing more mips than the allocation behind it can hold
+	// each level must be the exact size its own dimensions imply
 	unsigned total = 0;
 	{
 		const unsigned blockBytes = ( hdr.format == TEXCACHE_FMT_DXT5 ) ? 16 : 8;
