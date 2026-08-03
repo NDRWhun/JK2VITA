@@ -129,16 +129,6 @@ bash tools/build.sh        # vdpm deps + SDL + port -> build/JK2VITA.vpk
 `--recursive`? The script runs `git submodule update --init` for you.
 
 
-### Shaders
-
-Nothing to do. The renderer's GXM shaders are precompiled and committed as
-`src/code/rd-gxm/shaders/gxm_shaders.h`, which the build simply includes. There is no shader
-compiler in the build, and none is needed on the device either.
-
-Editing the Cg sources beside that header is a maintainer job: regenerating it needs an
-offline Cg compiler that is not publicly available. Open an issue and someone who can
-rebuild the header will.
-
 ## Credits
 
 - [OpenJK](https://github.com/JACoders/OpenJK) (JACoders) — the open-source JK2/JKA engine this builds on.
