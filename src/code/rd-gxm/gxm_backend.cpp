@@ -185,6 +185,7 @@ static bool						gxm_fragUniformsDirty = true;
 static int	gxm_statUploads, gxm_statDraws, gxm_statTextured, gxm_statNoTex, gxm_statRingFail;
 static int	gxm_statDxtUploads;	// how many took the compressed path
 static int	gxm_statSlotFail;	// textures refused because the pool is full
+static int	gxm_statImmDraws;	// draws that came from a glBegin/glEnd block
 
 static const SceGxmProgram *VertBlob( int nuv, int vcol, int fog )
 {
@@ -1003,6 +1004,7 @@ void GXM_ImmEnd( void )
 	}
 	GXM_SetVertexArrays( &gxm_immXyz[0][0], &gxm_immUv[0][0], NULL, &gxm_immRgba[0][0] );
 	GXM_DrawTess( ni, gxm_immIdx, gxm_immCount );
+	gxm_statImmDraws++;
 }
 
 // the engine log is not flushed on an abrupt exit, so stats get their own file
@@ -1025,13 +1027,13 @@ void GXM_ReportStats( char *out, int outSize )
 	extern int gxm_texAllocFail, gxm_texInitFail;
 	extern unsigned int gxm_texBytes;
 	snprintf( out, outSize,
-		"GXM: uploads=%d dxt=%d allocfail=%d initfail=%d slotfail=%d texmem=%uMB | draws=%d textured=%d notex=%d ringfail=%d ring=%uKB/%uKB\n",
+		"GXM: uploads=%d dxt=%d allocfail=%d initfail=%d slotfail=%d texmem=%uMB | draws=%d imm=%d textured=%d notex=%d ringfail=%d ring=%uKB/%uKB\n",
 		gxm_statUploads, gxm_statDxtUploads, gxm_texAllocFail, gxm_texInitFail,
 		gxm_statSlotFail, gxm_texBytes / ( 1024 * 1024 ),
-		gxm_statDraws, gxm_statTextured, gxm_statNoTex,
+		gxm_statDraws, gxm_statImmDraws, gxm_statTextured, gxm_statNoTex,
 		gxm_statRingFail, GXM_RingUsedLastFrame() / 1024, GXM_RingBytesPerFrame() / 1024 );
 
-	gxm_statDraws = gxm_statTextured = gxm_statNoTex = gxm_statRingFail = 0;
+	gxm_statDraws = gxm_statImmDraws = gxm_statTextured = gxm_statNoTex = gxm_statRingFail = 0;
 
 	GXM_LogStatsLine( out );
 }
