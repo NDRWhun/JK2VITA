@@ -2040,12 +2040,10 @@ void RE_Shutdown( qboolean destroyWindow, qboolean restarting ) {
 		ri.Cmd_RemoveCommand( commands[i].cmd );
 
 #ifdef VITA
-	// Render-thread mode: the last issued frame may still be executing on the render
-	// thread. Park it BEFORE the teardown below (glow GL deletes, world-effects free,
-	// fonts) - the later drain at the R_DeleteTextures block is too late for those.
+	// park the render thread before the teardown below frees what it is reading
 	if ( tr.registered && r_renderThread && r_renderThread->integer ) {
 		R_IssuePendingRenderCommands();
-		R_FreeGhoulSkinArena();	// release the bone-snapshot arena during load; re-malloc'd next frame
+		R_FreeGhoulSkinArena();
 	}
 #endif
 
@@ -2117,13 +2115,7 @@ void RE_Shutdown( qboolean destroyWindow, qboolean restarting ) {
 #endif
 		ri.WIN_Shutdown();
 #ifdef VITA
-		// WIN_Shutdown destroyed the window/context (and R_StopRenderThread killed the
-		// render thread + its semaphores above). Clear glConfig so the next R_Init takes
-		// InitOpenGL's full bring-up path (vidWidth == 0) and recreates all of it - the
-		// same code that runs at cold boot. With a stale vidWidth, InitOpenGL skips
-		// straight to GL_SetDefaultState with no window and no backend: every frame then
-		// hands commands to deleted semaphores, nothing presents, and the display
-		// freezes on its last frame (the vid_restart "hang").
+		// a zero vidWidth is what makes the next R_Init take the full bring-up path
 		memset( &glConfig, 0, sizeof( glConfig ) );
 #endif
 	}

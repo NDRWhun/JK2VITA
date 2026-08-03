@@ -281,6 +281,13 @@ int GXM_BackendInit( void )
 		gxm_freeSlots[gxm_numFree++] = i;
 	}
 	gxm_boundTex[0] = gxm_boundTex[1] = GXM_SLOT_NONE;
+
+	// the shader patcher keeps its registrations across a vid_restart
+	if ( gxm_backendOk ) {
+		GXM_InvalidateStateShadow();
+		return 1;
+	}
+
 	memset( gxm_progCache, 0, sizeof(gxm_progCache) );
 	gxm_progCount = 0;
 

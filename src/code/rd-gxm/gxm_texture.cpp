@@ -243,6 +243,13 @@ static bool			 ring_overflowed;
 
 bool GXM_RingInit( unsigned int bytesPerFrame )
 {
+	// the ring outlives a vid_restart, which brings the render thread back up
+	if ( ring_base ) {
+		ring_offset = 0;
+		ring_frame  = 0;
+		return true;
+	}
+
 	ring_frameBytes = ALIGN( bytesPerFrame, 4096 );
 	ring_base = (unsigned char *)GXM_Alloc( SCE_KERNEL_MEMBLOCK_TYPE_USER_RW_UNCACHE,
 		ring_frameBytes * GXM_RING_FRAMES, 4, SCE_GXM_MEMORY_ATTRIB_READ, &ring_uid );
