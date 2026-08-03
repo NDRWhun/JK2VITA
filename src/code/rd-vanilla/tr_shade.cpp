@@ -1384,6 +1384,7 @@ static void ProjectDlightTexture( void ) {
 	}
 }
 
+#ifndef USE_GXM_NATIVE
 /*
 ===================
 RB_FogPass
@@ -1418,11 +1419,9 @@ static void RB_FogPass( void ) {
 		GL_State( GLS_SRCBLEND_SRC_ALPHA | GLS_DSTBLEND_ONE_MINUS_SRC_ALPHA );
 	}
 
-#ifdef USE_GXM_NATIVE
-	GXM_SetTexUnitCount( 1 );	// one texture, whatever the last stage left set
-#endif
 	R_DrawElements( tess.numIndexes, tess.indexes, tess.numVertexes );
 }
+#endif
 
 
 /*
@@ -2390,8 +2389,7 @@ void RB_StageIteratorGeneric( void )
 	// call shader function
 	//
 #ifdef USE_GXM_NATIVE
-	// the fragment programs carry fog, so the volume drives them directly rather
-	// than through the second blended pass GL needed
+	// the fragment programs carry fog, so the volume drives them directly
 	const qboolean gxmMapFog = (qboolean)( tess.fogNum && tess.shader->fogPass
 		&& r_drawfog->value && tr.world && !r_forceFog->value );
 	if ( gxmMapFog ) {
@@ -2427,16 +2425,16 @@ void RB_StageIteratorGeneric( void )
 	//
 	// now do fog
 	//
+#ifndef USE_GXM_NATIVE
 #ifdef JK2_MODE
 	if (tess.fogNum && tess.shader->fogPass && r_drawfog->value)
 #else
 	if (tr.world && (tess.fogNum != tr.world->globalFog || r_drawfog->value != 2) && r_drawfog->value && tess.fogNum && tess.shader->fogPass)
 #endif
 	{
-#ifndef USE_GXM_NATIVE
 		RB_FogPass();
-#endif
 	}
+#endif
 
 	//
 	// unlock arrays
