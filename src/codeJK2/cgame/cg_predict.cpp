@@ -187,6 +187,14 @@ int		CG_PointContents( const vec3_t point, int passEntityNum ) {
 			continue;
 		}
 
+		// the link keeps absmin/absmax current, so a point outside is a cheap miss
+		if ( cent->gent
+			&& ( point[0] < cent->gent->absmin[0] || point[0] > cent->gent->absmax[0]
+			  || point[1] < cent->gent->absmin[1] || point[1] > cent->gent->absmax[1]
+			  || point[2] < cent->gent->absmin[2] || point[2] > cent->gent->absmax[2] ) ) {
+			continue;
+		}
+
 		cmodel = cgi_CM_InlineModel( ent->modelindex );
 		if ( !cmodel ) {
 			continue;
