@@ -2389,7 +2389,25 @@ void RB_StageIteratorGeneric( void )
 	//
 	// call shader function
 	//
+#ifdef USE_GXM_NATIVE
+	// the fragment programs carry fog, so the volume drives them directly rather
+	// than through the second blended pass GL needed
+	const qboolean gxmMapFog = (qboolean)( tess.fogNum && tess.shader->fogPass
+		&& r_drawfog->value && tr.world && !r_forceFog->value );
+	if ( gxmMapFog ) {
+		const fog_t *fog = tr.world->fogs + tess.fogNum;
+		const float  end = fog->parms.depthForOpaque > 1.0f ? fog->parms.depthForOpaque : 1.0f;
+		GXM_SetFog( 1, end * 0.5f, end, fog->parms.color );
+	}
+#endif
+
 	RB_IterateStagesGeneric( input );
+
+#ifdef USE_GXM_NATIVE
+	if ( gxmMapFog ) {
+		GXM_SetFog( 0, 0.0f, 0.0f, NULL );
+	}
+#endif
 
 	//
 	// now do any dynamic lighting needed
@@ -2415,7 +2433,9 @@ void RB_StageIteratorGeneric( void )
 	if (tr.world && (tess.fogNum != tr.world->globalFog || r_drawfog->value != 2) && r_drawfog->value && tess.fogNum && tess.shader->fogPass)
 #endif
 	{
+#ifndef USE_GXM_NATIVE
 		RB_FogPass();
+#endif
 	}
 
 	//
