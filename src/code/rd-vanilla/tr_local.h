@@ -1113,19 +1113,7 @@ int		 R_Images_StartIteration(void);
 image_t *R_Images_GetNextIteration(void);
 void	 R_Images_Clear(void);
 void	 R_Images_DeleteLightMaps(void);
-void	 R_BeginGpuFree(void);
-void	 R_EndGpuFree(void);
 extern "C" qboolean Sys_InRenderThread( void );	// tr_cmds.cpp
-extern "C" void R_LockBackend( void );		// tr_cmds.cpp
-extern "C" void R_UnlockBackend( void );	// tr_cmds.cpp
-
-// holds the backend off and waits out the GPU for the lifetime of the scope
-class CGpuFreeGuard
-{
-public:
-	CGpuFreeGuard( void )  { R_BeginGpuFree(); }
-	~CGpuFreeGuard( void ) { R_EndGpuFree(); }
-};
 void	 R_Images_DeleteImage(image_t *pImage);
 
 

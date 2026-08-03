@@ -97,7 +97,6 @@ SceUID rend_init_done = -1;
 // thread's first wake runs the context init instead of a frame.
 volatile qboolean pendingCtxInit = qfalse;
 static SceUID rend_thid = -1;
-static SceUID rend_busy = -1;	// held by the backend while it runs a frame
 static volatile qboolean rend_should_exit = qfalse;
 static volatile int rend_handedBuffer = 0;	// index of the frame being handed off; written before Signal(in), read after Wait(in)
 static volatile int rend_error = 0;
@@ -158,17 +157,11 @@ static int renderThread( SceSize argc, void *argv ) {
 		rendBackEnd = rend_handedBuffer;	// adopt the handed index; mispairing is structurally impossible
 		backEnd.smpFrame = rendBackEnd;
 		set_tessPtr( &tessArray[rendBackEnd] );
-		if ( rend_busy >= 0 ) {
-			sceKernelLockMutex( rend_busy, 1, NULL );
-		}
 		try {
 			RB_ExecuteRenderCommands( backEndDataPtr[rendBackEnd]->commands.cmds );
 		} catch ( int code ) {
 			// else a backend Com_Error would std::terminate the process
 			rend_error = code;
-		}
-		if ( rend_busy >= 0 ) {
-			sceKernelUnlockMutex( rend_busy, 1 );
 		}
 		sceKernelSignalSema( rend_mutex_out, 1 );
 	}
@@ -180,18 +173,6 @@ extern "C" qboolean Sys_InRenderThread( void ) {
 	return (qboolean)( rend_thid >= 0 && sceKernelGetThreadId() == rend_thid );
 }
 
-// any thread may take this to hold the backend between frames
-extern "C" void R_LockBackend( void ) {
-	if ( rend_busy >= 0 && !Sys_InRenderThread() ) {
-		sceKernelLockMutex( rend_busy, 1, NULL );
-	}
-}
-
-extern "C" void R_UnlockBackend( void ) {
-	if ( rend_busy >= 0 && !Sys_InRenderThread() ) {
-		sceKernelUnlockMutex( rend_busy, 1 );
-	}
-}
 
 void R_StartRenderThread( void ) {
 	if ( rend_thid >= 0 || !r_renderThread || !r_renderThread->integer ) {
@@ -203,7 +184,6 @@ void R_StartRenderThread( void ) {
 	rend_init_done = sceKernelCreateSema( "rend_init", 0, 0, 2, NULL );
 	rend_mutex_in  = sceKernelCreateSema( "rend_in",   0, 0, 1, NULL );
 	rend_mutex_out = sceKernelCreateSema( "rend_out",  0, 0, 1, NULL );
-	rend_busy      = sceKernelCreateMutex( "rend_busy", 0, 0, NULL );
 	// Core budget (3 usable cores; core 3 is system-reserved): main/frontend on core 1,
 	// backend owns core 2. Default priority (160), same as main.
 	rend_thid = sceKernelCreateThread( "Renderer Thread", renderThread, 0x10000100, 0x40000, 0, SCE_KERNEL_CPU_MASK_USER_2, NULL );
@@ -227,7 +207,6 @@ void R_StopRenderThread( void ) {
 	if ( rend_init_done >= 0 ) { sceKernelDeleteSema( rend_init_done ); rend_init_done = -1; }
 	if ( rend_mutex_in  >= 0 ) { sceKernelDeleteSema( rend_mutex_in );  rend_mutex_in  = -1; }
 	if ( rend_mutex_out >= 0 ) { sceKernelDeleteSema( rend_mutex_out ); rend_mutex_out = -1; }
-	if ( rend_busy      >= 0 ) { sceKernelDeleteMutex( rend_busy );     rend_busy      = -1; }
 	rend_thid = -1;
 }
 #endif

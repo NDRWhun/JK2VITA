@@ -256,8 +256,6 @@ void R_BindAnimatedImage( const textureBundle_t *bundle) {
 	if ( bundle->isVideoMap ) {
 		ri.CIN_RunCinematic(bundle->videoMapHandle);
 		ri.CIN_UploadCinematic(bundle->videoMapHandle);
-		// the upload binds as a side effect, and it can return before reaching it
-		GL_Bind( tr.scratchImage[bundle->videoMapHandle] );
 		return;
 	}
 
