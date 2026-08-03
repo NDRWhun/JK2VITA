@@ -197,6 +197,9 @@ vita_create_self(companion.bin companion.elf UNSAFE)
 # gxm_probe: standalone hardware check for the native GXM renderer. Separate VPK
 # because sceGxmInitialize is process-global and only one context may hold it.
 #----------------------------------------------------------------------------
+option(JK2_BUILD_GXM_PROBE "Also build the standalone GXM hardware probe VPK" OFF)
+if(JK2_BUILD_GXM_PROBE)
+
 add_executable(gxm_probe.elf
   ${CMAKE_SOURCE_DIR}/src/code/rd-gxm/gxm_device.cpp
   ${CMAKE_SOURCE_DIR}/src/code/rd-gxm/gxm_texture.cpp
@@ -219,6 +222,8 @@ vita_create_vpk(gxm_probe.vpk GXMPROBE1 gxm_probe.self
   VERSION 01.00
   NAME "GXM Probe"
 )
+
+endif()
 
 #----------------------------------------------------------------------------
 # Package: ELF -> SELF -> VPK
