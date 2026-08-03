@@ -80,6 +80,7 @@ int		time_frontend;		// renderer frontend time
 int		time_backend;		// renderer backend time
 #ifdef VITA
 extern int cg_msecEnts, cg_msecMarks, cg_msecFx, cg_msecLocalEnts;
+int cl_msecSnd, cl_msecScreen;
 #endif
 
 int		timeInTrace;
@@ -1531,16 +1532,17 @@ void Com_Frame( void ) {
 
 			Com_Printf("fr:%i all:%3i sv:%3i ev:%3i cl:%3i gm:%3i tr:%3i pvs:%3i rf:%3i bk:%3i"
 #ifdef VITA
-						" | ents:%3i marks:%3i fx:%3i lents:%3i"
+						" | ents:%3i marks:%3i fx:%3i lents:%3i snd:%3i scr:%3i"
 #endif
 						"\n",
 						com_frameNumber, all, sv, ev, cl, time_game, timeInTrace, timeInPVSCheck, time_frontend, time_backend
 #ifdef VITA
-						, cg_msecEnts, cg_msecMarks, cg_msecFx, cg_msecLocalEnts
+						, cg_msecEnts, cg_msecMarks, cg_msecFx, cg_msecLocalEnts, cl_msecSnd, cl_msecScreen
 #endif
 						);
 #ifdef VITA
 			cg_msecEnts = cg_msecMarks = cg_msecFx = cg_msecLocalEnts = 0;
+			cl_msecSnd = cl_msecScreen = 0;
 #endif
 
 			// speedslog

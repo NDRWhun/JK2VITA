@@ -27,6 +27,9 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "../server/exe_headers.h"
 
 #include "client.h"
+#ifdef VITA
+extern int cl_msecSnd, cl_msecScreen;	// com_speeds split
+#endif
 #include "client_ui.h"
 #include <limits.h>
 #include "../ghoul2/G2.h"
@@ -871,10 +874,16 @@ void CL_Frame ( int msec,float fractionMsec ) {
 		}
 	} else {
 		// update the screen
+		const int t0 = Sys_Milliseconds();
 		SCR_UpdateScreen();
+		cl_msecScreen += Sys_Milliseconds() - t0;
 	}
 	// update audio
-	S_Update();
+	{
+		const int t0 = Sys_Milliseconds();
+		S_Update();
+		cl_msecSnd += Sys_Milliseconds() - t0;
+	}
 
 	// advance local effects for next frame
 	SCR_RunCinematic();
