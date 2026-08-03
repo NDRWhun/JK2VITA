@@ -1611,8 +1611,7 @@ void R_ShutdownWorldEffects(void)
 ===============
 R_CacheWorldEffects
 
-The outside point cache allocates from the zone, opens files and uses va(), none
-of which the backend may touch, so it is built here on the main thread.
+Builds the outside point cache, which allocates and reads files.
 ===============
 */
 void R_CacheWorldEffects(void)

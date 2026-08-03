@@ -400,6 +400,10 @@ extern refexport_t re;
 #ifdef DEBUG_ZONE_ALLOCS
 void *_D_Z_Malloc ( int iSize, memtag_t eTag, qboolean bZeroit, const char *psFile, int iLine)
 #else
+#ifdef VITA
+extern "C" qboolean Sys_InMainThread( void );	// tr_cmds.cpp
+#endif
+
 void *Z_Malloc(int iSize, memtag_t eTag, qboolean bZeroit, int /*unusedAlign*/)
 #endif
 {
@@ -475,19 +479,21 @@ void *Z_Malloc(int iSize, memtag_t eTag, qboolean bZeroit, int /*unusedAlign*/)
 
 			// ditch any image_t's (and associated GL texture mem) not used on this level...
 			//
-			if (re.RegisterImages_LevelLoadEnd())
+#ifdef VITA
+			if (Sys_InMainThread())	// these walk tables the backend reads
+#endif
 			{
-				gbMemFreeupOccured = qtrue;
-				continue;		// we've dropped at least one image, so try again with the malloc
-			}
+				if (re.RegisterImages_LevelLoadEnd())
+				{
+					gbMemFreeupOccured = qtrue;
+					continue;		// we've dropped at least one image, so try again with the malloc
+				}
 
-
-			// ditch the model-binaries cache...  (must be getting desperate here!)
-			//
-			if (re.RegisterModels_LevelLoadEnd(qtrue))
-			{
-				gbMemFreeupOccured = qtrue;
-				continue;
+				if (re.RegisterModels_LevelLoadEnd(qtrue))
+				{
+					gbMemFreeupOccured = qtrue;
+					continue;
+				}
 			}
 
 			// as a last panic measure, dump all the audio memory, but not if we're in the audio loader

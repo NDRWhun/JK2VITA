@@ -41,7 +41,7 @@ extern "C" {
 
 typedef void (*gxmLogFn_t)( const char *msg );
 typedef void (*gxmStateResetFn_t)( void );
-void GXM_SetLogger( gxmLogFn_t fn );
+void GXM_SetLogger( gxmLogFn_t fn );
 void	 GXM_SetStateResetCallback( gxmStateResetFn_t fn );
 
 #define GXM_DISPLAY_WIDTH		960
@@ -77,7 +77,7 @@ void	 GXM_Sync( void );
 
 SceGxmContext		*GXM_Context( void );
 SceGxmShaderPatcher	*GXM_ShaderPatcher( void );
-
+
 #ifdef __cplusplus
 }
 #endif

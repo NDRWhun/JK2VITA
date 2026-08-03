@@ -175,7 +175,7 @@ extern "C" qboolean Sys_InRenderThread( void ) {
 
 static SceUID	main_thid = -1;
 
-// the render hand-off is a main-to-backend protocol; no other thread may drive it
+// the render hand-off is a main-to-backend protocol
 extern "C" void Sys_MarkMainThread( void ) {
 	main_thid = sceKernelGetThreadId();
 }

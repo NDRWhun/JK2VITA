@@ -310,8 +310,7 @@ int CM_PointContents( const vec3_t p, clipHandle_t model ) {
 		}*/
 
 #ifdef VITA
-		// the weather reads contents from the render thread, and the cache below
-		// is one shared array whose size the two threads would race
+		// the cache below is one array, and the weather reads this from the backend
 		if ( Sys_InRenderThread() ) {
 			leafnum = CM_PointLeafnum_r( p, 0, local );
 		}

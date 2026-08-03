@@ -1044,8 +1044,7 @@ static void GL_ResetBinds(void)
 ===============
 R_SyncGpuBeforeFree
 
-The backend may still be recording draws against what is about to be released,
-and the GPU may still be reading it two scenes back.
+Waits out both the backend and the GPU before their resources are released.
 ===============
 */
 void R_SyncGpuBeforeFree( void )
