@@ -131,17 +131,13 @@ bash tools/build.sh        # vdpm deps + SDL + port -> build/JK2VITA.vpk
 
 ### Shaders
 
-The renderer's GXM shaders are written in Cg under `src/code/rd-gxm/shaders/` and compiled
-offline into `gxm_shaders.h`, which is committed. A normal build does not compile them and
-needs no shader compiler.
+Nothing to do. The renderer's GXM shaders are precompiled and committed as
+`src/code/rd-gxm/shaders/gxm_shaders.h`, which the build simply includes. There is no shader
+compiler in the build, and none is needed on the device either.
 
-Changing a `.cg` means regenerating that header with `psp2cgc`, the offline Cg compiler from
-the official PlayStation Vita SDK. It cannot be redistributed, so it is not vendored here:
-
-```bash
-cd src/code/rd-gxm/shaders
-python build_shaders.py --cgc "<path>/psp2cgc.exe"
-```
+Editing the Cg sources beside that header is a maintainer job: regenerating it needs an
+offline Cg compiler that is not publicly available. Open an issue and someone who can
+rebuild the header will.
 
 ## Credits
 
