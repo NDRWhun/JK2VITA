@@ -63,6 +63,9 @@ struct PointAndLeaf
 
 static PointAndLeaf	pointToLeaf[MAX_POINTS_TO_LEAVES];
 static int	oldestPointToLeaf = 0, sizePointToLeaf = 0;
+#ifdef VITA
+extern "C" qboolean Sys_InRenderThread( void );	// tr_cmds.cpp
+#endif
 
 //static hlist<pair<CPoint,int> >				pointToLeaf;
 //static hlist<pair<CPoint,int> >				pointToContents;
@@ -306,6 +309,15 @@ int CM_PointContents( const vec3_t p, clipHandle_t model ) {
 			pointToLeaf[pt]=leafnum;
 		}*/
 
+#ifdef VITA
+		// the weather reads contents from the render thread, and the cache below
+		// is one shared array whose size the two threads would race
+		if ( Sys_InRenderThread() ) {
+			leafnum = CM_PointLeafnum_r( p, 0, local );
+		}
+		else
+#endif
+		{
 		int l = 0;
 		for ( ; l < sizePointToLeaf; ++l)
 		{
@@ -331,6 +343,7 @@ int CM_PointContents( const vec3_t p, clipHandle_t model ) {
 			leafnum = CM_PointLeafnum_r(p, 0, local);
 			pointToLeaf[l].leaf = leafnum;
 			pointToLeaf[l].point = pt;
+		}
 		}
 
 		/*
