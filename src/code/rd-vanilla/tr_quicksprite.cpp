@@ -26,6 +26,25 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 //////////////////////////////////////////////////////////////////////
 #include "../server/exe_headers.h"
 #include "tr_quicksprite.h"
+#ifdef USE_GXM_NATIVE
+#include "../rd-gxm/gxm_backend.h"
+
+// GL_QUADS has no GXM primitive, so the quads are indexed as triangle pairs
+static glIndex_t *QS_QuadIndexes( void )
+{
+	static glIndex_t idx[( SHADER_MAX_VERTEXES / 4 ) * 6];
+	static int built;
+	if ( !built ) {
+		built = 1;
+		for ( int q = 0; q < SHADER_MAX_VERTEXES / 4; q++ ) {
+			const glIndex_t v = (glIndex_t)( q * 4 );
+			idx[q*6+0] = v;     idx[q*6+1] = v + 1; idx[q*6+2] = v + 2;
+			idx[q*6+3] = v;     idx[q*6+4] = v + 2; idx[q*6+5] = v + 3;
+		}
+	}
+	return idx;
+}
+#endif
 
 extern void R_BindAnimatedImage( const textureBundle_t *bundle );
 
@@ -119,6 +138,13 @@ void CQuickSpriteSystem::Flush(void)
 	}
 
 	qglDrawArrays(GL_QUADS, 0, mNextVert);
+#ifdef USE_GXM_NATIVE
+	GXM_SetTexUnitCount( 1 );
+	GXM_SetVertexArrays( &mVerts[0][0], &mTextureCoords[0][0], NULL,
+						 (const unsigned char *)mColors );
+	GXM_SetStateBits( glState.glStateBits );
+	GXM_DrawTess( ( mNextVert / 4 ) * 6, QS_QuadIndexes(), mNextVert );
+#endif
 
 	backEnd.pc.c_vertexes += mNextVert;
 	backEnd.pc.c_indexes += mNextVert;
@@ -151,6 +177,18 @@ void CQuickSpriteSystem::Flush(void)
 //		qglVertexPointer (3, GL_FLOAT, 16, mVerts);	// Done above
 
 		qglDrawArrays(GL_QUADS, 0, mNextVert);
+#ifdef USE_GXM_NATIVE
+		// the fog pass tints from a uniform, so the stream colour is dropped
+		GXM_SetTexUnitCount( 1 );
+		GXM_SetConstantColor( ( (byte *)&fog->colorInt )[0] / 255.0f,
+							  ( (byte *)&fog->colorInt )[1] / 255.0f,
+							  ( (byte *)&fog->colorInt )[2] / 255.0f,
+							  ( (byte *)&fog->colorInt )[3] / 255.0f );
+		GXM_SetVertexArrays( &mVerts[0][0], &mFogTextureCoords[0][0], NULL, NULL );
+		GXM_SetStateBits( glState.glStateBits );
+		GXM_DrawTess( ( mNextVert / 4 ) * 6, QS_QuadIndexes(), mNextVert );
+		GXM_SetConstantColor( 1.0f, 1.0f, 1.0f, 1.0f );
+#endif
 
 		// Second pass from fog
 		backEnd.pc.c_totalIndexes += mNextVert;
