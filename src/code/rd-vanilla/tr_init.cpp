@@ -931,6 +931,10 @@ byte *RB_ReadPixels(int x, int y, int width, int height, size_t *offset, int *pa
 
 	bufstart = (byte *)PADP((intptr_t) buffer + *offset, packAlign);
 #ifdef USE_GXM_NATIVE
+	// the screenshot commands come from the console; RC_SCREENSHOT_SP is already here
+	if ( !Sys_InRenderThread() ) {
+		R_IssuePendingRenderCommands();
+	}
 	GXM_ReadPixels(x, y, width, height, 3, padwidth, bufstart);
 #else
 	qglReadPixels(x, y, width, height, GL_RGB, GL_UNSIGNED_BYTE, bufstart);
