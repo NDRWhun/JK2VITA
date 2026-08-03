@@ -1359,7 +1359,7 @@ static image_t *R_CreateImageFromDxtCache( const char *name, qboolean mipmap, qb
 		|| hdr.mipCount < 1 || hdr.mipCount > TEXCACHE_MAX_MIPS
 		|| hdr.width == 0 || hdr.height == 0
 		|| ( hdr.width & ( hdr.width - 1 ) ) || ( hdr.height & ( hdr.height - 1 ) )
-		|| (int)hdr.width > glConfig.maxTextureSize || (int)hdr.height > glConfig.maxTextureSize
+		|| hdr.width > (unsigned)glConfig.maxTextureSize || hdr.height > (unsigned)glConfig.maxTextureSize
 		|| hdr.picmip != (unsigned)( r_picmip ? r_picmip->integer : 0 )
 		|| hdr.texbits != (unsigned)( r_texturebits ? r_texturebits->integer : 0 ) )
 	{
@@ -1371,9 +1371,26 @@ static image_t *R_CreateImageFromDxtCache( const char *name, qboolean mipmap, qb
 		sceIoClose( fd );
 		return NULL;
 	}
+	// every level must be exactly the size its own dimensions imply, or the texture
+	// ends up describing more mips than the allocation behind it can hold
 	unsigned total = 0;
-	for ( unsigned i = 0; i < hdr.mipCount; ++i ) total += mipSizes[i];
-	if ( total != hdr.totalSize || total == 0 || total > (unsigned)( hdr.width * hdr.height * 2 + 4096 ) )
+	{
+		const unsigned blockBytes = ( hdr.format == TEXCACHE_FMT_DXT5 ) ? 16 : 8;
+		unsigned mw = hdr.width, mh = hdr.height;
+
+		for ( unsigned i = 0; i < hdr.mipCount; ++i )
+		{
+			if ( mipSizes[i] != ( ( mw + 3 ) / 4 ) * ( ( mh + 3 ) / 4 ) * blockBytes )
+			{
+				sceIoClose( fd );
+				return NULL;
+			}
+			total += mipSizes[i];
+			if ( mw > 1 ) mw >>= 1;
+			if ( mh > 1 ) mh >>= 1;
+		}
+	}
+	if ( total != hdr.totalSize || total == 0 )
 	{
 		sceIoClose( fd );
 		return NULL;
