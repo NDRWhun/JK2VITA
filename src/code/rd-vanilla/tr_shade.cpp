@@ -1418,6 +1418,9 @@ static void RB_FogPass( void ) {
 		GL_State( GLS_SRCBLEND_SRC_ALPHA | GLS_DSTBLEND_ONE_MINUS_SRC_ALPHA );
 	}
 
+#ifdef USE_GXM_NATIVE
+	GXM_SetTexUnitCount( 1 );	// one texture, whatever the last stage left set
+#endif
 	R_DrawElements( tess.numIndexes, tess.indexes, tess.numVertexes );
 }
 
