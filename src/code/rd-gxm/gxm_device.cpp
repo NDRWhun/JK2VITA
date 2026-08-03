@@ -602,12 +602,12 @@ void GXM_Sync( void )
 ================
 GXM_ReadPixels
 
-Copies a rectangle of the last presented frame as packed RGB, bottom row first.
+Copies a rectangle of the last presented frame, bottom row first; comps is 3 or 4.
 ================
 */
-void GXM_ReadPixels( int x, int y, int width, int height, int dstStride, void *dst )
+void GXM_ReadPixels( int x, int y, int width, int height, int comps, int dstStride, void *dst )
 {
-	if ( !gxm_deviceOk || !dst || width <= 0 || height <= 0 ) {
+	if ( !gxm_deviceOk || !dst || width <= 0 || height <= 0 || ( comps != 3 && comps != 4 ) ) {
 		return;
 	}
 
@@ -622,14 +622,17 @@ void GXM_ReadPixels( int x, int y, int width, int height, int dstStride, void *d
 		const int sy = GXM_DISPLAY_HEIGHT - 1 - ( y + row );
 
 		if ( sy < 0 || sy >= GXM_DISPLAY_HEIGHT ) {
-			memset( d, 0, (size_t)width * 3 );
+			memset( d, 0, (size_t)width * comps );
 			continue;
 		}
 
 		for ( int col = 0; col < width; col++ ) {
 			const int      sx = x + col;
-			unsigned char *p  = d + col * 3;
+			unsigned char *p  = d + col * comps;
 
+			if ( comps == 4 ) {
+				p[3] = 255;
+			}
 			if ( sx < 0 || sx >= GXM_DISPLAY_WIDTH ) {
 				p[0] = p[1] = p[2] = 0;
 				continue;

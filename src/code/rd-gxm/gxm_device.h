@@ -69,8 +69,8 @@ void	 GXM_EndFrame( void );
 void	 GXM_SetClearColor( float r, float g, float b, float a );
 void	 GXM_ClearBuffers( int color, int depth );	// a fullscreen triangle; GXM has no clear op
 
-// packed RGB of the last presented frame, bottom row first
-void	 GXM_ReadPixels( int x, int y, int width, int height, int dstStride, void *dst );
+// the last presented frame, bottom row first; comps is 3 or 4
+void	 GXM_ReadPixels( int x, int y, int width, int height, int comps, int dstStride, void *dst );
 
 // wait out the GPU before releasing anything it may still be reading
 void	 GXM_Sync( void );

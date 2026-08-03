@@ -26,6 +26,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "../server/exe_headers.h"
 #include "tr_common.h"
 #include "tr_local.h"
+#include "../rd-gxm/gxm_device.h"
 
 /*
 =============
@@ -884,7 +885,11 @@ qboolean RE_InitDissolve(qboolean bForceCircularExtroWipe)
 		{
 			// read current screen image...  (GL_RGBA should work even on 3DFX in that the RGB parts will be valid at least)
 			//
+#ifdef USE_GXM_NATIVE
+			GXM_ReadPixels( 0, 0, glConfig.vidWidth, glConfig.vidHeight, 4, glConfig.vidWidth * 4, pBuffer );
+#else
 			qglReadPixels (0, 0, glConfig.vidWidth, glConfig.vidHeight, GL_RGBA, GL_UNSIGNED_BYTE, pBuffer );
+#endif
 			//
 			// now expand the pic over the top of itself so that it has a stride value of {PowerOf2(glConfig.vidWidth)}
 			//	(for GL power-of-2 rules)
