@@ -1711,7 +1711,7 @@ void R_Register( void )
 	// Crowd LOD: past r_ghoul2CrowdLod visible ghoul2 characters, push the distant
 	// non-player ones to a lower LOD to cut skinning cost in big fights. 0 = off.
 	// Step = visible characters per extra LOD level.
-	r_ghoul2CrowdLod     = ri.Cvar_Get( "r_ghoul2CrowdLod",     "4", CVAR_ARCHIVE_ND );
+	r_ghoul2CrowdLod     = ri.Cvar_Get( "r_ghoul2CrowdLod",     "0", CVAR_ARCHIVE_ND );
 	r_ghoul2CrowdLodStep = ri.Cvar_Get( "r_ghoul2CrowdLodStep", "3", CVAR_ARCHIVE_ND );
 	// Render-distance cap: >0 clamps the map's distanceCull, pulling in both the far
 	// frustum plane (CPU cull) and the zFar clip so long sightlines don't drag the whole
