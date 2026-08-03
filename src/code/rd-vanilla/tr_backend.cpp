@@ -1674,6 +1674,9 @@ extern void RB_RenderWorldEffects( void );
 // staged pixels into the scratch image and draw the stretched quad.
 static const void *RB_Cinematic( const void *data ) {
 	const cinematicCommand_t *cmd = (const cinematicCommand_t *)data;
+	if ( cmd->client < 0 || cmd->client >= NUM_SCRATCH_IMAGES || !cmd->pixels ) {
+		return (const void *)(cmd + 1);
+	}
 	image_t *img = tr.scratchImage[cmd->client];
 
 	GL_Bind( img );

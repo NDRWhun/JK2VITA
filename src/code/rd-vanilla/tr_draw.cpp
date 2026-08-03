@@ -57,6 +57,10 @@ static void R_StageCinematic( int x, int y, int w, int h, int cols, int rows,
 	static int   stageSize[2][2][NUM_SCRATCH_IMAGES];
 	const int bytes = cols * rows * 4;
 
+	if ( client < 0 || client >= NUM_SCRATCH_IMAGES || bytes <= 0 ) {
+		return;
+	}
+
 	if ( stageSize[activeBackEnd][use][client] < bytes ) {
 		if ( stage[activeBackEnd][use][client] ) {
 			R_Free( stage[activeBackEnd][use][client] );
