@@ -1647,7 +1647,6 @@ public:
 	mdxmSurface_t	*surfaceData;	// pointer to surface data loaded into file - only used by client renderer DO NOT USE IN GAME SIDE - if there is a vid restart this will be out of wack on the game
 	const mdxaBone_t *boneMats;		// frontend bone snapshot (render-thread mode); backend skins from this,
 									// never the live CBoneCache. NULL -> surface drops under r_renderThread.
-	const float *preSkinned;		// optional frontend pre-skinned verts (xyz+normal); NULL -> skin from boneMats
 #ifdef _G2_GORE
 	float			*alternateTex;		// alternate texture coordinates.
 	void			*goreChain;
@@ -1664,7 +1663,6 @@ public:
 		boneCache = src.boneCache;
 		surfaceData = src.surfaceData;
 		boneMats = src.boneMats;	// same frame, same cache -> same snapshot
-		preSkinned = src.preSkinned;
 		alternateTex = src.alternateTex;
 		goreChain = src.goreChain;
 
@@ -1676,8 +1674,7 @@ CRenderableSurface():
 	ident(SF_MDX),
 	boneCache(0),
 	surfaceData(0),
-	boneMats(0),
-	preSkinned(0)
+	boneMats(0)
 #ifdef _G2_GORE
 	,
 	alternateTex(0),
@@ -1690,7 +1687,6 @@ CRenderableSurface():
 		boneCache=0;
 		surfaceData=0;
 		boneMats=0;
-		preSkinned=0;
 #ifdef _G2_GORE
 		ident = SF_MDX;
 		alternateTex=0;
