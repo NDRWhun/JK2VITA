@@ -108,7 +108,6 @@ Tune by editing `ux0:data/JK2VITA/base/openjo_sp.cfg` on the card, or from the i
 | `r_ghoul2CrowdLod` | `4` | Above this many on-screen characters, extras drop LOD |
 | `r_ghoul2CrowdLodStep` | `3` | How many LOD levels the crowd extras drop |
 | `cg_shadows` | `1` | Player/NPC shadows — `0` = off, `1` = blob |
-| `r_effectCombine` | `1` | Fold additive effect shaders (shields, energy fields) into one draw; `0` = per-stage |
 | `r_texCacheCompressed` | `1` | Cache textures as DXT (less VRAM; `0` = uncompressed) *(latched)* |
 | `r_dropTexturesOnLoad` | `1` | Free the old map's textures at map change (lower transition memory peak); `0` = keep until the new map's first frame |
 | `s_khz` | `22` | Mixer rate — 22 matches the source assets *(latched)* |
@@ -128,6 +127,21 @@ bash tools/build.sh        # vdpm deps + SDL + port -> build/JK2VITA.vpk
 
 `bash tools/build.sh --skip-deps` rebuilds just the port once the deps are installed. Cloned without
 `--recursive`? The script runs `git submodule update --init` for you.
+
+
+### Shaders
+
+The renderer's GXM shaders are written in Cg under `src/code/rd-gxm/shaders/` and compiled
+offline into `gxm_shaders.h`, which is committed. A normal build does not compile them and
+needs no shader compiler.
+
+Changing a `.cg` means regenerating that header with `psp2cgc`, the offline Cg compiler from
+the official PlayStation Vita SDK. It cannot be redistributed, so it is not vendored here:
+
+```bash
+cd src/code/rd-gxm/shaders
+python build_shaders.py --cgc "<path>/psp2cgc.exe"
+```
 
 ## Credits
 

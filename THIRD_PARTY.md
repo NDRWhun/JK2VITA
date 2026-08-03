@@ -8,6 +8,7 @@
 | minizip, libjpeg-turbo, libpng, zlib | zlib/IJG/zlib/zlib | `src/lib/minizip` + vdpm | asset loading |
 | mp3code | GPLv2 (part of the JK2 source release) | `src/code/mp3code` | MP3 decoding |
 | DXT encoder | GPLv2 (written for this port) | `src/code/rd-common/tr_dxt.cpp` | DXT1/DXT5 block compression for the texture cache |
+| GXM shaders | GPLv2 (written for this port) | `src/code/rd-gxm/shaders/*.cg`, compiled to `gxm_shaders.h` | the renderer's vertex/fragment programs |
 
 Licenses of vdpm-installed libraries are documented in their upstream repositories.
 
