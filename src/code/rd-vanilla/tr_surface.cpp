@@ -2081,14 +2081,18 @@ static bool RB_TestZFlare( vec3_t point) {
 	}
 
 //do test
-	float			depth = 0.0f;
-	bool			visible;
-	float			screenZ;
-
 	// read back the z buffer contents
 	if ( r_flares->integer !=1 ) {	//skipping the the z-test
 		return true;
 	}
+#ifdef USE_GXM_NATIVE
+	// the depth buffer cannot be read back, so the flare counts as visible
+	return true;
+#else
+	float			depth = 0.0f;
+	bool			visible;
+	float			screenZ;
+
 	// doing a readpixels is as good as doing a glFinish(), so
 	// don't bother with another sync
 	glState.finishCalled = qfalse;
@@ -2099,6 +2103,7 @@ static bool RB_TestZFlare( vec3_t point) {
 
 	visible = ( -eye[2] - -screenZ ) < 24;
 	return visible;
+#endif
 }
 
 void RB_SurfaceFlare( srfFlare_t *surf ) {
