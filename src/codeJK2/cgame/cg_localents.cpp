@@ -30,6 +30,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 localEntity_t	cg_localEntities[MAX_LOCAL_ENTITIES];
 localEntity_t	cg_activeLocalEntities;		// double linked list
 localEntity_t	*cg_freeLocalEntities;		// single linked list
+static int		cg_leFrame;					// counts frames for the debris collision slices
 
 /*
 ===================
@@ -199,10 +200,10 @@ void CG_AddFragment( localEntity_t *le )
 	// used to sink into the ground, but it looks better to maybe just fade them out
 	int		t;
 
-	if ( !le->nextCollideTime ) {	// first frame for this chunk; spread the slices
+	if ( !le->nextCollideFrame ) {	// first frame for this chunk; spread the slices
 		static int stagger = 0;
 		VectorCopy( le->refEntity.origin, le->traceOrigin );
-		le->nextCollideTime = cg.time + ( ( stagger++ & 3 ) * ( FRAG_COLLIDE_MSEC / 4 ) );
+		le->nextCollideFrame = cg_leFrame + ( stagger++ & ( FRAG_COLLIDE_FRAMES - 1 ) );
 	}
 
 	t = le->endTime - cg.time;
@@ -216,7 +217,7 @@ void CG_AddFragment( localEntity_t *le )
 
 	if ( le->pos.trType == TR_STATIONARY )
 	{
-		if ( cg.time >= le->nextCollideTime
+		if ( cg_leFrame >= le->nextCollideFrame
 			&& !(cgi_CM_PointContents( le->refEntity.origin, 0 ) & CONTENTS_SOLID ))
 		{
 			// thing is no longer in solid, so let gravity take it back
@@ -239,7 +240,7 @@ void CG_AddFragment( localEntity_t *le )
 	VectorCopy( newOrigin, le->refEntity.lightingOrigin );
 
 	// the chunk still moves between sweeps; the next one starts where it last was
-	if ( cg.time < le->nextCollideTime ) {
+	if ( cg_leFrame < le->nextCollideFrame ) {
 		VectorCopy( newOrigin, le->refEntity.origin );
 		if ( le->leFlags & LEF_TUMBLE ) {
 			vec3_t angles;
@@ -255,7 +256,7 @@ void CG_AddFragment( localEntity_t *le )
 
 	// trace a line from previous position to new position
 	CG_Trace( &trace, le->traceOrigin, NULL, NULL, newOrigin, le->ownerGentNum, CONTENTS_SOLID );
-	le->nextCollideTime = cg.time + FRAG_COLLIDE_MSEC;
+	le->nextCollideFrame = cg_leFrame + FRAG_COLLIDE_FRAMES;
 	if ( trace.fraction == 1.0 ) {
 		// still in free fall
 		VectorCopy( newOrigin, le->refEntity.origin );
@@ -576,6 +577,7 @@ CG_AddLocalEntities
 */
 void CG_AddLocalEntities( void )
 {
+	cg_leFrame++;
 	localEntity_t	*le, *next;
 
 	// walk the list backwards, so any new local entities generated
