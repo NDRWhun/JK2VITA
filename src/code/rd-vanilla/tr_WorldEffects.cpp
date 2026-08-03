@@ -1620,6 +1620,12 @@ void R_CacheWorldEffects(void)
 	{
 		return;
 	}
+#ifdef VITA
+	// the backend reads the point cache, so park it while this fills
+	if (r_renderThread && r_renderThread->integer) {
+		R_IssuePendingRenderCommands();
+	}
+#endif
 	mOutside.Cache();
 }
 
