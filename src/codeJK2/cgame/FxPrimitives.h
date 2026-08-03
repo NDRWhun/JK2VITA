@@ -122,6 +122,8 @@ protected:
 	vec3_t		mMin;
 	vec3_t		mMax;
 
+	int			mNextCollideFrame;	// next sweep, so physics particles spread their cost
+	vec3_t		mSweepOrigin;		// where the last sweep started
 	int			mImpactFxID;		// if we have an impact event, we may have to call an effect
 	int			mDeathFxID;			// if we have a death event, we may have to call an effect
 
@@ -130,7 +132,7 @@ protected:
 
 public:
 
-	CEffect()			{ memset( &mRefEnt, 0, sizeof( refEntity_t )); }
+	CEffect()			{ memset( &mRefEnt, 0, sizeof( refEntity_t )); mNextCollideFrame = 0; VectorClear( mSweepOrigin ); }
 	virtual ~CEffect() {}
 	virtual void Die() {}
 
@@ -149,7 +151,7 @@ public:
 	inline void SetFlags( int flags )		{ mFlags = flags;				}
 	inline void AddFlags( int flags )		{ mFlags |= flags;				}
 	inline void ClearFlags( int flags )		{ mFlags &= ~flags;				}
-	inline void SetOrigin1( const vec3_t org )	{ if(org){VectorCopy(org,mOrigin1);}else{VectorClear(mOrigin1);}	}
+	inline void SetOrigin1( const vec3_t org )	{ if(org){VectorCopy(org,mOrigin1);}else{VectorClear(mOrigin1);} VectorCopy(mOrigin1,mSweepOrigin);	}
 	inline void SetTimeStart( int time )	{ mTimeStart = time; if (mFlags&FX_SET_SHADER_TIME) { mRefEnt.shaderTime = cg.time * 0.001f; }}
 	inline void	SetTimeEnd( int time )		{ mTimeEnd = time;				}
 	inline void SetImpactFxID( int id )		{ mImpactFxID = id;				}

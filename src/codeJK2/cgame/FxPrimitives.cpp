@@ -231,6 +231,24 @@ bool CParticle::Update()
 //----------------------------
 // Update Origin
 //----------------------------
+// Particles that collide live for seconds, so they sweep on a slice of frames.
+// The sweep still spans everything since the last one, so nothing is passed through.
+#define FX_COLLIDE_FRAMES	4
+int fx_collideFrame;
+
+static bool FX_CollideThisFrame( int *next )
+{
+	if ( !*next ) {
+		static int stagger = 0;
+		*next = fx_collideFrame + ( stagger++ & ( FX_COLLIDE_FRAMES - 1 ) );
+	}
+	if ( fx_collideFrame < *next ) {
+		return false;
+	}
+	*next = fx_collideFrame + FX_COLLIDE_FRAMES;
+	return true;
+}
+
 bool CParticle::UpdateOrigin()
 {
 	vec3_t	new_origin;
@@ -249,7 +267,8 @@ bool CParticle::UpdateOrigin()
 	new_origin[2] = mOrigin1[2] + theFxHelper.mFloatFrameTime * mVel[2];// + time2 * mVel[2];
 
 	// Only perform physics if this object is tagged to do so
-	if ( (mFlags & FX_APPLY_PHYSICS) )
+	// A chunk lives seconds, so it sweeps on a slice of frames like world debris.
+	if ( (mFlags & FX_APPLY_PHYSICS) && FX_CollideThisFrame( &mNextCollideFrame ) )
 	{
 		bool solid;
 
@@ -270,11 +289,11 @@ bool CParticle::UpdateOrigin()
 
 			if ( mFlags & FX_USE_BBOX )
 			{
-				theFxHelper.Trace( &trace, mOrigin1, mMin, mMax, new_origin, -1, ( MASK_SHOT | CONTENTS_WATER ) );
+				theFxHelper.Trace( &trace, mSweepOrigin, mMin, mMax, new_origin, -1, ( MASK_SHOT | CONTENTS_WATER ) );
 			}
 			else
 			{
-				theFxHelper.Trace( &trace, mOrigin1, NULL, NULL, new_origin, -1, ( MASK_SHOT | CONTENTS_WATER ) );
+				theFxHelper.Trace( &trace, mSweepOrigin, NULL, NULL, new_origin, -1, ( MASK_SHOT | CONTENTS_WATER ) );
 			}
 
 			if ( trace.startsolid || trace.allsolid || trace.fraction == 1.0)
@@ -314,6 +333,7 @@ bool CParticle::UpdateOrigin()
 
 				// Set the origin to the exact impact point
 				VectorCopy( trace.endpos, mOrigin1 );
+				VectorCopy( mOrigin1, mSweepOrigin );
 				return true;
 			}
 		}
@@ -321,6 +341,9 @@ bool CParticle::UpdateOrigin()
 
 	// No physics were done to this object, move it
 	VectorCopy( new_origin, mOrigin1 );
+	if ( fx_collideFrame >= mNextCollideFrame ) {
+		VectorCopy( mOrigin1, mSweepOrigin );
+	}
 
 	return true;
 }

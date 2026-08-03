@@ -195,11 +195,14 @@ bool FX_ActiveFx(void)
 //
 // Adds all fx to the view
 //-------------------------
+extern int fx_collideFrame;
+
 void FX_Add( void )
 {
 	int			i;
 	SEffectList	*ef;
 
+	fx_collideFrame++;
 	drawnFx = 0;
 	mParticles = 0;
 	mOParticles = 0;
