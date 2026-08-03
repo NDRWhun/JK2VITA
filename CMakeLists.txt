@@ -175,6 +175,9 @@ target_link_libraries(${GAME_TARGET}.elf
 # Separate ELF/SELF (its own GXM context) bundled into the same VPK as
 # companion.bin; the engine eboot sceAppMgrLoadExec's it when launched with -config.
 #----------------------------------------------------------------------------
+option(JK2_BUILD_COMPANION "Build the configuration app and bundle it into the VPK" OFF)
+if(JK2_BUILD_COMPANION)
+
 add_executable(companion.elf ${CMAKE_SOURCE_DIR}/src/vita/companion_main.cpp ${GXM_SOURCES_NOBRIDGE})
 target_link_libraries(companion.elf
   mathneon
@@ -192,6 +195,8 @@ target_link_libraries(companion.elf
   m
 )
 vita_create_self(companion.bin companion.elf UNSAFE)
+
+endif()
 
 #----------------------------------------------------------------------------
 # gxm_probe: standalone hardware check for the native GXM renderer. Separate VPK
@@ -228,6 +233,11 @@ endif()
 #----------------------------------------------------------------------------
 # Package: ELF -> SELF -> VPK
 #----------------------------------------------------------------------------
+set(JK2_VPK_EXTRA_FILES)
+if(JK2_BUILD_COMPANION)
+  list(APPEND JK2_VPK_EXTRA_FILES FILE ${CMAKE_BINARY_DIR}/companion.bin companion.bin)
+endif()
+
 vita_create_self(${GAME_TARGET}.self ${GAME_TARGET}.elf UNSAFE)
 
 set(VITA_MKSFOEX_FLAGS "-d ATTRIBUTE2=12")
@@ -239,5 +249,5 @@ vita_create_vpk(${GAME_TARGET}.vpk ${VITA_TITLEID} ${GAME_TARGET}.self
   FILE ${CMAKE_SOURCE_DIR}/sce_sys/livearea/contents/startup.png sce_sys/livearea/contents/startup.png
   FILE ${CMAKE_BINARY_DIR}/generated/livearea/template.xml sce_sys/livearea/contents/template.xml
   FILE ${CMAKE_SOURCE_DIR}/sce_sys/livearea/contents/config.png sce_sys/livearea/contents/config.png
-  FILE ${CMAKE_BINARY_DIR}/companion.bin companion.bin
+  ${JK2_VPK_EXTRA_FILES}
 )
