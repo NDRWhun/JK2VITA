@@ -67,7 +67,7 @@ typedef struct cbrush_s {
 	vec3_t				bounds[2];
 	cbrushside_t		*sides;
 	unsigned short		numsides;
-	unsigned short		checkcount;		// to avoid repeated testings
+	int					checkcount;		// matches clipMap_t's, which counts past 65535
 } cbrush_t;
 
 class CCMShader
