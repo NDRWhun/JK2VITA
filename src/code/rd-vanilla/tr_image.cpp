@@ -1042,21 +1042,29 @@ static void GL_ResetBinds(void)
 
 /*
 ===============
-R_SyncGpuBeforeFree
+R_BeginGpuFree
 
-Waits out both the backend and the GPU before their resources are released.
+Holds the backend off and waits out the GPU before their resources are released.
 ===============
 */
-void R_SyncGpuBeforeFree( void )
+void R_BeginGpuFree( void )
 {
 #ifdef USE_GXM_NATIVE
 	if ( !tr.registered ) {
 		return;
 	}
-	if ( Sys_InMainThread() ) {
-		R_IssuePendingRenderCommands();
-	}
+	R_LockBackend();
 	GXM_Sync();
+#endif
+}
+
+void R_EndGpuFree( void )
+{
+#ifdef USE_GXM_NATIVE
+	if ( !tr.registered ) {
+		return;
+	}
+	R_UnlockBackend();
 #endif
 }
 
@@ -1064,7 +1072,7 @@ void R_SyncGpuBeforeFree( void )
 //
 void R_Images_DeleteLightMaps(void)
 {
-	R_SyncGpuBeforeFree();
+	CGpuFreeGuard gpuFree;
 
 	for (AllocatedImages_t::iterator itImage = AllocatedImages.begin(); itImage != AllocatedImages.end(); /* empty */)
 	{
@@ -1144,7 +1152,7 @@ void RE_RegisterImages_Info_f( void )
 //
 qboolean RE_RegisterImages_LevelLoadEnd(void)
 {
-	R_SyncGpuBeforeFree();
+	CGpuFreeGuard gpuFree;
 	//ri.Printf( PRINT_DEVELOPER, "RE_RegisterImages_LevelLoadEnd():\n");
 
 	qboolean imageDeleted = qfalse;
@@ -1961,7 +1969,7 @@ R_DeleteTextures
 // (only gets called during vid_restart now (and app exit), not during map load)
 //
 void R_DeleteTextures( void ) {
-	R_SyncGpuBeforeFree();
+	CGpuFreeGuard gpuFree;
 
 	R_Images_Clear();
 	GL_ResetBinds();

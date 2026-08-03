@@ -1927,7 +1927,6 @@ R_Init
 */
 extern void R_InitWorldEffects();
 void R_Init( void ) {
-	Sys_MarkMainThread();
 	int	err;
 	int i;
 

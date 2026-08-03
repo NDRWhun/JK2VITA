@@ -257,7 +257,7 @@ extern cvar_t *r_modelpoolmegs;
 extern qboolean gbInsideRegisterModel;
 qboolean RE_RegisterModels_LevelLoadEnd(qboolean bDeleteEverythingNotUsedThisLevel /* = qfalse */)
 {
-	R_SyncGpuBeforeFree();
+	CGpuFreeGuard gpuFree;
 	qboolean bAtLeastoneModelFreed = qfalse;
 
 	// md3 surfaces may be freed below; drop the surface-keyed vertex cache.
@@ -347,7 +347,7 @@ void RE_RegisterModels_Info_f( void )
 
 static void RE_RegisterModels_DeleteAll(void)
 {
-	R_SyncGpuBeforeFree();
+	CGpuFreeGuard gpuFree;
 	if(!CachedModels) {
 		return;	//argh!
 	}
