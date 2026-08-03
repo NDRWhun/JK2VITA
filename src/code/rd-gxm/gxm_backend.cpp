@@ -186,6 +186,7 @@ static int	gxm_statUploads, gxm_statDraws, gxm_statTextured, gxm_statNoTex, gxm_
 static int	gxm_statDxtUploads;	// how many took the compressed path
 static int	gxm_statSlotFail;	// textures refused because the pool is full
 static int	gxm_statImmDraws;	// draws that came from a glBegin/glEnd block
+static int	gxm_statProgFail;	// draws dropped because no fragment program resolved
 
 static const SceGxmProgram *VertBlob( int nuv, int vcol, int fog )
 {
@@ -622,6 +623,7 @@ static SceGxmFragmentProgram *ResolveFragment( int ntex, int env, int vcol, int 
 		}
 	}
 	if ( gxm_progCount >= GXM_MAX_PROGRAMS ) {
+		gxm_statProgFail++;
 		return NULL;
 	}
 
@@ -631,6 +633,7 @@ static SceGxmFragmentProgram *ResolveFragment( int ntex, int env, int vcol, int 
 			SCE_GXM_OUTPUT_REGISTER_FORMAT_UCHAR4, SCE_GXM_MULTISAMPLE_NONE,
 			key->blended ? &key->blend : NULL,
 			gxm_vertBlobs[ntex][vcol][fog], &prog ) < 0 ) {	// links the fragment texcoords to the program that will be bound
+		gxm_statProgFail++;
 		return NULL;
 	}
 
@@ -1036,13 +1039,16 @@ void GXM_ReportStats( char *out, int outSize )
 	extern int gxm_texAllocFail, gxm_texInitFail;
 	extern unsigned int gxm_texBytes;
 	snprintf( out, outSize,
-		"GXM: uploads=%d dxt=%d allocfail=%d initfail=%d slotfail=%d texmem=%uMB | draws=%d imm=%d textured=%d notex=%d ringfail=%d ring=%uKB/%uKB\n",
+		"GXM: uploads=%d dxt=%d allocfail=%d initfail=%d slotfail=%d texmem=%uMB | draws=%d imm=%d textured=%d notex=%d ringfail=%d ring=%uKB/%uKB | progs=%d/%d progfail=%d fragusse=%uKB\n",
 		gxm_statUploads, gxm_statDxtUploads, gxm_texAllocFail, gxm_texInitFail,
 		gxm_statSlotFail, gxm_texBytes / ( 1024 * 1024 ),
 		gxm_statDraws, gxm_statImmDraws, gxm_statTextured, gxm_statNoTex,
-		gxm_statRingFail, GXM_RingUsedLastFrame() / 1024, GXM_RingBytesPerFrame() / 1024 );
+		gxm_statRingFail, GXM_RingUsedLastFrame() / 1024, GXM_RingBytesPerFrame() / 1024,
+		gxm_progCount, GXM_MAX_PROGRAMS, gxm_statProgFail,
+		(unsigned)( sceGxmShaderPatcherGetFragmentUsseMemAllocated( GXM_ShaderPatcher() ) / 1024 ) );
 
 	gxm_statDraws = gxm_statImmDraws = gxm_statTextured = gxm_statNoTex = gxm_statRingFail = 0;
+	gxm_statProgFail = 0;
 
 	GXM_LogStatsLine( out );
 }
