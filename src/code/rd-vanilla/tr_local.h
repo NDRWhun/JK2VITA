@@ -1113,6 +1113,7 @@ int		 R_Images_StartIteration(void);
 image_t *R_Images_GetNextIteration(void);
 void	 R_Images_Clear(void);
 void	 R_Images_DeleteLightMaps(void);
+void	 R_RunShaderCinematics(void);
 extern "C" qboolean Sys_InRenderThread( void );	// tr_cmds.cpp
 void	 R_Images_DeleteImage(image_t *pImage);
 

@@ -250,12 +250,46 @@ R_BindAnimatedImage
 
 =================
 */
+/*
+=================
+R_RunShaderCinematics
+
+Decodes every video map stage and stages its upload, which only the thread that
+owns the command buffer may do.
+=================
+*/
+void R_RunShaderCinematics( void ) {
+	qboolean	seen[NUM_SCRATCH_IMAGES];
+
+	if ( !tr.registered ) {
+		return;
+	}
+	memset( seen, 0, sizeof( seen ) );
+
+	for ( int i = 0; i < tr.numShaders; i++ ) {
+		const shader_t *sh = tr.shaders[i];
+		if ( !sh || !sh->stages ) {
+			continue;
+		}
+		for ( int s = 0; s < sh->numUnfoggedPasses; s++ ) {
+			const textureBundle_t	*b = &sh->stages[s].bundle[0];
+			const int				 h = b->videoMapHandle;
+
+			if ( !b->isVideoMap || h < 0 || h >= NUM_SCRATCH_IMAGES || seen[h] ) {
+				continue;
+			}
+			seen[h] = qtrue;
+			ri.CIN_RunCinematic( h );
+			ri.CIN_UploadCinematic( h );
+		}
+	}
+}
+
 void R_BindAnimatedImage( const textureBundle_t *bundle) {
 	int		index;
 
 	if ( bundle->isVideoMap ) {
-		ri.CIN_RunCinematic(bundle->videoMapHandle);
-		ri.CIN_UploadCinematic(bundle->videoMapHandle);
+		GL_Bind( tr.scratchImage[bundle->videoMapHandle] );
 		return;
 	}
 
