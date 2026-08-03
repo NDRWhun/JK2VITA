@@ -72,6 +72,9 @@ void	 GXM_ClearBuffers( int color, int depth );	// a fullscreen triangle; GXM ha
 // packed RGB of the last presented frame, bottom row first
 void	 GXM_ReadPixels( int x, int y, int width, int height, int dstStride, void *dst );
 
+// wait out the GPU before releasing anything it may still be reading
+void	 GXM_Sync( void );
+
 SceGxmContext		*GXM_Context( void );
 SceGxmShaderPatcher	*GXM_ShaderPatcher( void );
 

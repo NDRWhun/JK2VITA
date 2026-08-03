@@ -27,6 +27,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "../server/exe_headers.h"
 
 #include "tr_local.h"
+#include "../rd-gxm/gxm_device.h"
 #include "../rd-common/tr_common.h"
 #include <png.h>
 #include <map>
@@ -1039,10 +1040,33 @@ static void GL_ResetBinds(void)
 	}
 }
 
+/*
+===============
+R_SyncGpuBeforeFree
+
+The backend may still be recording draws against what is about to be released,
+and the GPU may still be reading it two scenes back.
+===============
+*/
+void R_SyncGpuBeforeFree( void )
+{
+#ifdef USE_GXM_NATIVE
+	if ( !tr.registered ) {
+		return;
+	}
+	if ( Sys_InMainThread() ) {
+		R_IssuePendingRenderCommands();
+	}
+	GXM_Sync();
+#endif
+}
+
 // special function used in conjunction with "devmapbsp"...
 //
 void R_Images_DeleteLightMaps(void)
 {
+	R_SyncGpuBeforeFree();
+
 	for (AllocatedImages_t::iterator itImage = AllocatedImages.begin(); itImage != AllocatedImages.end(); /* empty */)
 	{
 		image_t *pImage = (*itImage).second;
@@ -1121,6 +1145,7 @@ void RE_RegisterImages_Info_f( void )
 //
 qboolean RE_RegisterImages_LevelLoadEnd(void)
 {
+	R_SyncGpuBeforeFree();
 	//ri.Printf( PRINT_DEVELOPER, "RE_RegisterImages_LevelLoadEnd():\n");
 
 	qboolean imageDeleted = qfalse;
@@ -1937,6 +1962,7 @@ R_DeleteTextures
 // (only gets called during vid_restart now (and app exit), not during map load)
 //
 void R_DeleteTextures( void ) {
+	R_SyncGpuBeforeFree();
 
 	R_Images_Clear();
 	GL_ResetBinds();

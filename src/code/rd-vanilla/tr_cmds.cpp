@@ -173,6 +173,17 @@ extern "C" qboolean Sys_InRenderThread( void ) {
 	return (qboolean)( rend_thid >= 0 && sceKernelGetThreadId() == rend_thid );
 }
 
+static SceUID	main_thid = -1;
+
+// the render hand-off is a main-to-backend protocol; no other thread may drive it
+extern "C" void Sys_MarkMainThread( void ) {
+	main_thid = sceKernelGetThreadId();
+}
+
+extern "C" qboolean Sys_InMainThread( void ) {
+	return (qboolean)( main_thid >= 0 && sceKernelGetThreadId() == main_thid );
+}
+
 void R_StartRenderThread( void ) {
 	if ( rend_thid >= 0 || !r_renderThread || !r_renderThread->integer ) {
 		return;

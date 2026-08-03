@@ -585,6 +585,22 @@ void GXM_EndFrame( void )
 
 /*
 ================
+GXM_Sync
+
+Blocks until the GPU has finished everything submitted so far. Illegal on the
+display queue thread, which is the only thread libgxm forbids it on.
+================
+*/
+void GXM_Sync( void )
+{
+	if ( !gxm_deviceOk ) {
+		return;
+	}
+	sceGxmFinish( gxm_context );
+}
+
+/*
+================
 GXM_ReadPixels
 
 Copies a rectangle of the last presented frame as packed RGB, bottom row first.
