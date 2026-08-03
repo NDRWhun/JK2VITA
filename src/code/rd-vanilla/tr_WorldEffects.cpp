@@ -1607,6 +1607,23 @@ void R_ShutdownWorldEffects(void)
 ////////////////////////////////////////////////////////////////////////////////////////
 // RB_RenderWorldEffects - If any particle clouds exist, this will update and render them
 ////////////////////////////////////////////////////////////////////////////////////////
+/*
+===============
+R_CacheWorldEffects
+
+The outside point cache allocates from the zone, opens files and uses va(), none
+of which the backend may touch, so it is built here on the main thread.
+===============
+*/
+void R_CacheWorldEffects(void)
+{
+	if (!tr.world || !mParticleClouds.size() || mOutside.Initialized())
+	{
+		return;
+	}
+	mOutside.Cache();
+}
+
 void RB_RenderWorldEffects(void)
 {
 	if (!tr.world ||
@@ -1641,7 +1658,7 @@ void RB_RenderWorldEffects(void)
 	//----------------------------------------
 	if (!mOutside.Initialized())
 	{
-		mOutside.Cache();
+		return;			// R_CacheWorldEffects builds it on the main thread
 	}
 	else
 	{

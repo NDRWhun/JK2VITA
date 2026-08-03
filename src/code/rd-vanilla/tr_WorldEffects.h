@@ -40,6 +40,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 void R_AddWeatherZone(vec3_t mins, vec3_t maxs);
 
 void R_InitWorldEffects(void);
+void R_CacheWorldEffects(void);
 void R_ShutdownWorldEffects(void);
 void RB_RenderWorldEffects(void);
 
