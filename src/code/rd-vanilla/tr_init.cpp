@@ -27,6 +27,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "../server/exe_headers.h"
 
 #include "tr_local.h"
+#include "../rd-gxm/gxm_device.h"
 #include "../rd-common/tr_common.h"
 #include "tr_stl.h"
 #include "../rd-common/tr_font.h"
@@ -929,7 +930,11 @@ byte *RB_ReadPixels(int x, int y, int width, int height, size_t *offset, int *pa
 	buffer = (byte *) R_Malloc(padwidth * height + *offset + packAlign - 1, TAG_TEMP_WORKSPACE, qfalse);
 
 	bufstart = (byte *)PADP((intptr_t) buffer + *offset, packAlign);
+#ifdef USE_GXM_NATIVE
+	GXM_ReadPixels(x, y, width, height, padwidth, bufstart);
+#else
 	qglReadPixels(x, y, width, height, GL_RGB, GL_UNSIGNED_BYTE, bufstart);
+#endif
 
 	*offset = bufstart - buffer;
 	*padlen = padwidth - linelen;

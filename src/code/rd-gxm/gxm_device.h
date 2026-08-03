@@ -41,7 +41,7 @@ extern "C" {
 
 typedef void (*gxmLogFn_t)( const char *msg );
 typedef void (*gxmStateResetFn_t)( void );
-void GXM_SetLogger( gxmLogFn_t fn );
+void GXM_SetLogger( gxmLogFn_t fn );
 void	 GXM_SetStateResetCallback( gxmStateResetFn_t fn );
 
 #define GXM_DISPLAY_WIDTH		960
@@ -69,9 +69,12 @@ void	 GXM_EndFrame( void );
 void	 GXM_SetClearColor( float r, float g, float b, float a );
 void	 GXM_ClearBuffers( int color, int depth );	// a fullscreen triangle; GXM has no clear op
 
+// packed RGB of the last presented frame, bottom row first
+void	 GXM_ReadPixels( int x, int y, int width, int height, int dstStride, void *dst );
+
 SceGxmContext		*GXM_Context( void );
 SceGxmShaderPatcher	*GXM_ShaderPatcher( void );
-
+
 #ifdef __cplusplus
 }
 #endif

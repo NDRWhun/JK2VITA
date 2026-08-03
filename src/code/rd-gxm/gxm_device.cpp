@@ -26,7 +26,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "gxm_device.h"
 #include "shaders/gxm_shaders.h"
 
-#include <psp2/common_dialog.h>
+#include <psp2/common_dialog.h>
 #include <psp2/display.h>
 #include <psp2/kernel/sysmem.h>
 #include <stdlib.h>
@@ -93,7 +93,7 @@ static SceGxmRenderTarget	*gxm_renderTarget;
 static gxmDisplayBuffer_t	 gxm_buffers[GXM_DISPLAY_BUFFERS];
 static unsigned int			 gxm_backBuffer, gxm_frontBuffer;
 
-static SceUID				 gxm_depthUid;
+static SceUID				 gxm_depthUid;
 static void					*gxm_depthData;
 static SceGxmDepthStencilSurface gxm_depthSurface;
 
@@ -102,7 +102,7 @@ static SceUID				 gxm_patcherBufUid, gxm_patcherVertUsseUid, gxm_patcherFragUsse
 
 static SceGxmShaderPatcherId gxm_clearVertId, gxm_clearFragId;
 static SceGxmVertexProgram	*gxm_clearVertProgram;
-static SceGxmFragmentProgram *gxm_clearFragProgram;
+static SceGxmFragmentProgram *gxm_clearFragProgram;
 static SceGxmFragmentProgram	*gxm_clearDepthProgram;	// colour writes masked off
 static const SceGxmProgramParameter *gxm_clearColorParam;
 static SceUID				 gxm_clearVertsUid, gxm_clearIndicesUid;
@@ -343,7 +343,7 @@ static bool GXM_InitSwapChain( void )
 	void *depthData = GXM_Alloc( SCE_KERNEL_MEMBLOCK_TYPE_USER_RW_UNCACHE,
 		4 * alignedW * alignedH, SCE_GXM_DEPTHSTENCIL_SURFACE_ALIGNMENT,
 		SCE_GXM_MEMORY_ATTRIB_READ | SCE_GXM_MEMORY_ATTRIB_WRITE, &gxm_depthUid );
-	gxm_depthData = depthData;
+	gxm_depthData = depthData;
 	if ( !depthData ) {
 		return false;
 	}
@@ -581,6 +581,50 @@ void GXM_EndFrame( void )
 
 	gxm_frontBuffer = gxm_backBuffer;
 	gxm_backBuffer  = ( gxm_backBuffer + 1 ) % GXM_DISPLAY_BUFFERS;
+}
+
+/*
+================
+GXM_ReadPixels
+
+Copies a rectangle of the last presented frame as packed RGB, bottom row first.
+================
+*/
+void GXM_ReadPixels( int x, int y, int width, int height, int dstStride, void *dst )
+{
+	if ( !gxm_deviceOk || !dst || width <= 0 || height <= 0 ) {
+		return;
+	}
+
+	// the front buffer holds a finished image only once its flip has retired
+	sceGxmDisplayQueueFinish();
+
+	const unsigned char *src = (const unsigned char *)gxm_buffers[gxm_frontBuffer].data;
+	unsigned char *out = (unsigned char *)dst;
+
+	for ( int row = 0; row < height; row++ ) {
+		unsigned char *d = out + (size_t)row * (size_t)dstStride;
+		const int sy = GXM_DISPLAY_HEIGHT - 1 - ( y + row );
+
+		if ( sy < 0 || sy >= GXM_DISPLAY_HEIGHT ) {
+			memset( d, 0, (size_t)width * 3 );
+			continue;
+		}
+
+		for ( int col = 0; col < width; col++ ) {
+			const int      sx = x + col;
+			unsigned char *p  = d + col * 3;
+
+			if ( sx < 0 || sx >= GXM_DISPLAY_WIDTH ) {
+				p[0] = p[1] = p[2] = 0;
+				continue;
+			}
+			const unsigned char *s = src + ( (size_t)sy * GXM_DISPLAY_STRIDE + (size_t)sx ) * 4;
+			p[0] = s[0];
+			p[1] = s[1];
+			p[2] = s[2];
+		}
+	}
 }
 
 void GXM_DeviceShutdown( void )
