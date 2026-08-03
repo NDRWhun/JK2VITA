@@ -5,7 +5,7 @@
 [![License: GPL v2](https://img.shields.io/badge/License-GPLv2-blue.svg)](LICENSE)
 
 A port of Jedi Outcast's single-player to the PS Vita, built on
-[OpenJK](https://github.com/JACoders/OpenJK) with a native sceGxm renderer.
+[OpenJK](https://github.com/JACoders/OpenJK) with a native sceGxm rendering backend.
 
 Please report bugs if you find any -> Issues
 
@@ -89,9 +89,10 @@ Off by default. When an enemy is near your crosshair it gently steers your view 
 
 ## Performance & tuning
 
-Tune by editing `ux0:data/JK2VITA/base/openjo_sp.cfg` on the card, or from the in-game console (**Start + Select**). *(latched)* cvars need a `vid_restart` or relaunch.
+Tune by editing `ux0:data/JK2VITA/base/openjo_sp.cfg` on the card, or from the in-game console (**Start + Select**). *(latched)* renderer cvars need a `vid_restart`; the latched sound cvars need a relaunch.
 
-Presentation is vsync-locked to the Vita's 60 Hz panel, so there is no frame-cap cvar.
+Presentation is vsync-locked to the Vita's 60 Hz panel. `com_maxfps` still applies, but its
+default of `125` sits above that ceiling.
 
 | Cvar | Default | What it does |
 |------|---------|--------------|
@@ -116,8 +117,8 @@ Presentation is vsync-locked to the Vita's 60 Hz panel, so there is no frame-cap
 
 ## Build (for developers)
 
-Needs [VitaSDK](https://vitasdk.org) and [vdpm](https://github.com/vitasdk/vdpm) on `PATH`, plus cmake,
-ninja, and GNU make. **On Windows, run from Git Bash.** SDL2 comes in as a git submodule
+Needs [VitaSDK](https://vitasdk.org) with `VITASDK` set to its root, [vdpm](https://github.com/vitasdk/vdpm)
+on `PATH`, plus git, cmake and ninja. **On Windows, run from Git Bash.** SDL2 comes in as a git submodule
 ([fork](https://github.com/NDRWhun/SDL/tree/jk2vita) with the Vita patches committed) and builds as a
 subproject, so nothing is installed over the copies VitaSDK ships.
 
@@ -140,7 +141,8 @@ bash tools/build.sh        # vdpm deps + SDL + port -> build/JK2VITA.vpk
 ## License
 
 GPLv2 (see [LICENSE](LICENSE)), matching OpenJK. Source under `src/` keeps its original
-OpenJK / id Software copyright headers.
+copyright headers; vendored third-party components and their licences are listed in
+[THIRD_PARTY.md](THIRD_PARTY.md).
 
 Unofficial, non-commercial fan port — not affiliated with or endorsed by Disney, Lucasfilm,
 LucasArts, Activision, or Raven. *Star Wars*, *Jedi Knight*, and *Jedi Outcast* are trademarks of
