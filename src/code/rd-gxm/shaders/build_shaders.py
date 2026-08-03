@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
-"""Compile the GXM shader set to .gxp and emit a C header of byte arrays.
+"""Compile the GXM shader set to .gxp and emit gxm_shaders.h.
 
-Developer-only step. The generated header is committed, so a clean clone builds
-without psp2cgc (the offline Cg compiler, which ships with the official SDK and
-cannot be redistributed).
+The header it writes is committed, so only regenerating it needs psp2cgc.
 
   python build_shaders.py --cgc "<path>/psp2cgc.exe"
 """
