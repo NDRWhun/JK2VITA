@@ -91,10 +91,11 @@ Off by default. When an enemy is near your crosshair it gently steers your view 
 
 Tune by editing `ux0:data/JK2VITA/base/openjo_sp.cfg` on the card, or from the in-game console (**Start + Select**). *(latched)* cvars need a `vid_restart` or relaunch.
 
+Presentation is vsync-locked to the Vita's 60 Hz panel, so there is no frame-cap cvar.
+
 | Cvar | Default | What it does |
 |------|---------|--------------|
 | `r_renderThread` | `1` | Dedicated backend render thread; `0` = single-threaded *(latched)* |
-| `r_swapInterval` | `0` | Frame cap / vsync — `0` = uncapped, `1` = 60 fps, `2` = 30 fps |
 | `s_asyncLoad` | `1` | Read sound files on a worker thread; `0` = synchronous |
 | `s_mixThread` | `1` | Mix sound + decode music on a worker thread; `0` = on the main thread *(latched)* |
 | `r_picmip` | `1` | Texture detail — higher = lower-res, less VRAM, faster; `1` is the floor *(latched)* |
@@ -105,7 +106,7 @@ Tune by editing `ux0:data/JK2VITA/base/openjo_sp.cfg` on the card, or from the i
 | `r_surfaceSprites` | `0` | Foliage / grass sprites — `1` = on (stock default), `0` = off (Vita default) |
 | `r_distanceCull` | `0` | Far draw-distance cap, in units (`0` = engine default) |
 | `r_forceFog` | `0` | Force fog at this distance (`0` = off) — hides far geometry |
-| `r_ghoul2CrowdLod` | `4` | Above this many on-screen characters, extras drop LOD |
+| `r_ghoul2CrowdLod` | `0` | Above this many on-screen characters, extras drop LOD (`0` = off) |
 | `r_ghoul2CrowdLodStep` | `3` | How many LOD levels the crowd extras drop |
 | `cg_shadows` | `1` | Player/NPC shadows — `0` = off, `1` = blob |
 | `r_texCacheCompressed` | `1` | Cache textures as DXT (less VRAM; `0` = uncompressed) *(latched)* |
