@@ -1388,6 +1388,7 @@ static image_t *R_CreateImageFromDxtCache( const char *name, qboolean mipmap, qb
 		|| ( hdr.format != TEXCACHE_FMT_DXT1 && hdr.format != TEXCACHE_FMT_DXT5 )
 		|| hdr.mipCount < 1 || hdr.mipCount > TEXCACHE_MAX_MIPS
 		|| hdr.width == 0 || hdr.height == 0
+		|| ( hdr.width & ( hdr.width - 1 ) ) || ( hdr.height & ( hdr.height - 1 ) )
 		|| (int)hdr.width > glConfig.maxTextureSize || (int)hdr.height > glConfig.maxTextureSize
 		|| hdr.picmip != (unsigned)( r_picmip ? r_picmip->integer : 0 )
 		|| hdr.texbits != (unsigned)( r_texturebits ? r_texturebits->integer : 0 ) )
@@ -1446,12 +1447,14 @@ static image_t *R_CreateImageFromDxtCache( const char *name, qboolean mipmap, qb
 	}
 #ifdef USE_GXM_NATIVE
 	// the cached blob is already UBC, so it goes over whole rather than per level
-	GXM_TexUploadDxt( image->texnum, blob, hdr.totalSize, hdr.width, hdr.height,
+	const int uploaded = GXM_TexUploadDxt( image->texnum, blob, hdr.totalSize, hdr.width, hdr.height,
 		hdr.mipCount, hdr.format == TEXCACHE_FMT_DXT5 );
+#else
+	const int uploaded = 1;
 #endif
 	R_Free( blob );
 
-	if ( qglGetError() != GL_NO_ERROR )
+	if ( !uploaded || qglGetError() != GL_NO_ERROR )
 	{
 		// upload rejected the cached blob, so drop this image and let the normal load path rebuild it
 		GLuint tn = (GLuint)image->texnum;

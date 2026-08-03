@@ -49,7 +49,7 @@ void GXM_InvalidateStateShadow( void );
 
 // --- textures, keyed by the engine's texnum ---
 void GXM_TexUpload( unsigned int texnum, const void *rgba, int width, int height );
-void GXM_TexUploadDxt( unsigned int texnum, const void *blob, unsigned int size,
+int  GXM_TexUploadDxt( unsigned int texnum, const void *blob, unsigned int size,
 					   unsigned int width, unsigned int height, unsigned int mipCount, int isDxt5 );
 void GXM_TexFree( unsigned int texnum );
 void GXM_TexBind( int tmu, unsigned int texnum );

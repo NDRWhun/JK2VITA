@@ -388,24 +388,26 @@ void GXM_TexUpload( unsigned int texnum, const void *rgba, int width, int height
 	}
 }
 
-void GXM_TexUploadDxt( unsigned int texnum, const void *blob, unsigned int size,
+int GXM_TexUploadDxt( unsigned int texnum, const void *blob, unsigned int size,
 					   unsigned int width, unsigned int height, unsigned int mipCount, int isDxt5 )
 {
 	if ( !blob || !size ) {
-		return;
+		return 0;
 	}
 	const int slot = TexClaim( texnum );
 	if ( slot < 0 ) {
 		gxm_statSlotFail++;
-		return;
+		return 0;
 	}
 	ForgetTexture( slot );
 	GXM_TextureFree( &gxm_textures[slot] );
-	if ( GXM_TextureCreateDxt( &gxm_textures[slot], blob, size, width, height,
+	if ( !GXM_TextureCreateDxt( &gxm_textures[slot], blob, size, width, height,
 			mipCount, isDxt5 != 0 ) ) {
-		gxm_statUploads++;
-		gxm_statDxtUploads++;
+		return 0;
 	}
+	gxm_statUploads++;
+	gxm_statDxtUploads++;
+	return 1;
 }
 
 void GXM_TexFree( unsigned int texnum )
