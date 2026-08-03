@@ -923,8 +923,7 @@ void GXM_ImmBegin( unsigned int glMode )
 	gxm_immCount  = 0;
 	gxm_immActive = true;
 
-	// these blocks are single-textured; inheriting a second unit from the last
-	// stage is how the weather particles went missing
+	// these blocks are single-textured, whatever the last stage left set
 	gxm_immSavedUnits = gxm_texUnits;
 	gxm_texUnits = 1;
 }
@@ -966,7 +965,6 @@ void GXM_ImmEnd( void )
 		return;
 	}
 	gxm_immActive = false;
-	gxm_texUnits  = gxm_immSavedUnits;
 
 	int ni = 0;
 	switch ( gxm_immMode ) {
@@ -1003,15 +1001,17 @@ void GXM_ImmEnd( void )
 		}
 		break;
 	default:
-		return;	// lines and points have no triangle expansion
+		ni = 0;	// lines and points have no triangle expansion
+		break;
 	}
 
-	if ( !ni ) {
-		return;
+	if ( ni ) {
+		GXM_SetVertexArrays( &gxm_immXyz[0][0], &gxm_immUv[0][0], NULL, &gxm_immRgba[0][0] );
+		GXM_DrawTess( ni, gxm_immIdx, gxm_immCount );
+		gxm_statImmDraws++;
 	}
-	GXM_SetVertexArrays( &gxm_immXyz[0][0], &gxm_immUv[0][0], NULL, &gxm_immRgba[0][0] );
-	GXM_DrawTess( ni, gxm_immIdx, gxm_immCount );
-	gxm_statImmDraws++;
+
+	gxm_texUnits = gxm_immSavedUnits;
 }
 
 // the engine log is not flushed on an abrupt exit, so stats get their own file
