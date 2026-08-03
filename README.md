@@ -117,8 +117,9 @@ default of `125` sits above that ceiling.
 
 ## Build (for developers)
 
-Needs [VitaSDK](https://vitasdk.org) with `VITASDK` set to its root, [vdpm](https://github.com/vitasdk/vdpm)
-on `PATH`, plus git, cmake and ninja. **On Windows, run from Git Bash.** SDL2 comes in as a git submodule
+Needs [VitaSDK](https://vitasdk.org) and [vdpm](https://github.com/vitasdk/vdpm) on `PATH`, plus git,
+cmake and ninja. **On Windows, run from Git Bash.** `tools/env.sh` assumes the SDK is at
+`/usr/local/vitasdk` — export `VITASDK`, or drop it in `tools/env.local.sh`, if yours is elsewhere. SDL2 comes in as a git submodule
 ([fork](https://github.com/NDRWhun/SDL/tree/jk2vita) with the Vita patches committed) and builds as a
 subproject, so nothing is installed over the copies VitaSDK ships.
 
