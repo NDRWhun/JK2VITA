@@ -928,9 +928,11 @@ void GXM_ImmBegin( unsigned int glMode )
 	gxm_immCount  = 0;
 	gxm_immActive = true;
 
-	// these blocks are single-textured, whatever the last stage left set
+	// one texcoord set is staged, so a second unit would sample an unwritten uv1
 	gxm_immSavedUnits = gxm_texUnits;
-	gxm_texUnits = 1;
+	if ( gxm_texUnits > 1 ) {
+		gxm_texUnits = 1;
+	}
 }
 
 void GXM_ImmTexCoord2f( float s, float t )
