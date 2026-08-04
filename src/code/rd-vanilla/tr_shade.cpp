@@ -2395,7 +2395,7 @@ void RB_StageIteratorGeneric( void )
 	if ( gxmMapFog ) {
 		const fog_t *fog = tr.world->fogs + tess.fogNum;
 		const float  end = fog->parms.depthForOpaque > 1.0f ? fog->parms.depthForOpaque : 1.0f;
-		GXM_SetFog( 1, end * 0.5f, end, fog->parms.color );
+		GXM_SetFog( 1, 0.0f, end, fog->parms.color );
 	}
 #endif
 

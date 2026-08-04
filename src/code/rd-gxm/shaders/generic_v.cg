@@ -53,8 +53,8 @@ void main(
 	vPosition = mul( float4( aPosition, 1.0f ), uMVP );
 
 #if FOG
-	// w is eye distance under a standard projection
-	vFog = saturate( ( uFogParams.y - vPosition.w ) * uFogParams.z );
+	// w is eye distance under a standard projection; the curve is applied per pixel
+	vFog = saturate( ( vPosition.w - uFogParams.x ) * uFogParams.z );
 #endif
 
 #if VCOLOR

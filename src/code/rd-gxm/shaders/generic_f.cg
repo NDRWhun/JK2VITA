@@ -78,7 +78,7 @@ float4 main(
 #endif
 
 #if FOG
-	c.rgb = lerp( uFogColor.rgb, c.rgb, vFog );
+	c.rgb = lerp( c.rgb, uFogColor.rgb, sqrt( vFog ) );
 #endif
 
 	return c;
