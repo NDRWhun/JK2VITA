@@ -190,8 +190,7 @@ void GXM_NoOpTexUnit( unsigned int ) {}
 void GXM_NoOpMultiTexCoord2f( unsigned int, float, float ) {}
 void GXM_NoOpStencilOpSeparate( unsigned int, unsigned int, unsigned int, unsigned int ) {}
 
-// The renderer reads its capability limits back from GL. Left as holes these stay
-// zero, and maxTextureSize == 0 shifts every texture down to 0x0 in Upload32.
+// the renderer caches these at boot; maxTextureSize clamps every texture upload
 void GXM_GlGetIntegerv( unsigned int pname, int *params )
 {
 	if ( !params ) {

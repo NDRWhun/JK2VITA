@@ -26,9 +26,10 @@ You need your own legally-owned copy of Jedi Outcast (eg.: from Steam)
 |-------|--------|
 | Left stick | Move (forward/back/strafe) — also the menu cursor |
 | Right stick | Look / turn |
-| Front touchscreen | In menus acting like a pointer moving the cursor |
+| Front touchscreen | Menus: drag moves the cursor, tap clicks. Also live in gameplay — a drag swings the view |
 
-In menus, Cross selects/clicks and Circle goes back/cancels. Navigate menus with the left stick plus those two buttons.
+In menus, Cross selects/clicks and Circle goes back/cancels. Navigate with the left stick or the d-pad,
+plus those two buttons — the d-pad hides the pointer and moves the highlight, and Cross then activates it.
 
 ### Base layer (physical buttons)
 
@@ -99,7 +100,7 @@ default of `125` sits above that ceiling.
 | `r_renderThread` | `1` | Dedicated backend render thread; `0` = single-threaded *(latched)* |
 | `s_asyncLoad` | `1` | Read sound files on a worker thread; `0` = synchronous |
 | `s_mixThread` | `1` | Mix sound + decode music on a worker thread; `0` = on the main thread *(latched)* |
-| `r_picmip` | `1` | Texture detail — higher = lower-res, less VRAM, faster; `1` is the floor *(latched)* |
+| `r_picmip` | `1` | Texture detail — higher = lower-res, less VRAM; `1` is the floor *(latched)* |
 | `r_worldVBO` | `1` | Draw static world surfaces from GPU buffers; `0` = per-frame vertex upload *(latched)* |
 | `r_mergeLightmaps` | `1` | Pack lightmaps into atlas pages so world surfaces batch; `0` = one texture each *(latched)* |
 | `r_subdivisions` | `4` | Curve tessellation — higher = coarser curves, fewer verts *(latched)* |

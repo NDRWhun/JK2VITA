@@ -63,8 +63,7 @@ static void GXM_Log( const char *fmt, ... )
 	gxm_log( msg );
 }
 
-// context ring buffers; the defaults in the SDK samples, which are sized so a
-// frame's worth of draws fits without the scene being split into extra jobs
+// context ring, parameter buffer and shader patcher sizes
 #define GXM_VDM_RING_SIZE		( 2 * 1024 * 1024 )
 #define GXM_VERTEX_RING_SIZE	( 2 * 1024 * 1024 )
 #define GXM_FRAGMENT_RING_SIZE	( 2 * 1024 * 1024 )
@@ -556,8 +555,7 @@ void GXM_EndFrame( void )
 
 	sceGxmEndScene( gxm_context, NULL, NULL );
 
-	// system dialogs (the IME the console opens) composite onto the back buffer and
-	// only the app can hand it over, and this is the only place that sees the buffer
+	// hand the back buffer over after the scene ends, so the console IME composites into this flip
 	{
 		SceCommonDialogUpdateParam dlg;
 		memset( &dlg, 0, sizeof(dlg) );

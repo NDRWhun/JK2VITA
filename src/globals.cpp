@@ -29,10 +29,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 // the arena and hunk region take 64 MiB of it and the zone peaks near 75.
 unsigned int _newlib_heap_size_user = 176 * 1024 * 1024;
 
-// VitaSDK reads this to size the main thread's stack. The default (~256 KB) is
-// too small for rd-vanilla: R_SubdividePatchToGrid alone uses a ~332 KB stack
-// frame (large local drawVert_t grids) during BSP load and overflows it, faulting
-// with a data abort. 4 MB is plenty of headroom for the engine's deep call paths.
+// the default stack cannot hold R_SubdividePatchToGrid's drawVert_t ctrl[65][65] (~330 KB)
 unsigned int sceUserMainThreadStackSize = 4 * 1024 * 1024;
 #endif
 

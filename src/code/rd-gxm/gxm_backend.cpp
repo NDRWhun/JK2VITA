@@ -36,8 +36,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include <psp2/io/fcntl.h>
 #include <psp2/io/stat.h>
 
-// tess belongs to the renderer, so the owner installs an accessor; a client that
-// only ever draws from explicit arrays does not need one
+// rd-gxm cannot see tess, so the owner installs an accessor
 static gxmTessArraysFn_t gxm_tessArrays;
 
 void GXM_SetTessArraysHook( gxmTessArraysFn_t fn )
@@ -905,8 +904,7 @@ void GXM_DrawStaticBuffer( const void *vertexBuffer, const unsigned short *index
 // ---------------------------------------------------------------------------
 // immediate mode
 //
-// A handful of paths (weather, the cinematic quad, shadow volumes) still build
-// geometry with glBegin/glVertex. They accumulate here and leave as one draw.
+// glBegin/glVertex geometry accumulates here and leaves as one draw.
 // ---------------------------------------------------------------------------
 
 #define GXM_IMM_MAX_VERTS	16384

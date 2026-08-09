@@ -770,48 +770,12 @@ char *Sys_StripAppBundle( char *dir )
 #	endif
 #endif
 
-#ifdef VITA
-/*
-=================
-Sys_Vita_CheckConfigGate
-
-The LiveArea "Configuration" gate launches us with a "-config" param
-(target psla:-config). On that, hand off to companion.bin before we touch
-SDL -- it owns its own GXM context and re-launches eboot.bin when done.
-=================
-*/
-static void Sys_Vita_CheckConfigGate( void )
-{
-	SceAppUtilInitParam initParam;
-	SceAppUtilBootParam bootParam;
-	memset( &initParam, 0, sizeof( initParam ) );
-	memset( &bootParam, 0, sizeof( bootParam ) );
-	sceAppUtilInit( &initParam, &bootParam );
-
-	SceAppUtilAppEventParam eventParam;
-	memset( &eventParam, 0, sizeof( eventParam ) );
-	sceAppUtilReceiveAppEvent( &eventParam );
-
-	if ( eventParam.type == 0x05 ) {
-		char buffer[2048];
-		memset( buffer, 0, sizeof( buffer ) );
-		sceAppUtilAppEventParseLiveArea( &eventParam, buffer );
-		// configurator disabled: the -config gate is gone from template.xml. to
-		// re-enable, restore that and drop the 0 below.
-		if ( 0 && strstr( buffer, "-config" ) )
-			sceAppMgrLoadExec( "app0:/companion.bin", NULL, NULL );
-	}
-}
-#endif
 
 int main ( int argc, char* argv[] )
 {
 	int		i;
 	char	commandLine[ MAX_STRING_CHARS ] = { 0 };
 
-#ifdef VITA
-	Sys_Vita_CheckConfigGate();
-#endif
 
 #ifdef VITA
 	// deterministic core layout: main 1, G2 skin worker + mixer 0, render backend 2

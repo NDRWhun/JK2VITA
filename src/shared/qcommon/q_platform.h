@@ -125,7 +125,9 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 		#include <endian.h>
 	#endif
 
-	#if defined(__linux__)
+	#if defined(VITA)
+		#define OS_STRING "vita"
+	#elif defined(__linux__)
 		#define OS_STRING "linux"
 	#else
 		#define OS_STRING "kFreeBSD"

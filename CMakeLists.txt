@@ -55,7 +55,7 @@ include_directories(
 
 # Generate qcommon/q_version.h (normally produced by OpenJK's build).
 set(GIT_TAG "${GAME_TARGET}-${PORT_VERSION}")
-set(SOURCE_DATE "${CMAKE_BUILD_TYPE}")
+set(SOURCE_DATE "")
 configure_file(
   ${CMAKE_SOURCE_DIR}/src/shared/qcommon/q_version.h.in
   ${CMAKE_BINARY_DIR}/generated/qcommon/q_version.h
@@ -146,7 +146,6 @@ target_link_libraries(${GAME_TARGET}.elf
   png16
   z
   # math
-  mathneon
   stdc++
   # Sce stubs
   SceGxm_stub
@@ -171,16 +170,14 @@ target_link_libraries(${GAME_TARGET}.elf
 )
 
 #----------------------------------------------------------------------------
-# Companion: standalone "Configuration" app launched by the LiveArea -config gate.
-# Separate ELF/SELF (its own GXM context) bundled into the same VPK as
-# companion.bin; the engine eboot sceAppMgrLoadExec's it when launched with -config.
+# Companion: opt-in config app, separate SELF with its own GXM context, bundled as
+# companion.bin. Unreachable today: the LiveArea gate and the hand-off are disabled.
 #----------------------------------------------------------------------------
 option(JK2_BUILD_COMPANION "Build the configuration app and bundle it into the VPK" OFF)
 if(JK2_BUILD_COMPANION)
 
 add_executable(companion.elf ${CMAKE_SOURCE_DIR}/src/vita/companion_main.cpp ${GXM_SOURCES_NOBRIDGE})
 target_link_libraries(companion.elf
-  mathneon
   stdc++
   SceGxm_stub
   SceDisplay_stub

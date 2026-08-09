@@ -668,8 +668,8 @@ void S_Init( void ) {
 #endif
 	s_initsound         = Cvar_Get( "s_initsound",         "1",       CVAR_ARCHIVE | CVAR_LATCH );
 #ifdef VITA
-	// source audio is already 22 kHz, so run the mixer at 22 kHz too: ResampleSfx becomes a
-	// 1:1 copy instead of a 2x upsample. Halves PCM footprint and mix cost, no quality loss.
+	// WAV assets are 22 kHz, so match dma.speed to them and ResampleSfx is a 1:1 copy;
+	// 44.1 kHz MP3s (music, voice) decode down to it.
 	s_khz               = Cvar_Get( "s_khz",               "22",      CVAR_ARCHIVE | CVAR_LATCH );
 #else
 	s_khz               = Cvar_Get( "s_khz",               "44",      CVAR_ARCHIVE | CVAR_LATCH );

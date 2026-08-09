@@ -37,10 +37,18 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #define VERSION_STRING XSTRING(VERSION_MAJOR_RELEASE) ", " XSTRING(VERSION_MINOR_RELEASE) ", " XSTRING(VERSION_EXTERNAL_BUILD) ", " XSTRING(VERSION_INTERNAL_BUILD) // "a, b, c, d"
 #define VERSION_STRING_DOTTED XSTRING(VERSION_MAJOR_RELEASE) "." XSTRING(VERSION_MINOR_RELEASE) "." XSTRING(VERSION_EXTERNAL_BUILD) "." XSTRING(VERSION_INTERNAL_BUILD) // "a.b.c.d"
 
-#if defined(_DEBUG)
-	#define	JK_VERSION		"(debug)OpenJK: " GIT_TAG
-	#define JK_VERSION_OLD	"(debug)JA: v" VERSION_STRING_DOTTED
+#ifdef JK2_MODE
+	#define JK_BRAND		"OpenJO"
+	#define JK_BRAND_OLD	"JO"
 #else
-	#define	JK_VERSION		"OpenJK: " GIT_TAG
-	#define JK_VERSION_OLD	"JA: v" VERSION_STRING_DOTTED
+	#define JK_BRAND		"OpenJK"
+	#define JK_BRAND_OLD	"JA"
+#endif
+
+#if defined(_DEBUG)
+	#define	JK_VERSION		"(debug)" JK_BRAND ": " GIT_TAG
+	#define JK_VERSION_OLD	"(debug)" JK_BRAND_OLD ": v" VERSION_STRING_DOTTED
+#else
+	#define	JK_VERSION		JK_BRAND ": " GIT_TAG
+	#define JK_VERSION_OLD	JK_BRAND_OLD ": v" VERSION_STRING_DOTTED
 #endif

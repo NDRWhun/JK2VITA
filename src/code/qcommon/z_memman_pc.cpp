@@ -114,31 +114,13 @@ zone_t	TheZone = {};
 //============================================================================
 // Transient large-workspace arena.
 //
-// The only allocations big enough to need a multi-MB *contiguous* hole are the
-// renderer's TAG_TEMP_WORKSPACE buffers: the source-sized image decode (a 2048
-// source = 16 MB), the DXT mip-chain blob (~8 MB) and the R_MipMap2 scratch
-// (~4 MB), all live at once during one Upload32. Mid-load the newlib heap is
-// swiss-cheesed (plenty free, no 16 MB run), so even after the freeup cascade
-// dumps every cache the 16 MB request fails. Raising the heap doesn't help —
-// fragmentation, not exhaustion.
-//
-// Reserve one contiguous block at boot, while the heap is still pristine, and
-// satisfy the large temp allocations from it. They are strictly transient and
-// serial (one texture decoded/uploaded/freed before the next), so a first-fit
-// + coalesce free-list trends back to a single free block between images.
-//
-// Small allocations stay on the general heap (threshold), so the tag's normal
-// Z_TagFree sweep semantics are preserved for the handful of small, persistent
-// TAG_TEMP_WORKSPACE buffers (e.g. the navigator waypoint list).
+// The multi-MB image workspaces and the BSP disk image need a contiguous hole the
+// fragmented load-time heap cannot give, so one block is reserved at boot and served
+// by first-fit with coalescing. Small allocations stay on the heap, keeping the tag's
+// normal Z_TagFree sweep for the persistent ones.
 //============================================================================
 #define ARENA_MAGIC			0x41524E41u		// 'ARNA' — in use
 #define ARENA_FREE_MAGIC	0x46524545u		// 'FREE'
-// Sized to the real Upload32 peak with DXT OFF: 16 MB source decode + 4 MB R_MipMap2
-// scratch, held at once during one texture upload = 20 MB (the 8 MB DXT-blob path is
-// disabled while r_texCacheCompressed is 0). NO bigger -- the newlib grant on this
-// hardware is only ~120 MB (the renderer's USER-partition pools take the rest), so every MB
-// the arena reserves is a MB the zone/hunk can't have. An over-sized reservation is
-// footprint-NEGATIVE and OOMs lighter loads (a 32 MB arena regressed the yavin1 intro).
 #define ARENA_RESERVE		(40 * 1024 * 1024)	// measured peak 35.64MB
 #define ARENA_THRESHOLD		(256 * 1024)		// only the genuinely large transient buffers divert
 #define ARENA_ALIGN			16
