@@ -139,7 +139,7 @@ zone_t	TheZone = {};
 // hardware is only ~120 MB (the renderer's USER-partition pools take the rest), so every MB
 // the arena reserves is a MB the zone/hunk can't have. An over-sized reservation is
 // footprint-NEGATIVE and OOMs lighter loads (a 32 MB arena regressed the yavin1 intro).
-#define ARENA_RESERVE		(22 * 1024 * 1024)
+#define ARENA_RESERVE		(40 * 1024 * 1024)	// measured peak 35.64MB
 #define ARENA_THRESHOLD		(256 * 1024)		// only the genuinely large transient buffers divert
 #define ARENA_ALIGN			16
 #define ARENA_ROUND(n)		(((n) + (ARENA_ALIGN-1)) & ~(size_t)(ARENA_ALIGN-1))
@@ -154,6 +154,8 @@ typedef struct arenaBlk_s
 
 static byte			*s_arenaBase = NULL;
 static byte			*s_arenaEnd  = NULL;
+static unsigned int	 s_arenaLive = 0;	// bytes handed out
+static unsigned int	 s_arenaPeak = 0;
 // Spinlock guarding the free-list. Uncontended (and effectively free) while the
 // renderer is single-threaded; engaged so it stays correct once r_renderThread
 // runs the backend (the stencil readback in tr_backend is TAG_TEMP_WORKSPACE and
@@ -192,7 +194,93 @@ static inline qboolean Arena_Owns(const void *p)
 // tags too so a future split stays covered.
 static inline qboolean Arena_TempTag(memtag_t t)
 {
-	return (qboolean)( t == TAG_TEMP_WORKSPACE || t == TAG_TEMP_TGA || t == TAG_TEMP_JPG || t == TAG_TEMP_PNG );
+	return (qboolean)( t == TAG_TEMP_WORKSPACE || t == TAG_TEMP_TGA || t == TAG_TEMP_JPG
+					|| t == TAG_TEMP_PNG || t == TAG_BSP_DISKIMAGE );
+}
+
+
+//============================================================================
+// Hunk region.
+//
+// TAG_HUNKALLOC is thousands of small load-time allocations freed together by the
+// tag sweep; on the general heap they leave that many holes and the next map's
+// multi-MB request fails. Bump-allocate them: an individual free reclaims nothing,
+// the offset resets when the tag is swept, and what does not fit falls through.
+//============================================================================
+#define HUNK_REGION_BYTES	(24 * 1024 * 1024)	// measured peak 19.76MB on a four-map run
+#define HUNK_BLK_MAGIC		0x484E4B41u		// 'HNKA'
+
+typedef struct hunkBlk_s
+{
+	unsigned int	magic;
+	unsigned int	size;		// payload bytes, rounded
+	unsigned int	pad[2];		// keeps the payload 16-aligned
+} hunkBlk_t;
+
+static byte			*s_hunkBase   = NULL;
+static byte			*s_hunkEnd    = NULL;
+static unsigned int	 s_hunkOffset = 0;
+static unsigned int	 s_hunkPeak   = 0;	// high-water, for sizing the reserve
+static int			 s_hunkBlocks = 0;
+static unsigned int	 s_hunkSpill  = 0;	// what fell back to the heap; sticky
+
+static void Hunk_RegionInit( void )
+{
+	byte *raw = (byte *) malloc( HUNK_REGION_BYTES + ARENA_ALIGN );	// heap pristine at boot
+	if ( !raw )
+	{
+		s_hunkBase = s_hunkEnd = NULL;	// graceful: every request falls through to the heap
+		return;
+	}
+	s_hunkBase = (byte *)( ( (size_t)raw + (ARENA_ALIGN-1) ) & ~(size_t)(ARENA_ALIGN-1) );
+	s_hunkEnd  = s_hunkBase + HUNK_REGION_BYTES;
+}
+
+static inline qboolean Hunk_RegionOwns( const void *p )
+{
+	return (qboolean)( s_hunkBase && (const byte *)p >= s_hunkBase && (const byte *)p < s_hunkEnd );
+}
+
+// bump; NULL means the caller should use the heap instead
+static void *Hunk_RegionAlloc( int iSize )
+{
+	if ( !s_hunkBase || iSize <= 0 )
+	{
+		return NULL;
+	}
+
+	const unsigned int need = ARENA_ROUND( (unsigned int)iSize ) + sizeof( hunkBlk_t );
+	if ( need > HUNK_REGION_BYTES - s_hunkOffset )
+	{
+		s_hunkSpill += iSize;
+		return NULL;
+	}
+
+	hunkBlk_t *blk = (hunkBlk_t *)( s_hunkBase + s_hunkOffset );
+	blk->magic = HUNK_BLK_MAGIC;
+	blk->size  = ARENA_ROUND( (unsigned int)iSize );
+
+	s_hunkOffset += need;
+	if ( s_hunkOffset > s_hunkPeak )
+	{
+		s_hunkPeak = s_hunkOffset;
+	}
+	s_hunkBlocks++;
+
+	return (void *)( blk + 1 );
+}
+
+static inline int Hunk_RegionBlockSize( const void *p )
+{
+	const hunkBlk_t *blk = ( (const hunkBlk_t *)p ) - 1;
+	return ( blk->magic == HUNK_BLK_MAGIC ) ? (int)blk->size : 0;
+}
+
+// the whole region goes back at once, which is what the tag sweep means
+static void Hunk_RegionReset( void )
+{
+	s_hunkOffset = 0;
+	s_hunkBlocks = 0;
 }
 
 static void *Arena_Alloc(int iSize)
@@ -218,6 +306,8 @@ static void *Arena_Alloc(int iSize)
 				b->size  = (unsigned int)need;
 			}
 			b->magic = ARENA_MAGIC;
+			s_arenaLive += b->size;
+			if (s_arenaLive > s_arenaPeak) s_arenaPeak = s_arenaLive;
 			Arena_Unlock();
 			return (void *)(b + 1);
 		}
@@ -238,6 +328,7 @@ static int Arena_Free(void *p)
 		return -1;
 	}
 	int sz = (int)b->size;
+	s_arenaLive -= b->size;
 	b->magic = ARENA_FREE_MAGIC;
 
 	if (b->next && b->next->magic == ARENA_FREE_MAGIC)		// coalesce forward
@@ -427,6 +518,19 @@ void *Z_Malloc(int iSize, memtag_t eTag, qboolean bZeroit, int /*unusedAlign*/)
 			return pvArena;
 		}
 	}
+
+	// the load-time hunk, bump-allocated so it cannot perforate the heap
+	if (eTag == TAG_HUNKALLOC)
+	{
+		void *pvHunk = Hunk_RegionAlloc(iSize);
+		if (pvHunk)
+		{
+			if (bZeroit) {
+				memset(pvHunk, 0, iSize);
+			}
+			return pvHunk;
+		}
+	}
 #endif
 
 	// Add in tracking info and round to a longword...  (ignore longword aligning now we're not using contiguous blocks)
@@ -598,9 +702,9 @@ int openjk_minizip_free(void *to_free)
 void Z_MorphMallocTag( void *pvAddress, memtag_t eDesiredTag )
 {
 #ifdef VITA
-	if (Arena_Owns(pvAddress))
+	if (Arena_Owns(pvAddress) || Hunk_RegionOwns(pvAddress))
 	{
-		return;		// arena blocks carry no tag and aren't in the tag stats
+		return;		// neither carries a tag header to morph
 	}
 #endif
 
@@ -685,6 +789,10 @@ qboolean Z_IsFromZone(const void *pvAddress, memtag_t eTag)
 	{
 		return qfalse;		// not a zone block
 	}
+	if (Hunk_RegionOwns(pvAddress))
+	{
+		return (qboolean)( eTag == TAG_HUNKALLOC );
+	}
 #endif
 
 	const zoneHeader_t *pMemory = ((const zoneHeader_t *)pvAddress) - 1;
@@ -718,6 +826,10 @@ int Z_Size(void *pvAddress)
 	if (Arena_Owns(pvAddress))
 	{
 		return Arena_BlockSize(pvAddress);
+	}
+	if (Hunk_RegionOwns(pvAddress))
+	{
+		return Hunk_RegionBlockSize(pvAddress);
 	}
 #endif
 
@@ -774,6 +886,10 @@ int Z_Free(void *pvAddress)
 	if (Arena_Owns(pvAddress))
 	{
 		return Arena_Free(pvAddress);	// before the iCount guard: arena frees must work at teardown too
+	}
+	if (Hunk_RegionOwns(pvAddress))
+	{
+		return 0;	// hunk memory only comes back when the tag is swept, as it did in Quake 3
 	}
 #endif
 
@@ -850,6 +966,13 @@ void Z_TagFree(memtag_t eTag)
 		pMemory = pNext;
 	}
 
+#ifdef VITA
+	if (eTag == TAG_HUNKALLOC || eTag == TAG_ALL)
+	{
+		Hunk_RegionReset();
+	}
+#endif
+
 // these stupid pragmas don't work here???!?!?!
 //
 //#ifdef _DEBUG
@@ -903,6 +1026,18 @@ static void Z_MemRecoverTest_f(void)
 
 static void Z_Stats_f(void)
 {
+#ifdef VITA
+	Com_Printf("Arena: %.2fMB of %dMB used, peaked at %.2fMB\n",
+		(float)s_arenaLive / (1024.0f * 1024.0f),
+		ARENA_RESERVE / (1024 * 1024),
+		(float)s_arenaPeak / (1024.0f * 1024.0f));
+	Com_Printf("Hunk region: %.2fMB of %dMB used, peaked at %.2fMB in %d blocks%s\n",
+		(float)s_hunkOffset / (1024.0f * 1024.0f),
+		HUNK_REGION_BYTES / (1024 * 1024),
+		(float)s_hunkPeak / (1024.0f * 1024.0f),
+		s_hunkBlocks,
+		s_hunkSpill ? " (OVERFLOWED to heap)" : "");
+#endif
 	Com_Printf("\nThe zone is using %d bytes (%.2fMB) in %d memory blocks\n",
 								  TheZone.Stats.iCurrent,
 									        (float)TheZone.Stats.iCurrent / 1024.0f / 1024.0f,
@@ -1139,6 +1274,7 @@ void Com_InitZoneMemory( void )
 
 #ifdef VITA
 	Arena_Init();	// grab the transient workspace block now, while the heap is pristine and contiguous
+	Hunk_RegionInit();	// and the hunk, for the same reason
 #endif
 }
 
