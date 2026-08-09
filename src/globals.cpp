@@ -25,10 +25,9 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 // newlib sizing knobs and any global that would otherwise be multiply defined.
 
 #ifdef VITA
-// newlib heap size = the engine's ENTIRE malloc budget (Hunk/Z_Malloc are malloc
-// wrappers). Reserved before the device comes up: every MiB here is one less for the
-// renderer's pools. Engine peak ~100-120 MiB; 144 leaves margin for the rest.
-unsigned int _newlib_heap_size_user = 144 * 1024 * 1024;
+// the engine's entire malloc budget, reserved before the renderer's pools get theirs.
+// the arena and hunk region take 64 MiB of it and the zone peaks near 75.
+unsigned int _newlib_heap_size_user = 176 * 1024 * 1024;
 
 // VitaSDK reads this to size the main thread's stack. The default (~256 KB) is
 // too small for rd-vanilla: R_SubdividePatchToGrid alone uses a ~332 KB stack
