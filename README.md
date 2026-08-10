@@ -18,6 +18,9 @@ You need your own legally-owned copy of Jedi Outcast (eg.: from Steam)
   `ux0:data/JK2VITA/base/`.
 - Launch from the LiveArea. Settings live in `ux0:data/JK2VITA/base/openjo_sp.cfg`.
 
+The first time you visit a level it loads slower, because each texture is compressed once and cached
+to `ux0:data/JK2VITA/texcache_dxt`. Later loads of that level read the cache instead and are quicker.
+
 ## Controls
 
 ### Sticks
