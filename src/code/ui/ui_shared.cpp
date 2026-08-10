@@ -79,6 +79,7 @@ int			Item_ListBox_ThumbDrawPosition(itemDef_t *item);
 int			Item_ListBox_ThumbPosition(itemDef_t *item);
 int			Item_ListBox_MaxScroll(itemDef_t *item);
 static qboolean Rect_ContainsPoint(rectDef_t *rect, float x, float y) ;
+static void Menu_MoveCursorToItem(menuDef_t *menu, itemDef_t *item);
 static qboolean	Item_Paint(itemDef_t *item, qboolean bDraw);
 int Item_TextScroll_ThumbDrawPosition ( itemDef_t *item );
 static void Item_TextScroll_BuildLines ( itemDef_t* item );
@@ -2341,6 +2342,10 @@ qboolean Script_SetFocus(itemDef_t *item, const char **args)
 			{
 				DC->startLocalSound( DC->Assets.itemFocusSound, CHAN_LOCAL_SOUND );
 			}
+
+			// move only: onOpen runs on a fake stack itemDef, so no mouse-move pass here
+			DC->cursorx = (int)( focusItem->window.rect.x + focusItem->window.rect.w * 0.5f );
+			DC->cursory = (int)( focusItem->window.rect.y + focusItem->window.rect.h * 0.5f );
 		}
 	}
 
@@ -9684,6 +9689,21 @@ qboolean Item_Bind_HandleKey(itemDef_t *item, int key, qboolean down)
 
 /*
 =================
+Menu_MoveCursorToItem
+
+D-pad focus has to drag the pointer with it: every item key handler gates on the
+cursor being inside the item, and the glow scripts run off mouseEnter.
+=================
+*/
+static void Menu_MoveCursorToItem(menuDef_t *menu, itemDef_t *item)
+{
+	DC->cursorx = (int)( item->window.rect.x + item->window.rect.w * 0.5f );
+	DC->cursory = (int)( item->window.rect.y + item->window.rect.h * 0.5f );
+	Menu_HandleMouseMove( menu, (float)DC->cursorx, (float)DC->cursory );
+}
+
+/*
+=================
 Menu_SetNextCursorItem
 =================
 */
@@ -9704,16 +9724,23 @@ itemDef_t *Menu_SetNextCursorItem(menuDef_t *menu)
 	{
 
 		menu->cursorItem++;
-		if (menu->cursorItem >= menu->itemCount && !wrapped)
+		if (menu->cursorItem >= menu->itemCount)
 		{
-		  wrapped = qtrue;
-		  menu->cursorItem = 0;
+			// a whole pass with nothing focusable: stop, or the index runs off the array
+			if (wrapped)
+			{
+				break;
+			}
+			wrapped = qtrue;
+			menu->cursorItem = 0;
 		}
 
-		if (Item_SetFocus(menu->items[menu->cursorItem], DC->cursorx, DC->cursory))
+		itemDef_t *next = menu->items[menu->cursorItem];
+		if (Item_SetFocus(next, next->window.rect.x + next->window.rect.w * 0.5f,
+				next->window.rect.y + next->window.rect.h * 0.5f))
 		{
-			Menu_HandleMouseMove(menu, menu->items[menu->cursorItem]->window.rect.x + 1, menu->items[menu->cursorItem]->window.rect.y + 1);
-			return menu->items[menu->cursorItem];
+			Menu_MoveCursorToItem(menu, next);
+			return next;
 		}
 	}
 
@@ -9750,10 +9777,12 @@ itemDef_t *Menu_SetPrevCursorItem(menuDef_t *menu)
 			menu->cursorItem = menu->itemCount -1;
 		}
 
-		if (Item_SetFocus(menu->items[menu->cursorItem], DC->cursorx, DC->cursory))
+		itemDef_t *prev = menu->items[menu->cursorItem];
+		if (Item_SetFocus(prev, prev->window.rect.x + prev->window.rect.w * 0.5f,
+				prev->window.rect.y + prev->window.rect.h * 0.5f))
 		{
-			Menu_HandleMouseMove(menu, menu->items[menu->cursorItem]->window.rect.x + 1, menu->items[menu->cursorItem]->window.rect.y + 1);
-			return menu->items[menu->cursorItem];
+			Menu_MoveCursorToItem(menu, prev);
+			return prev;
 		}
 	}
 	menu->cursorItem = oldCursor;
@@ -10755,7 +10784,8 @@ qboolean Item_YesNo_HandleKey(itemDef_t *item, int key)
 {
   if (Rect_ContainsPoint(&item->window.rect, DC->cursorx, DC->cursory) && item->window.flags & WINDOW_HASFOCUS && item->cvar)
 	{
-		if (key == A_MOUSE1 || key == A_ENTER || key == A_MOUSE2 || key == A_MOUSE3)
+		if (key == A_MOUSE1 || key == A_ENTER || key == A_MOUSE2 || key == A_MOUSE3
+			|| key == A_CURSOR_LEFT || key == A_CURSOR_RIGHT)
 		{
 			DC->setCVar(item->cvar, va("%i", !DC->getCVarValue(item->cvar)));
 			return qtrue;
@@ -10889,15 +10919,15 @@ qboolean Item_Multi_HandleKey(itemDef_t *item, int key)
 		if (Rect_ContainsPoint(&item->window.rect, DC->cursorx, DC->cursory) && item->window.flags & WINDOW_HASFOCUS)
 		{
 			//Raz: Scroll on multi buttons!
-			if (key == A_MOUSE1 || key == A_ENTER || key == A_MOUSE2 || key == A_MOUSE3 || key == A_MWHEELDOWN || key == A_MWHEELUP)
-			//if (key == A_MOUSE1 || key == A_ENTER || key == A_MOUSE2 || key == A_MOUSE3)
+			if (key == A_MOUSE1 || key == A_ENTER || key == A_MOUSE2 || key == A_MOUSE3 || key == A_MWHEELDOWN || key == A_MWHEELUP
+				|| key == A_CURSOR_LEFT || key == A_CURSOR_RIGHT)
 			{
 				if (item->cvar)
 				{
 					int current = Item_Multi_FindCvarByValue(item);
 					int max = Item_Multi_CountSettings(item);
 
-					if (key == A_MOUSE2 || key == A_MWHEELDOWN)
+					if (key == A_MOUSE2 || key == A_MWHEELDOWN || key == A_CURSOR_LEFT)
 					{
 						current--;
 						if ( current < 0 )
@@ -10982,8 +11012,20 @@ qboolean Item_Slider_HandleKey(itemDef_t *item, int key, qboolean down)
 
 	if (item->window.flags & WINDOW_HASFOCUS && item->cvar && Rect_ContainsPoint(&item->window.rect, DC->cursorx, DC->cursory))
 	{
+		editFieldDef_t *stepDef = (editFieldDef_s *) item->typeData;
 
-		if (key == A_MOUSE1 || key == A_ENTER || key == A_MOUSE2 || key == A_MOUSE3)
+		// a d-pad cannot aim at a point on the bar, so it steps the value instead
+		if (stepDef && (key == A_CURSOR_LEFT || key == A_CURSOR_RIGHT || key == A_MWHEELDOWN || key == A_MWHEELUP))
+		{
+			const float step = ( stepDef->maxVal - stepDef->minVal ) / 20.0f;
+
+			value = DC->getCVarValue(item->cvar)
+				+ ( ( key == A_CURSOR_RIGHT || key == A_MWHEELUP ) ? step : -step );
+			DC->setCVar(item->cvar, va("%f", Com_Clamp(stepDef->minVal, stepDef->maxVal, value)));
+			return qtrue;
+		}
+
+		if (key == A_MOUSE1 || key == A_MOUSE2 || key == A_MOUSE3)
 		{
 			editFieldDef_t *editDef = (editFieldDef_s *) item->typeData;
 			if (editDef)
