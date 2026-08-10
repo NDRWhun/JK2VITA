@@ -1411,6 +1411,15 @@ e_status CIN_RunCinematic (int handle)
 		cin.currentHandle = currentHandle;
 		cinTable[currentHandle].status = FMV_EOF;
 		RoQReset();
+		// RoQReset leaves FMV_LOOPED, which gates the decode loop below out, so run
+		// on here until a frame lands or the stream gives up
+		if (cinTable[currentHandle].status == FMV_LOOPED) {
+			cinTable[currentHandle].status = FMV_PLAY;
+		}
+		while (cinTable[currentHandle].buf == NULL
+			&& cinTable[currentHandle].status == FMV_PLAY) {
+			RoQInterrupt();
+		}
 	}
 
 	if (cinTable[handle].playonwalls < -1)
