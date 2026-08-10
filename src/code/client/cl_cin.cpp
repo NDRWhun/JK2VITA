@@ -1379,6 +1379,12 @@ e_status CIN_StopCinematic(int handle) {
 		return FMV_EOF;
 	}
 
+	// the voice track is a separate sound, and the guard below returns before
+	// RoQShutdown gets to stop it
+	if (cinTable[currentHandle].hSFX) {
+		S_CIN_StopSound( cinTable[currentHandle].hSFX );
+	}
+
 	if (cinTable[currentHandle].alterGameState) {
 		if ( cls.state != CA_CINEMATIC ) {
 			return cinTable[currentHandle].status;
