@@ -8,7 +8,6 @@
 | libjpeg-turbo, libpng, zlib | IJG / libpng (PNG Reference Library License v2) / zlib | via vdpm | image and asset loading |
 | [gsl-lite](https://github.com/gsl-lite/gsl-lite) | MIT | `src/lib/gsl-lite` (headers, on the include path) | span/owner types used by `src/shared/qcommon/safe` |
 | mp3code | GPLv2 as released with the JK2 source; decoder originally Xing Technology (1995-1997), portions EMusic.com (1998-1999) | `src/code/mp3code` | MP3 decoding |
-| [font8x8](https://github.com/dhepper/font8x8) | public domain | `src/vita/companion_main.cpp` — source only, not built and not in the VPK | 8x8 bitmap font for the configuration app |
 | DXT encoder | GPLv2 (written for this port) | `src/code/rd-common/tr_dxt.cpp` | DXT1/DXT5 block compression for the texture cache |
 | GXM shaders | GPLv2 (written for this port) | `src/code/rd-gxm/shaders/*.cg`, compiled to `gxm_shaders.h` | the renderer's vertex/fragment programs |
 
