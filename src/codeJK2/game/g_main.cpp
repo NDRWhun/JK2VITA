@@ -599,7 +599,7 @@ void G_InitCvars( void ) {
 	g_saberAnimSpeed = gi.cvar( "g_saberAnimSpeed", "1", CVAR_ARCHIVE|CVAR_CHEAT );//how fast saber animations run
 	g_saberAutoAim = gi.cvar( "g_saberAutoAim", "1", CVAR_ARCHIVE|CVAR_CHEAT );//auto-aims at enemies when not moving or when just running forward
 #ifdef VITA
-	g_aimAssist      = gi.cvar( "g_aimAssist",      "0",    CVAR_ARCHIVE );	// 0 off, 1 look assist (pulls view toward a nearby enemy)
+	g_aimAssist      = gi.cvar( "g_aimAssist",      "1",    CVAR_ARCHIVE );	// 0 off, 1 look assist (pulls view toward a nearby enemy)
 	g_aimAssistSpeed = gi.cvar( "g_aimAssistSpeed", "0.5",  CVAR_ARCHIVE );	// look-speed scale near a target (1 = full, lower = slower)
 	g_aimAssistPull  = gi.cvar( "g_aimAssistPull",  "3",    CVAR_ARCHIVE );	// pull strength toward the target
 #endif

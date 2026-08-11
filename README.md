@@ -83,11 +83,11 @@ Open with **Start + Select** — the on-screen keyboard pops up. Type a command,
 
 ### Aim assist (optional)
 
-Off by default. When an enemy is near your crosshair it gently steers your view toward them and slows your look speed so you overshoot less — set `g_aimAssist 1` to enable.
+On by default. When an enemy is near your crosshair it gently steers your view toward them and slows your look speed so you overshoot less. Set `g_aimAssist 0` to turn it off.
 
 | Cvar | Default | What it does |
 |------|---------|--------------|
-| `g_aimAssist` | `0` | `1` = on (look assist) |
+| `g_aimAssist` | `1` | `0` = off (look assist) |
 | `g_aimAssistPull` | `3` | Pull strength toward the target — higher = snappier |
 | `g_aimAssistSpeed` | `0.5` | Look-speed scale near a target — lower = more slowdown |
 
