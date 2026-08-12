@@ -1,0 +1,30 @@
+name: build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  vpk:
+    runs-on: ubuntu-latest
+    container: vitasdk/vitasdk:latest
+    steps:
+      - name: Install build tools
+        run: apk add --no-cache git bash cmake ninja-build samurai || apk add --no-cache git bash cmake ninja
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Trust the workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Build
+        run: bash tools/build.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: JK2VITA-vpk
+          path: build/JK2VITA.vpk
+          if-no-files-found: error
