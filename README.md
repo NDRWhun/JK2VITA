@@ -2,7 +2,7 @@
 
 <div align="center">
 
-<img src="sce_sys/icon0.png" alt="JK2VITA" width="128" height="128">
+<img src="docs/logo-circle.png" alt="JK2VITA" width="128" height="128">
 
 <h3 align="center">JK2VITA</h3>
 
