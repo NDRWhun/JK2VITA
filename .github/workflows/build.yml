@@ -11,7 +11,14 @@ jobs:
     container: vitasdk/vitasdk:latest
     steps:
       - name: Install build tools
-        run: apk add --no-cache git bash cmake ninja-build samurai || apk add --no-cache git bash cmake ninja
+        run: |
+          if command -v apk >/dev/null 2>&1; then
+            apk add --no-cache git bash cmake samurai ninja || apk add --no-cache git bash cmake ninja
+          elif command -v apt-get >/dev/null 2>&1; then
+            apt-get update && apt-get install -y --no-install-recommends git bash cmake ninja-build
+          else
+            echo "no known package manager in this image"; exit 1
+          fi
 
       - uses: actions/checkout@v4
         with:
