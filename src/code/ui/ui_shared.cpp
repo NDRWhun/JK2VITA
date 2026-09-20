@@ -9612,6 +9612,7 @@ qboolean Item_Bind_HandleKey(itemDef_t *item, int key, qboolean down)
 		{
 			case A_ESCAPE:
 				g_waitingForKey = qfalse;
+				g_bindItem = NULL;
 				Item_Bind_Ungrey(item);
 				return qtrue;
 
@@ -9682,6 +9683,7 @@ qboolean Item_Bind_HandleKey(itemDef_t *item, int key, qboolean down)
 
 	Controls_SetConfig();
 	g_waitingForKey = qfalse;
+	g_bindItem = NULL;
 	Item_Bind_Ungrey(item);
 
 	return qtrue;
