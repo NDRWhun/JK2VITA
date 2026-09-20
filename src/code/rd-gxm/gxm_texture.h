@@ -58,8 +58,9 @@ bool	GXM_RingInit( unsigned int bytesPerFrame );
 void	GXM_RingShutdown( void );
 void	GXM_RingBeginFrame( void );
 void   *GXM_RingAlloc( unsigned int size, unsigned int alignment );
-unsigned int GXM_RingUsedLastFrame( void );
+unsigned int GXM_RingUsedLastFrame( void );	// high-water mark since the last GXM_RingResetStats
 unsigned int GXM_RingBytesPerFrame( void );
+void	GXM_RingResetStats( void );
 
 // probe-only test scene
 bool	GXM_TestSceneInit( void );

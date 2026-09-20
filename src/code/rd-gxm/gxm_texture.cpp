@@ -35,19 +35,24 @@ unsigned int gxm_texBytes;
 // a power-of-two texture this big is an exact multiple of CDRAM's granularity
 #define GXM_TEX_CDRAM_MIN	( 256 * 1024 )
 
-static void *TexAlloc( unsigned int size, SceUID *uid )
+// t->bytes is what left the pool: CDRAM hands out whole granules
+static void *TexAlloc( gxmTexture_t *t, unsigned int size )
 {
 	void *mem = NULL;
+	unsigned int charged = size;
 	if ( size >= GXM_TEX_CDRAM_MIN ) {
 		mem = GXM_Alloc( SCE_KERNEL_MEMBLOCK_TYPE_USER_CDRAM_RW, size,
-			SCE_GXM_TEXTURE_ALIGNMENT, SCE_GXM_MEMORY_ATTRIB_READ, uid );
+			SCE_GXM_TEXTURE_ALIGNMENT, SCE_GXM_MEMORY_ATTRIB_READ, &t->uid );
+		charged = ALIGN( size, GXM_TEX_CDRAM_MIN );
 	}
 	if ( !mem ) {	// small, or CDRAM is full
 		mem = GXM_Alloc( SCE_KERNEL_MEMBLOCK_TYPE_USER_RW_UNCACHE, size,
-			SCE_GXM_TEXTURE_ALIGNMENT, SCE_GXM_MEMORY_ATTRIB_READ, uid );
+			SCE_GXM_TEXTURE_ALIGNMENT, SCE_GXM_MEMORY_ATTRIB_READ, &t->uid );
+		charged = size;
 	}
 	if ( mem ) {
-		gxm_texBytes += size;
+		t->bytes = charged;
+		gxm_texBytes += charged;
 	} else {
 		gxm_texAllocFail++;
 	}
@@ -61,7 +66,7 @@ bool GXM_TextureCreateRGBA( gxmTexture_t *t, const void *rgba, unsigned int w, u
 	// a linear texture's stride is implicit: the width rounded up to 8 texels
 	const unsigned int stride = ALIGN( w, 8 );
 	const unsigned int size   = stride * h * 4;
-	t->data = TexAlloc( size, &t->uid );
+	t->data = TexAlloc( t, size );
 	if ( !t->data ) {
 		return false;
 	}
@@ -82,7 +87,7 @@ bool GXM_TextureCreateRGBA( gxmTexture_t *t, const void *rgba, unsigned int w, u
 	if ( sceGxmTextureInitLinear( &t->tex, t->data,
 			SCE_GXM_TEXTURE_FORMAT_A8B8G8R8, w, h, 0 ) < 0 ) {
 		gxm_texInitFail++;
-		gxm_texBytes -= size;
+		gxm_texBytes -= t->bytes;
 		GXM_Free( t->uid );
 		t->data = NULL;
 		return false;
@@ -90,7 +95,6 @@ bool GXM_TextureCreateRGBA( gxmTexture_t *t, const void *rgba, unsigned int w, u
 
 	t->width  = w;
 	t->height = h;
-	t->bytes  = size;
 	t->mipCount = 0;		// RGBA uploads are the top level only
 	t->valid  = true;
 	GXM_TextureSetFilter( t, true, false );
@@ -146,7 +150,7 @@ bool GXM_TextureCreateDxt( gxmTexture_t *t, const void *blob, unsigned int size,
 {
 	memset( t, 0, sizeof(*t) );
 
-	t->data = TexAlloc( size, &t->uid );
+	t->data = TexAlloc( t, size );
 	if ( !t->data ) {
 		return false;
 	}
@@ -160,7 +164,7 @@ bool GXM_TextureCreateDxt( gxmTexture_t *t, const void *blob, unsigned int size,
 		const unsigned int bw = ( mw + 3 ) / 4, bh = ( mh + 3 ) / 4;
 		const unsigned int levelSize = bw * bh * blockBytes;
 		if ( ofs + levelSize > size ) {
-			gxm_texBytes -= size;
+			gxm_texBytes -= t->bytes;
 			GXM_Free( t->uid );	// the descriptor below would claim mips this cannot hold
 			memset( t, 0, sizeof(*t) );
 			return false;
@@ -180,7 +184,7 @@ bool GXM_TextureCreateDxt( gxmTexture_t *t, const void *blob, unsigned int size,
 		? SCE_GXM_TEXTURE_FORMAT_UBC3_ABGR : SCE_GXM_TEXTURE_FORMAT_UBC1_ABGR;
 	if ( sceGxmTextureInitSwizzled( &t->tex, t->data, fmt, w, h, mipCount ) < 0 ) {
 		gxm_texInitFail++;
-		gxm_texBytes -= size;
+		gxm_texBytes -= t->bytes;
 		GXM_Free( t->uid );
 		t->data = NULL;
 		return false;
@@ -188,7 +192,6 @@ bool GXM_TextureCreateDxt( gxmTexture_t *t, const void *blob, unsigned int size,
 
 	t->width  = w;
 	t->height = h;
-	t->bytes  = size;
 	t->mipCount = mipCount;
 	t->valid  = true;
 	GXM_TextureSetFilter( t, true, false );
@@ -330,6 +333,11 @@ void GXM_RingBeginFrame( void )
 	if ( ring_overflowed ) {
 		ring_overflowed = false;
 	}
+}
+
+void GXM_RingResetStats( void )
+{
+	ring_lastUsed = 0;
 }
 
 unsigned int GXM_RingBytesPerFrame( void )
