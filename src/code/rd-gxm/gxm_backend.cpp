@@ -382,7 +382,7 @@ void GXM_TexUpload( unsigned int texnum, const void *rgba, int width, int height
 		return;	// same size, so the pixels went straight in
 	}
 	ForgetTexture( slot );
-	GXM_TextureFree( &gxm_textures[slot] );
+	GXM_TextureRetire( &gxm_textures[slot] );	// a video resize lands on the render thread, with the old frames still queued
 	if ( GXM_TextureCreateRGBA( &gxm_textures[slot], rgba, (unsigned)width, (unsigned)height ) ) {
 		gxm_statUploads++;
 	}

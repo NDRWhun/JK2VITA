@@ -205,6 +205,38 @@ void GXM_TextureFree( gxmTexture_t *t )
 	memset( t, 0, sizeof(*t) );
 }
 
+// the scenes still queued may sample it, so the memblock waits a ring cycle
+#define GXM_RETIRE_PER_FRAME	8
+static SceUID	ring_retire[GXM_DISPLAY_BUFFERS][GXM_RETIRE_PER_FRAME];
+static int		ring_retireCount[GXM_DISPLAY_BUFFERS];
+static unsigned int ring_frame;
+
+void GXM_TextureRetire( gxmTexture_t *t )
+{
+	if ( !t->valid ) {
+		return;
+	}
+	gxm_texBytes -= t->bytes;
+	if ( ring_retireCount[ring_frame] < GXM_RETIRE_PER_FRAME ) {
+		ring_retire[ring_frame][ring_retireCount[ring_frame]++] = t->uid;
+	} else {
+		GXM_Sync();	// no room to defer it; wait the GPU out instead
+		GXM_Free( t->uid );
+	}
+	memset( t, 0, sizeof(*t) );
+}
+
+// the GPU is idle here: a restart synced, and a shutdown has nothing queued
+static void RetireFlush( void )
+{
+	for ( int f = 0; f < GXM_DISPLAY_BUFFERS; f++ ) {
+		for ( int i = 0; i < ring_retireCount[f]; i++ ) {
+			GXM_Free( ring_retire[f][i] );
+		}
+		ring_retireCount[f] = 0;
+	}
+}
+
 void GXM_TextureSetFilter( gxmTexture_t *t, bool linear, bool clamp )
 {
 	if ( !t->valid ) {
@@ -242,7 +274,6 @@ static SceUID		 ring_uid;
 static unsigned char *ring_base;
 static unsigned int	 ring_frameBytes;
 static unsigned int	 ring_offset;		// within the current frame's slice
-static unsigned int	 ring_frame;
 static unsigned int	 ring_lastUsed;
 static bool			 ring_overflowed;
 
@@ -250,6 +281,7 @@ bool GXM_RingInit( unsigned int bytesPerFrame )
 {
 	// the ring outlives a vid_restart, which brings the render thread back up
 	if ( ring_base ) {
+		RetireFlush();
 		ring_offset = 0;
 		ring_frame  = 0;
 		return true;
@@ -266,6 +298,7 @@ bool GXM_RingInit( unsigned int bytesPerFrame )
 
 void GXM_RingShutdown( void )
 {
+	RetireFlush();
 	if ( ring_base ) {
 		GXM_Free( ring_uid );
 		ring_base = NULL;
@@ -287,6 +320,12 @@ void GXM_RingBeginFrame( void )
 	}
 	ring_frame  = ( ring_frame + 1 ) % GXM_RING_FRAMES;
 	ring_offset = 0;
+
+	// this slice's last scene has retired, and so have the textures retired with it
+	for ( int i = 0; i < ring_retireCount[ring_frame]; i++ ) {
+		GXM_Free( ring_retire[ring_frame][i] );
+	}
+	ring_retireCount[ring_frame] = 0;
 
 	if ( ring_overflowed ) {
 		ring_overflowed = false;

@@ -48,6 +48,7 @@ bool	GXM_TextureCreateDxt( gxmTexture_t *t, const void *blob, unsigned int size,
 							  unsigned int w, unsigned int h, unsigned int mipCount, bool isDxt5 );
 bool	GXM_TextureUpdateRGBA( gxmTexture_t *t, const void *rgba, unsigned int w, unsigned int h );
 void	GXM_TextureFree( gxmTexture_t *t );
+void	GXM_TextureRetire( gxmTexture_t *t );	// render-thread free: the memblock goes after a ring cycle
 void	GXM_TextureBind( unsigned int unit, const gxmTexture_t *t );
 void	GXM_TextureSetFilter( gxmTexture_t *t, bool linear, bool clamp );
 
