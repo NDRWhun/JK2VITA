@@ -1212,6 +1212,10 @@ void CL_ParseBinding( int key, qboolean down, unsigned time )
 	}
 }
 
+#ifdef VITA
+extern qboolean Display_KeyBindPending( void );	// ui_shared.cpp
+#endif
+
 /*
 ===================
 CL_KeyDownEvent
@@ -1271,7 +1275,10 @@ void CL_KeyDownEvent( int key, unsigned time )
 		return;
 	}
 
-	// send the bound action
+	// skipped while a menu captures a key: togglemenu still runs under a UI catcher and would close it mid-bind
+#ifdef VITA
+	if ( !( ( Key_GetCatcher() & KEYCATCH_UI ) && Display_KeyBindPending() ) )
+#endif
 	CL_ParseBinding( key, qtrue, time );
 
 	// distribute the key down event to the apropriate handler
@@ -1399,18 +1406,21 @@ void CL_KeyEvent (int key, qboolean down, unsigned time) {
 	// Cross = click, Circle = back/cancel. (The sticks drive the cursor in
 	// CL_JoystickMove.) Outside the UI they keep their gameplay bindings.
 	if ( Key_GetCatcher() & KEYCATCH_UI ) {
-		if ( key == A_JOY3 )		// Cross: enter (activate highlighted) in d-pad mode, else click
-			key = cl_vitaHideMenuCursor ? A_ENTER : A_MOUSE1;
-		else if ( key == A_JOY2 )	// Circle -> back
+		if ( key == A_JOY2 )		// Circle -> back
 			key = A_ESCAPE;
-		else if ( key == A_JOY9 )	// D-Up
-			key = A_CURSOR_UP;
-		else if ( key == A_JOY7 )	// D-Down
-			key = A_CURSOR_DOWN;
-		else if ( key == A_JOY8 )	// D-Left
-			key = A_CURSOR_LEFT;
-		else if ( key == A_JOY10 )	// D-Right
-			key = A_CURSOR_RIGHT;
+		// a pending bind capture takes the raw button; only Circle keeps its cancel role
+		else if ( !Display_KeyBindPending() ) {
+			if ( key == A_JOY3 )		// Cross: enter (activate highlighted) in d-pad mode, else click
+				key = cl_vitaHideMenuCursor ? A_ENTER : A_MOUSE1;
+			else if ( key == A_JOY9 )	// D-Up
+				key = A_CURSOR_UP;
+			else if ( key == A_JOY7 )	// D-Down
+				key = A_CURSOR_DOWN;
+			else if ( key == A_JOY8 )	// D-Left
+				key = A_CURSOR_LEFT;
+			else if ( key == A_JOY10 )	// D-Right
+				key = A_CURSOR_RIGHT;
+		}
 		// hide the pointer while navigating by d-pad; the stick/touch shows it again
 		if ( down && ( key == A_CURSOR_UP || key == A_CURSOR_DOWN ||
 					   key == A_CURSOR_LEFT || key == A_CURSOR_RIGHT ) ) {
