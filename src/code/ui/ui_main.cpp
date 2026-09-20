@@ -3631,6 +3631,9 @@ void AssetCache(void)
 
 	uiInfo.uiDC.Assets.sliderBar = ui.R_RegisterShaderNoMip( "menu/new/slider" );
 	uiInfo.uiDC.Assets.sliderThumb = ui.R_RegisterShaderNoMip( "menu/new/sliderthumb");
+#ifdef VITA
+	Item_Bind_CacheGlyphs();
+#endif
 
 
 	/*

@@ -470,6 +470,9 @@ void		Controls_GetConfig( void );
 void		Controls_SetConfig( void );
 void		Controls_SetDefaults( void );
 qboolean	Display_KeyBindPending(void);
+#ifdef VITA
+void		Item_Bind_CacheGlyphs(void);	// pad-button glyphs for the bind rows
+#endif
 qboolean	Display_MouseMove(void *p, int x, int y);
 int			Display_VisibleMenuCount(void);
 qboolean	Int_Parse(const char **p, int *i);

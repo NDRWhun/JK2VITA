@@ -6941,6 +6941,112 @@ void BindingFromName( const char *cvar ) {
 	Q_strncpyz( g_nameBind, "???", sizeof( g_nameBind ) );
 }
 
+#ifdef VITA
+// pad buttons drawn as glyphs in the bind rows; a missing shader falls back to the key name
+typedef struct {
+	int			key;
+	const char	*shader;
+	int			wide;		// 2:1 texture
+	qhandle_t	handle;
+} bindGlyph_t;
+
+static bindGlyph_t s_bindGlyphs[] = {
+	{ A_JOY1,	"gfx/menus/ps_triangle",	0, 0 },
+	{ A_JOY2,	"gfx/menus/ps_circle",		0, 0 },
+	{ A_JOY3,	"gfx/menus/ps_cross",		0, 0 },
+	{ A_JOY4,	"gfx/menus/ps_square",		0, 0 },
+	{ A_JOY5,	"gfx/menus/ps_l",			0, 0 },
+	{ A_JOY6,	"gfx/menus/ps_r",			0, 0 },
+	{ A_JOY7,	"gfx/menus/ps_dpad_down",	0, 0 },
+	{ A_JOY8,	"gfx/menus/ps_dpad_left",	0, 0 },
+	{ A_JOY9,	"gfx/menus/ps_dpad_up",		0, 0 },
+	{ A_JOY10,	"gfx/menus/ps_dpad_right",	0, 0 },
+	{ A_JOY11,	"gfx/menus/ps_select",		1, 0 },
+	{ A_JOY12,	"gfx/menus/ps_start",		1, 0 },
+	{ A_AUX2,	"gfx/menus/ps_rear_tr",		0, 0 },
+	{ A_AUX3,	"gfx/menus/ps_rear_bl",		0, 0 },
+	{ A_AUX4,	"gfx/menus/ps_rear_br",		0, 0 },
+	{ A_MOUSE1,	"gfx/menus/ps_touch",		0, 0 },
+};
+
+/*
+=================
+Item_Bind_CacheGlyphs
+=================
+*/
+void Item_Bind_CacheGlyphs(void)
+{
+	for (size_t i = 0; i < ARRAY_LEN(s_bindGlyphs); i++)
+	{
+		s_bindGlyphs[i].handle = ui.R_RegisterShaderNoMip(s_bindGlyphs[i].shader);
+	}
+}
+
+static const bindGlyph_t *Item_Bind_Glyph(int key)
+{
+	for (size_t i = 0; i < ARRAY_LEN(s_bindGlyphs); i++)
+	{
+		if (s_bindGlyphs[i].key == key && s_bindGlyphs[i].handle)
+		{
+			return &s_bindGlyphs[i];
+		}
+	}
+	return NULL;
+}
+
+// returns the width drawn
+static float Item_Bind_PaintGlyph(const bindGlyph_t *g, float x, float y, float h, vec4_t color)
+{
+	const float w = g->wide ? h * 2 : h;
+
+	DC->setColor(color);
+	DC->drawHandlePic(x, y, w, h, g->handle);
+	DC->setColor(NULL);
+	return w;
+}
+
+// glyphs in place of the key names; false when a bound key has none, so the text path runs
+static qboolean Item_Bind_PaintGlyphs(itemDef_t *item, vec4_t color)
+{
+	int b1 = -1, b2 = -1;
+
+	for (size_t i = 0; i < g_bindCount; i++)
+	{
+		if (!Q_stricmp(item->cvar, g_bindCommands[i]))
+		{
+			b1 = g_bindKeys[i][0];
+			b2 = g_bindKeys[i][1];
+			break;
+		}
+	}
+
+	const bindGlyph_t *g1 = (b1 != -1) ? Item_Bind_Glyph(b1) : NULL;
+	const bindGlyph_t *g2 = (b2 != -1) ? Item_Bind_Glyph(b2) : NULL;
+	if (!g1 || (b2 != -1 && !g2))
+	{
+		return qfalse;
+	}
+
+	const float h = DC->textHeight(item->text, item->textscale, item->font);
+	float x = item->textRect.x + item->textRect.w + 8;
+
+	x += Item_Bind_PaintGlyph(g1, x, item->textRect.y, h, color);
+	if (g2)
+	{
+#ifdef JK2_MODE
+		const char *sOR = ui.SP_GetStringTextString("MENUS3_KEYBIND_OR");
+#else
+		const char *sOR = SE_GetString("MENUS_KEYBIND_OR");
+#endif
+		x += 4;
+		DC->drawText(x, item->textRect.y, item->textscale, color, sOR, 0, item->textStyle, item->font);
+		x += DC->textWidth(sOR, item->textscale, item->font) + 4;
+		Item_Bind_PaintGlyph(g2, x, item->textRect.y, h, color);
+	}
+	return qtrue;
+}
+#endif
+
 /*
 =================
 Item_Bind_Paint
@@ -6988,6 +7094,12 @@ void Item_Bind_Paint(itemDef_t *item)
 	if (item->text)
 	{
 		Item_Text_Paint(item);
+#ifdef VITA
+		if (Item_Bind_PaintGlyphs(item, newColor))
+		{
+			return;
+		}
+#endif
 		BindingFromName(item->cvar);
 
 		// If the text runs past the limit bring the scale down until it fits.
