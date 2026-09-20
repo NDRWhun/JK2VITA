@@ -241,6 +241,7 @@ void R_IssueRenderCommands( qboolean runPerformanceCounters, qboolean endOfFrame
 		const unsigned int fe_t0 = sceKernelGetProcessTimeLow();
 
 		sceKernelWaitSema( rend_mutex_out, 1, NULL );
+		rend_lastBackEndMsec = backEnd.pc.msec;
 
 		if ( r_speeds->integer == 8 ) {
 			const unsigned int now = sceKernelGetProcessTimeLow();
@@ -714,9 +715,8 @@ void RE_EndFrame( int *frontEndMsec, int *backEndMsec ) {
 	}
 	tr.frontEndMsec = 0;
 	if ( backEndMsec ) {
-		*backEndMsec = backEnd.pc.msec;
+		*backEndMsec = ( r_renderThread && r_renderThread->integer ) ? rend_lastBackEndMsec : backEnd.pc.msec;
 	}
-	backEnd.pc.msec = 0;
 
 	for(int i=0;i<MAX_LIGHT_STYLES;i++)
 	{
