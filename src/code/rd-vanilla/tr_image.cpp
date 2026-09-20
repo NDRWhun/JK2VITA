@@ -907,8 +907,10 @@ static void Upload32( unsigned *data,
 			    hdr.texbits   = (unsigned)( r_texturebits ? r_texturebits->integer : 0 );
 			    hdr.totalSize = (unsigned)blobOfs;
 #ifdef USE_GXM_NATIVE
-			    GXM_TexUploadDxt( glState.currenttextures[glState.currenttmu], blob, (unsigned)blobOfs,
-				    (unsigned)width, (unsigned)height, (unsigned)mipCount, isDxt5 != 0 );
+			    if ( !GXM_TexUploadDxt( glState.currenttextures[glState.currenttmu], blob, (unsigned)blobOfs,
+				    (unsigned)width, (unsigned)height, (unsigned)mipCount, isDxt5 != 0 ) ) {
+				    ri.Printf( PRINT_WARNING, "GXM_TexUploadDxt failed: %s\n", s_uploadDxtKey );
+			    }
 #endif
 			    R_TexCacheStoreDxt( s_uploadDxtKey, &hdr, mipSizes, blob );
 			    R_Free( blob );
