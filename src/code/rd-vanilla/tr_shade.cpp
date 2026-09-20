@@ -2053,6 +2053,10 @@ static qboolean RB_DrawCombinedAdditive( shaderCommands_t *input )
 }
 #endif
 
+#ifdef USE_GXM_NATIVE
+static qboolean s_gxmStageFog;	// the shader's fog arming; stages that fog on the CPU opt out
+#endif
+
 extern bool tr_stencilled; //tr_backend.cpp
 static void RB_IterateStagesGeneric( shaderCommands_t *input )
 {
@@ -2213,6 +2217,13 @@ static void RB_IterateStagesGeneric( shaderCommands_t *input )
 			ComputeColors( pStage, forceAlphaGen, forceRGBGen );
 		}
 		ComputeTexCoords( pStage );
+#ifdef USE_GXM_NATIVE
+		// an additive stage is already attenuated on the CPU; lerping it toward the fog colour would add fog
+		if ( s_gxmStageFog ) {
+			GXM_SetFogEnabled( pStage->adjustColorsForFog != ACFF_MODULATE_RGB
+				&& pStage->adjustColorsForFog != ACFF_MODULATE_RGBA );
+		}
+#endif
 
 		if ( !setArraysOnce )
 		{
@@ -2399,6 +2410,7 @@ void RB_StageIteratorGeneric( void )
 		const float  end = fog->parms.depthForOpaque > 1.0f ? fog->parms.depthForOpaque : 1.0f;
 		GXM_SetFog( 1, 0.0f, end, fog->parms.color );
 	}
+	s_gxmStageFog = gxmMapFog;
 #endif
 
 	RB_IterateStagesGeneric( input );

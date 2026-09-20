@@ -497,6 +497,12 @@ void GXM_SetFog( int enabled, float start, float end, const float *color )
 	gxm_uniformsDirty = true;
 }
 
+// keeps the armed volume; a stage that fogs itself on the CPU turns the program's fog off
+void GXM_SetFogEnabled( int enabled )
+{
+	gxm_fogOn = enabled;
+}
+
 // xyz is 4 floats per vertex, uv 2, rgba 4 bytes; cleared by the next draw
 void GXM_SetVertexArrays( const float *xyz, const float *uv0, const float *uv1,
 						  const unsigned char *rgba )
