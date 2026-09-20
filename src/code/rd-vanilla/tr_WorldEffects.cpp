@@ -1448,6 +1448,7 @@ public:
 		qglDisable(GL_CULL_FACE);
 #ifdef USE_GXM_NATIVE
 		GXM_SetCull( 0, 0 );	// billboards are two-sided; cull is not in the state mask
+		glState.faceCulling = -1;	// set behind GL_Cull's shadow
 #endif
 
 		qglTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, (mFilterMode==0)?(GL_LINEAR):(GL_NEAREST));
@@ -1559,6 +1560,7 @@ public:
 		qglEnable(GL_CULL_FACE);
 #ifdef USE_GXM_NATIVE
 		GXM_SetCull( GL_FRONT, 1 );
+		glState.faceCulling = -1;
 #endif
 		qglPopMatrix();
 
