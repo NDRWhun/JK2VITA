@@ -659,6 +659,7 @@ void RE_BeginFrame( stereoFrame_t stereoFrame ) {
 		R_SetColorMappings();
 	}
 
+#ifndef USE_GXM_NATIVE	// qglGetError is a constant under GXM; the drain here would only stall
     // check for errors
     if ( !r_ignoreGLErrors->integer ) {
         int	err;
@@ -668,6 +669,7 @@ void RE_BeginFrame( stereoFrame_t stereoFrame ) {
             Com_Error( ERR_FATAL, "RE_BeginFrame() - glGetError() failed (0x%x)!\n", err );
         }
     }
+#endif
 
 	//
 	// draw buffer stuff
