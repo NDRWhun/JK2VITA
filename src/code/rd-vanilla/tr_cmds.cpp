@@ -100,6 +100,8 @@ static SceUID rend_thid = -1;
 static volatile qboolean rend_should_exit = qfalse;
 static volatile int rend_handedBuffer = 0;	// index of the frame being handed off; written before Signal(in), read after Wait(in)
 static volatile int rend_error = 0;
+static int rend_lastBackEndMsec = 0;	// read while the backend is parked; RE_EndFrame reports it
+extern char com_errorMessage[];		// common.cpp
 
 /*
 Render-thread semaphore protocol (all created at 0; R = render thread, M = main):
@@ -160,8 +162,10 @@ static int renderThread( SceSize argc, void *argv ) {
 		try {
 			RB_ExecuteRenderCommands( backEndDataPtr[rendBackEnd]->commands.cmds );
 		} catch ( int code ) {
-			// else a backend Com_Error would std::terminate the process
+			// else a backend Com_Error would std::terminate; the skipped swap still has to close the scene
 			rend_error = code;
+			ri.WIN_Present( &window );
+			backEnd.projection2D = qfalse;
 		}
 		sceKernelSignalSema( rend_mutex_out, 1 );
 	}
@@ -247,9 +251,15 @@ void R_IssueRenderCommands( qboolean runPerformanceCounters, qboolean endOfFrame
 			fe_handoff = now;
 		}
 		if ( rend_error ) {	// console isn't backend-safe, so log it here on main
-			ri.Printf( PRINT_WARNING, "render backend dropped a frame (err %d): %s\n", rend_error, ri.Cvar_VariableString( "com_errorMessage" ) );
+			ri.Printf( PRINT_WARNING, "render backend dropped a frame (err %d): %s\n", rend_error, com_errorMessage );
 			rend_error = 0;
 		}
+#ifdef USE_GXM_NATIVE
+		if ( rb_statsPending ) {
+			ri.Printf( PRINT_ALL, "%s%s", rb_statsLines[0], rb_statsLines[1] );
+			rb_statsPending = qfalse;
+		}
+#endif
 		// backend parked between Wait(out) and Signal(in): its counters are stable here
 		if ( runPerformanceCounters ) {
 			R_PerformanceCounters();
@@ -276,6 +286,12 @@ void R_IssueRenderCommands( qboolean runPerformanceCounters, qboolean endOfFrame
 	if ( !r_skipBackEnd->integer ) {
 		// let it start on the new batch
 		RB_ExecuteRenderCommands( cmdList->cmds );
+#ifdef USE_GXM_NATIVE
+		if ( rb_statsPending ) {
+			ri.Printf( PRINT_ALL, "%s%s", rb_statsLines[0], rb_statsLines[1] );
+			rb_statsPending = qfalse;
+		}
+#endif
 	}
 }
 

@@ -31,6 +31,10 @@ backEndData_t	*backEndData;
 backEndData_t	*backEndDataPtr[BACKEND_DATA_NUM];
 #endif
 backEndState_t	backEnd;
+#ifdef USE_GXM_NATIVE
+char		rb_statsLines[2][192];
+qboolean	rb_statsPending;
+#endif
 
 bool tr_stencilled = false;
 extern qboolean tr_distortionPrePost; //tr_shadows.cpp
@@ -1775,12 +1779,10 @@ const void	*RB_SwapBuffers( const void *data ) {
 	if ( r_gxmStats && r_gxmStats->integer > 0 ) {
 		static int gxmReportFrame = 0;
 		if ( ( ++gxmReportFrame % r_gxmStats->integer ) == 0 ) {
-			char line[192];
-			GXM_ReportStats( line, sizeof( line ) );
-			ri.Printf( PRINT_ALL, "%s", line );
-			R_WorldVBO_Stats( line, sizeof( line ) );
-			ri.Printf( PRINT_ALL, "%s", line );
-			GXM_LogStatsLine( line );
+			GXM_ReportStats( rb_statsLines[0], sizeof( rb_statsLines[0] ) );
+			R_WorldVBO_Stats( rb_statsLines[1], sizeof( rb_statsLines[1] ) );
+			GXM_LogStatsLine( rb_statsLines[1] );
+			rb_statsPending = qtrue;	// the console is main's; it prints these once the backend is parked
 		}
 	}
 #endif

@@ -1114,6 +1114,11 @@ image_t *R_Images_GetNextIteration(void);
 void	 R_Images_Clear(void);
 void	 R_Images_DeleteLightMaps(void);
 extern "C" qboolean Sys_InRenderThread( void );	// tr_cmds.cpp
+void		R_ParkBackend( void );					// tr_cmds.cpp
+#ifdef USE_GXM_NATIVE
+extern char		rb_statsLines[2][192];	// r_gxmStats, assembled by the backend and printed by main
+extern qboolean	rb_statsPending;
+#endif
 void	 R_Images_DeleteImage(image_t *pImage);
 
 
