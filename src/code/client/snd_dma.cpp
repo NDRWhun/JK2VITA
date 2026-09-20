@@ -132,6 +132,7 @@ static qboolean		bMusic_IsDynamic					= qfalse;
 #ifdef VITA
 static char			sMusic_StateCache[64]				= {0};	// main-thread snapshot for the mixer
 static volatile qboolean bMusic_RestartPending			= qfalse;	// mixer defers FS/alloc restarts to main
+static volatile qboolean bMusic_StopPending				= qfalse;	// mixer defers the FS close of a failed stream to main
 #endif
 static MusicState_e	eMusic_StateActual					= eBGRNDTRACK_EXPLORE;	// actual state, can be any enum
 static MusicState_e	eMusic_StateRequest					= eBGRNDTRACK_EXPLORE;	// requested state, can only be explore, action, boss, or silence
@@ -3033,6 +3034,11 @@ void S_Update( void ) {
 		bMusic_RestartPending = qfalse;
 		S_StartBackgroundTrack( sMusic_BackgroundLoop, sMusic_BackgroundLoop, qfalse );
 	}
+	if ( bMusic_StopPending ) {
+		Com_Printf(S_COLOR_RED"StreamedRead failure on music track\n");
+		S_StopBackgroundTrack();
+		bMusic_StopPending = qfalse;
+	}
 	if ( s_mixerActive ) {
 		return;	// the mixer thread owns music + mixing
 	}
@@ -5087,10 +5093,12 @@ static qboolean S_UpdateBackgroundTrack_Actual( MusicInfo_t *pMusicInfo, qboolea
 		{
 			// streaming a WAV off disk...
 			//
+			if ( bMusic_StopPending ) {
+				return qfalse;
+			}
 			r = FS_Read( raw, fileBytes, pMusicInfo->s_backgroundFile );
 			if ( r != fileBytes ) {
-				Com_Printf(S_COLOR_RED"StreamedRead failure on music track\n");
-				S_StopBackgroundTrack();
+				bMusic_StopPending = qtrue;
 				return qfalse;
 			}
 
