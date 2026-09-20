@@ -4,7 +4,7 @@
 
 <img src="docs/logo-circle.png" alt="JK2VITA" width="128" height="128">
 
-<h3 align="center">JK2VITA</h3>
+<h3 align="center">JK2VITA 1.0.1</h3>
 
 <p align="center">
   <b>Star Wars Jedi Knight II: Jedi Outcast — single-player, on the PS Vita</b>
