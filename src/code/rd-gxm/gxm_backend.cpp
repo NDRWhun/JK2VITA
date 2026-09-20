@@ -415,6 +415,11 @@ void GXM_TexFree( unsigned int texnum )
 	const int slot = TexFind( texnum );
 	if ( slot >= 0 ) {
 		ForgetTexture( slot );
+		for ( int t = 0; t < 2; t++ ) {
+			if ( gxm_boundTex[t] == slot ) {
+				gxm_boundTex[t] = GXM_SLOT_NONE;	// the slot is next in line for another texnum
+			}
+		}
 		GXM_TextureFree( &gxm_textures[slot] );
 		TexRelease( texnum );
 	}
@@ -433,6 +438,7 @@ void GXM_TexFilter( unsigned int texnum, int linear, int clampToEdge )
 	const int slot = TexFind( texnum );
 	if ( slot >= 0 ) {
 		GXM_TextureSetFilter( &gxm_textures[slot], linear != 0, clampToEdge != 0 );
+		ForgetTexture( slot );	// the control words changed under a shadowed bind
 	}
 }
 
