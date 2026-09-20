@@ -258,6 +258,7 @@ extern cvar_t *r_modelpoolmegs;
 extern qboolean gbInsideRegisterModel;
 qboolean RE_RegisterModels_LevelLoadEnd(qboolean bDeleteEverythingNotUsedThisLevel /* = qfalse */)
 {
+	R_ParkBackend();
 	GXM_Sync();
 	qboolean bAtLeastoneModelFreed = qfalse;
 
@@ -348,6 +349,7 @@ void RE_RegisterModels_Info_f( void )
 
 static void RE_RegisterModels_DeleteAll(void)
 {
+	R_ParkBackend();
 	GXM_Sync();
 	if(!CachedModels) {
 		return;	//argh!

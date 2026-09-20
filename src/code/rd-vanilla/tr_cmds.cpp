@@ -322,6 +322,19 @@ void R_IssuePendingRenderCommands( void ) {
 }
 
 /*
+====================
+R_ParkBackend
+
+Waits out the backend before the frontend frees what it may still be drawing.
+====================
+*/
+void R_ParkBackend( void ) {
+	if ( r_renderThread && r_renderThread->integer && !Sys_InRenderThread() ) {
+		R_IssuePendingRenderCommands();
+	}
+}
+
+/*
 ============
 R_GetCommandBufferReserved
 

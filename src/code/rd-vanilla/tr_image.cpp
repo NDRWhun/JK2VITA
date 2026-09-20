@@ -1044,6 +1044,7 @@ static void GL_ResetBinds(void)
 //
 void R_Images_DeleteLightMaps(void)
 {
+	R_ParkBackend();
 	GXM_Sync();
 
 	for (AllocatedImages_t::iterator itImage = AllocatedImages.begin(); itImage != AllocatedImages.end(); /* empty */)
@@ -1069,6 +1070,9 @@ void R_Images_DeleteLightMaps(void)
 //
 void R_Images_DeleteImage(image_t *pImage)
 {
+	R_ParkBackend();
+	GXM_Sync();
+
 	// Even though we supply the image handle, we need to get the corresponding iterator entry...
 	//
 	AllocatedImages_t::iterator itImage = AllocatedImages.find(pImage->imgName);
@@ -1124,6 +1128,7 @@ void RE_RegisterImages_Info_f( void )
 //
 qboolean RE_RegisterImages_LevelLoadEnd(void)
 {
+	R_ParkBackend();
 	GXM_Sync();
 	//ri.Printf( PRINT_DEVELOPER, "RE_RegisterImages_LevelLoadEnd():\n");
 
@@ -1960,6 +1965,7 @@ R_DeleteTextures
 // (only gets called during vid_restart now (and app exit), not during map load)
 //
 void R_DeleteTextures( void ) {
+	R_ParkBackend();
 	GXM_Sync();
 
 	R_Images_Clear();
