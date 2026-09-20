@@ -674,7 +674,6 @@ void GXM_DrawTess( int numIndexes, const unsigned short *indexes, int numVertexe
 	int ntex = gxm_texUnits;
 	if ( ntex > 2 ) ntex = 2;
 	if ( ntex < 0 ) ntex = 0;
-	gxm_statDraws++;
 	const int wanted = ntex;
 	for ( int t = 0; t < ntex; t++ ) {
 		if ( gxm_boundTex[t] < 0 || !gxm_textures[ gxm_boundTex[t] ].valid ) {
@@ -753,15 +752,17 @@ void GXM_DrawTess( int numIndexes, const unsigned short *indexes, int numVertexe
 	if ( progChanged || gxm_uniformsDirty ) {
 		void *uniforms = NULL;
 		sceGxmReserveVertexDefaultUniformBuffer( GXM_Context(), &uniforms );
-		if ( uniforms ) {
-			const SceGxmProgramParameter *pm = gxm_pMVP[nuv][vcol][fog];
-			const SceGxmProgramParameter *pc = gxm_pColor[nuv][vcol][fog];
-			const SceGxmProgramParameter *pf = gxm_pFogParams[nuv][vcol][fog];
-			if ( pm ) sceGxmSetUniformDataF( uniforms, pm, 0, 16, gxm_mvp );
-			if ( pc ) sceGxmSetUniformDataF( uniforms, pc, 0, 4, gxm_constColor );
-			if ( pf ) sceGxmSetUniformDataF( uniforms, pf, 0, 4, gxm_fogParams );
-			gxm_uniformsDirty = false;
+		if ( !uniforms ) {
+			gxm_statRingFail++;
+			return;	// drawing on would run the previous program's block
 		}
+		const SceGxmProgramParameter *pm = gxm_pMVP[nuv][vcol][fog];
+		const SceGxmProgramParameter *pc = gxm_pColor[nuv][vcol][fog];
+		const SceGxmProgramParameter *pf = gxm_pFogParams[nuv][vcol][fog];
+		if ( pm ) sceGxmSetUniformDataF( uniforms, pm, 0, 16, gxm_mvp );
+		if ( pc ) sceGxmSetUniformDataF( uniforms, pc, 0, 4, gxm_constColor );
+		if ( pf ) sceGxmSetUniformDataF( uniforms, pf, 0, 4, gxm_fogParams );
+		gxm_uniformsDirty = false;
 	}
 
 	for ( int t = 0; t < ntex; t++ ) {
@@ -775,13 +776,18 @@ void GXM_DrawTess( int numIndexes, const unsigned short *indexes, int numVertexe
 	if ( fog && ( fragProgChanged || gxm_fragUniformsDirty ) ) {
 		void *funi = NULL;
 		sceGxmReserveFragmentDefaultUniformBuffer( GXM_Context(), &funi );
+		if ( !funi ) {
+			gxm_statRingFail++;
+			return;
+		}
 		const SceGxmProgramParameter *pfc = gxm_pFogColor[ntex][env][key.alphaTest][fog];
-		if ( funi && pfc ) {
+		if ( pfc ) {
 			sceGxmSetUniformDataF( funi, pfc, 0, 4, gxm_fogColor );
 			gxm_fragUniformsDirty = false;
 		}
 	}
 
+	gxm_statDraws++;
 	sceGxmSetVertexStream( GXM_Context(), 0, v );
 	sceGxmDraw( GXM_Context(), SCE_GXM_PRIMITIVE_TRIANGLES,
 		SCE_GXM_INDEX_FORMAT_U16, idx, numIndexes );
@@ -866,15 +872,17 @@ void GXM_DrawStaticBuffer( const void *vertexBuffer, const unsigned short *index
 	if ( progChanged || gxm_uniformsDirty ) {
 		void *uniforms = NULL;
 		sceGxmReserveVertexDefaultUniformBuffer( GXM_Context(), &uniforms );
-		if ( uniforms ) {
-			const SceGxmProgramParameter *pm = gxm_pMVP[ntex][vcol][fog];
-			const SceGxmProgramParameter *pc = gxm_pColor[ntex][vcol][fog];
-			const SceGxmProgramParameter *pf = gxm_pFogParams[ntex][vcol][fog];
-			if ( pm ) sceGxmSetUniformDataF( uniforms, pm, 0, 16, gxm_mvp );
-			if ( pc ) sceGxmSetUniformDataF( uniforms, pc, 0, 4, gxm_constColor );
-			if ( pf ) sceGxmSetUniformDataF( uniforms, pf, 0, 4, gxm_fogParams );
-			gxm_uniformsDirty = false;
+		if ( !uniforms ) {
+			gxm_statRingFail++;
+			return;	// drawing on would run the previous program's block
 		}
+		const SceGxmProgramParameter *pm = gxm_pMVP[ntex][vcol][fog];
+		const SceGxmProgramParameter *pc = gxm_pColor[ntex][vcol][fog];
+		const SceGxmProgramParameter *pf = gxm_pFogParams[ntex][vcol][fog];
+		if ( pm ) sceGxmSetUniformDataF( uniforms, pm, 0, 16, gxm_mvp );
+		if ( pc ) sceGxmSetUniformDataF( uniforms, pc, 0, 4, gxm_constColor );
+		if ( pf ) sceGxmSetUniformDataF( uniforms, pf, 0, 4, gxm_fogParams );
+		gxm_uniformsDirty = false;
 	}
 
 	for ( int t = 0; t < ntex; t++ ) {
@@ -885,17 +893,21 @@ void GXM_DrawStaticBuffer( const void *vertexBuffer, const unsigned short *index
 		}
 	}
 
-	gxm_statDraws++;
 	if ( fog && ( fragProgChanged || gxm_fragUniformsDirty ) ) {
 		void *funi = NULL;
 		sceGxmReserveFragmentDefaultUniformBuffer( GXM_Context(), &funi );
+		if ( !funi ) {
+			gxm_statRingFail++;
+			return;
+		}
 		const SceGxmProgramParameter *pfc = gxm_pFogColor[ntex][env][key.alphaTest][fog];
-		if ( funi && pfc ) {
+		if ( pfc ) {
 			sceGxmSetUniformDataF( funi, pfc, 0, 4, gxm_fogColor );
 			gxm_fragUniformsDirty = false;
 		}
 	}
 
+	gxm_statDraws++;
 	sceGxmSetVertexStream( GXM_Context(), 0, vertexBuffer );
 	sceGxmDraw( GXM_Context(), SCE_GXM_PRIMITIVE_TRIANGLES,
 		SCE_GXM_INDEX_FORMAT_U16, idx, numIndexes );
