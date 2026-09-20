@@ -456,6 +456,44 @@ static void RB_Hyperspace( void ) {
 }
 
 
+#ifdef USE_GXM_NATIVE
+/*
+================
+R_ObliqueProjection
+
+Folds the portal plane into the near plane; GXM has no user clip planes (Lengyel's oblique frustum).
+================
+*/
+static void R_ObliqueProjection( float *proj )
+{
+	const float *n = backEnd.viewParms.portalPlane.normal;
+
+	// the eye-space plane glClipPlane took; s_flipMatrix maps (forward, left, up) onto GL's (right, up, back)
+	const float fwd  = DotProduct( backEnd.viewParms.ori.axis[0], n );
+	const float left = DotProduct( backEnd.viewParms.ori.axis[1], n );
+	const float up   = DotProduct( backEnd.viewParms.ori.axis[2], n );
+	const float c[4] = { -left, up, -fwd,
+		DotProduct( n, backEnd.viewParms.ori.origin ) - backEnd.viewParms.portalPlane.dist };
+
+	const float q[4] = {
+		( ( c[0] < 0.0f ? -1.0f : 1.0f ) + proj[8] ) / proj[0],
+		( ( c[1] < 0.0f ? -1.0f : 1.0f ) + proj[9] ) / proj[5],
+		-1.0f,
+		( 1.0f + proj[10] ) / proj[14] };
+
+	const float d = c[0] * q[0] + c[1] * q[1] + c[2] * q[2] + c[3] * q[3];
+	if ( fabs( d ) < 1e-6f ) {
+		return;					// the plane runs through the eye; the frustum would degenerate
+	}
+	const float s = 2.0f / d;
+
+	proj[2]  = c[0] * s;
+	proj[6]  = c[1] * s;
+	proj[10] = c[2] * s + 1.0f;
+	proj[14] = c[3] * s;
+}
+#endif
+
 void SetViewportAndScissor( void ) {
 	qglMatrixMode(GL_PROJECTION);
 	qglLoadMatrixf( backEnd.viewParms.projectionMatrix );
@@ -468,7 +506,14 @@ void SetViewportAndScissor( void ) {
 		backEnd.viewParms.viewportWidth, backEnd.viewParms.viewportHeight );
 
 #ifdef USE_GXM_NATIVE
-	GXM_SetProjection( backEnd.viewParms.projectionMatrix );
+	if ( backEnd.viewParms.isPortal ) {
+		float proj[16];
+		memcpy( proj, backEnd.viewParms.projectionMatrix, sizeof( proj ) );
+		R_ObliqueProjection( proj );
+		GXM_SetProjection( proj );
+	} else {
+		GXM_SetProjection( backEnd.viewParms.projectionMatrix );
+	}
 	GXM_SetDepthRange( 0.0f, 1.0f );	// the entity loop overrides this per depth hack
 	GXM_SetViewport( backEnd.viewParms.viewportX, backEnd.viewParms.viewportY,
 		backEnd.viewParms.viewportWidth, backEnd.viewParms.viewportHeight );
