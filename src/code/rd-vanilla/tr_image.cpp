@@ -664,7 +664,7 @@ static qboolean R_DxtEnsurePool( void )
 	int created = 0;
 	if ( s_dxtGo >= 0 && s_dxtDone >= 0 ) {
 		for ( ; created < DXT_WORKERS; created++ ) {
-			s_dxtThid[created] = sceKernelCreateThread( "dxt_enc", R_DxtWorker, 0x10000100, 0x8000, 0, cores[created], NULL );
+			s_dxtThid[created] = sceKernelCreateThread( "dxt_enc", R_DxtWorker, 0x10000101, 0x8000, 0, cores[created], NULL );
 			if ( s_dxtThid[created] < 0 ) break;
 		}
 	}
