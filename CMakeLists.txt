@@ -27,8 +27,8 @@ include("${VITASDK}/share/vita.cmake" REQUIRED)
 set(GAME_TARGET   "JK2VITA")
 set(VITA_APP_NAME "JK2VITA: Jedi Outcast")
 set(VITA_TITLEID  "JK2VITA01")
-set(PORT_VERSION  "1.0")
-set(VITA_VERSION  "01.00")	# SFO APP_VER is NN.NN and cannot carry the patch digit
+set(PORT_VERSION  "1.0.1")
+set(VITA_VERSION  "01.01")	# SFO APP_VER is NN.NN; the patch digit rides in the minor field
 
 #----------------------------------------------------------------------------
 # Include domains.
