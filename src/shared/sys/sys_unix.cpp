@@ -122,15 +122,16 @@ int Sys_Milliseconds (bool baseTime)
 		return tp.tv_usec/1000;
 	}
 
-	curtime = (tp.tv_sec - sys_timeBase)*1000 + tp.tv_usec/1000;
+	int t = (tp.tv_sec - sys_timeBase)*1000 + tp.tv_usec/1000;
 
-    static int sys_timeBase = curtime;
+    static int sys_timeBase = t;
 	if (!baseTime)
 	{
-		curtime -= sys_timeBase;
+		t -= sys_timeBase;
 	}
+	curtime = t;
 
-	return curtime;
+	return t;
 }
 
 int Sys_Milliseconds2( void )
