@@ -71,6 +71,7 @@ static int				gxm_numFree;
 static unsigned int		gxm_mapKey[GXM_TEXMAP_SIZE];
 static int				gxm_mapSlot[GXM_TEXMAP_SIZE];
 static int				gxm_boundTex[2];		// resolved slots, not texnums
+static int				gxm_mapDead;			// tombstones in the map
 
 static unsigned int TexHash( unsigned int texnum )
 {
@@ -112,6 +113,7 @@ static int TexClaim( unsigned int texnum )
 		if ( gxm_mapSlot[i] == GXM_SLOT_NONE ) {
 			if ( dead >= 0 ) {
 				i = (unsigned int)dead;
+				gxm_mapDead--;
 			}
 			gxm_mapKey[i]  = texnum;
 			gxm_mapSlot[i] = gxm_freeSlots[--gxm_numFree];
@@ -132,10 +134,37 @@ static void TexRelease( unsigned int texnum )
 		if ( gxm_mapSlot[i] >= 0 && gxm_mapKey[i] == texnum ) {
 			gxm_freeSlots[gxm_numFree++] = gxm_mapSlot[i];
 			gxm_mapSlot[i] = GXM_SLOT_DEAD;
+			gxm_mapDead++;
 			return;
 		}
 		i = ( i + 1 ) & ( GXM_TEXMAP_SIZE - 1 );
 	}
+}
+
+// tombstones never become terminators again, so the chains only grow; rebuilt from the live entries while parked
+void GXM_TexMapCompact( void )
+{
+	if ( gxm_mapDead < GXM_TEXMAP_SIZE / 8 ) {
+		return;
+	}
+	static unsigned int keys[GXM_MAX_TEXTURES];
+	static int          slots[GXM_MAX_TEXTURES];
+	int live = 0;
+	for ( int i = 0; i < GXM_TEXMAP_SIZE; i++ ) {
+		if ( gxm_mapSlot[i] >= 0 && live < GXM_MAX_TEXTURES ) {
+			keys[live] = gxm_mapKey[i]; slots[live] = gxm_mapSlot[i]; live++;
+		}
+		gxm_mapSlot[i] = GXM_SLOT_NONE;
+	}
+	for ( int k = 0; k < live; k++ ) {
+		unsigned int i = TexHash( keys[k] );
+		while ( gxm_mapSlot[i] != GXM_SLOT_NONE ) {
+			i = ( i + 1 ) & ( GXM_TEXMAP_SIZE - 1 );
+		}
+		gxm_mapKey[i]  = keys[k];
+		gxm_mapSlot[i] = slots[k];
+	}
+	gxm_mapDead = 0;
 }
 
 static SceGxmShaderPatcherId	gxm_vertIds[3][2][2];	// [texcoord sets][vertex colour][fog]
@@ -281,6 +310,7 @@ int GXM_BackendInit( void )
 		gxm_freeSlots[gxm_numFree++] = i;
 	}
 	gxm_boundTex[0] = gxm_boundTex[1] = GXM_SLOT_NONE;
+	gxm_mapDead = 0;
 
 	// the shader patcher keeps its registrations across a vid_restart
 	if ( gxm_backendOk ) {

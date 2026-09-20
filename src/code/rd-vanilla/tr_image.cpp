@@ -1163,6 +1163,9 @@ qboolean RE_RegisterImages_LevelLoadEnd(void)
 
 	//ri.Printf( PRINT_DEVELOPER, "RE_RegisterImages_LevelLoadEnd(): Ok\n");
 
+#ifdef USE_GXM_NATIVE
+	GXM_TexMapCompact();
+#endif
 	GL_ResetBinds();
 
 	return imageDeleted;
@@ -1969,6 +1972,9 @@ void R_DeleteTextures( void ) {
 	GXM_Sync();
 
 	R_Images_Clear();
+#ifdef USE_GXM_NATIVE
+	GXM_TexMapCompact();
+#endif
 	GL_ResetBinds();
 }
 

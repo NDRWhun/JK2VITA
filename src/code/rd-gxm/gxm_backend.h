@@ -54,6 +54,7 @@ int  GXM_TexUploadDxt( unsigned int texnum, const void *blob, unsigned int size,
 void GXM_TexFree( unsigned int texnum );
 void GXM_TexBind( int tmu, unsigned int texnum );
 void GXM_TexFilter( unsigned int texnum, int linear, int clampToEdge );
+void GXM_TexMapCompact( void );		// rehash the texnum map once its tombstones pile up; backend must be parked
 
 // --- state the engine sets through what used to be GL calls ---
 void GXM_SetProjection( const float *m );	// column-major, as glLoadMatrixf takes it
